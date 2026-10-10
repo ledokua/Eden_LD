@@ -1,0 +1,13 @@
+{
+  "period": "daily",
+  "objective": "stat",
+  "target": "minecraft.used:minecraft.bow",
+  "count": 200,
+  "count_per_member": 20,
+  "icon": "minecraft:bow",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 1000
+  },
+  "weight": 10
+}

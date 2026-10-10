@@ -1,0 +1,12 @@
+{
+  "period": "daily",
+  "objective": "place_blocks",
+  "count": 500,
+  "count_per_member": 50,
+  "icon": "minecraft:bricks",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 600
+  },
+  "weight": 10
+}

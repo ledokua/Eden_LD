@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "yggdrasil_ld:item/pure_gold_ingot"
+  }
+}

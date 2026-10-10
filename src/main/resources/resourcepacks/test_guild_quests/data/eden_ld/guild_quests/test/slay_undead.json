@@ -1,0 +1,19 @@
+{
+  "period": "daily",
+  "objective": "kill_mobs",
+  "target": "#minecraft:undead",
+  "count": 150,
+  "count_per_member": 20,
+  "icon": "minecraft:zombie_head",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 1000,
+    "items": [
+      {
+        "id": "economy_ld:silver_coin",
+        "count": 1
+      }
+    ]
+  },
+  "weight": 10
+}

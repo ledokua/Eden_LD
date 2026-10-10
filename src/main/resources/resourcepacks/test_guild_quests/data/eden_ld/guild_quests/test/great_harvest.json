@@ -1,0 +1,13 @@
+{
+  "period": "weekly",
+  "objective": "craft_items",
+  "target": "#c:foods",
+  "count": 400,
+  "count_per_member": 40,
+  "icon": "minecraft:bread",
+  "rewards": {
+    "guild_xp": 500,
+    "lc": 8000
+  },
+  "weight": 10
+}

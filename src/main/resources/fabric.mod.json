@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "eden_ld",
+  "version": "${version}",
+  "name": "Eden_LD",
+  "description": "Main mod for FallenEden",
+  "authors": [
+    "Le_Dok"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/eden_ld/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "net.ledok.eden_ld.client.EdenLDClient"
+    ],
+    "main": [
+      "net.ledok.eden_ld.EdenLD"
+    ],
+    "emi": [
+      "net.ledok.eden_ld.client.compat.EdenEmiPlugin"
+    ]
+  },
+  "mixins": [
+    "eden_ld.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "vectorlib": ">=0.6.0",
+    "busylib": "*"
+  },
+  "suggests": {
+    "minestar": ">=1.4.0",
+    "luckperms": ">=5.4",
+    "economy_ld": "*",
+    "spell_engine": "*",
+    "bettercombat": "*",
+    "waystones": ">=21.1.42",
+    "placeholder-api": "*",
+    "openpartiesandclaims": "*",
+    "emi": "*"
+  }
+}

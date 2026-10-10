@@ -1,0 +1,12 @@
+{
+  "period": "daily",
+  "objective": "eat_food",
+  "count": 50,
+  "count_per_member": 5,
+  "icon": "minecraft:cooked_beef",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 500
+  },
+  "weight": 10
+}

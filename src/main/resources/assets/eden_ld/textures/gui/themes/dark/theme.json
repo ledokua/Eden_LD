@@ -1,0 +1,24 @@
+{
+  "text_shadow": true,
+  "palette": {
+    "panel": "#26282F",
+    "panel_2": "#2E3038",
+    "hairline": "#4A4D5A",
+    "hairline_hi": "#0E0F14",
+    "row_bg": "#33353F",
+    "row_bg_alt": "#2C2E37",
+    "ink": "#E8E6E1",
+    "ink_mid": "#C9C5BC",
+    "ink_dim": "#8C8A85",
+    "accent": "#D8A657",
+    "good": "#7FC05F",
+    "warn": "#E0B050",
+    "danger": "#E86A5A",
+    "bar_track": "#1A1B22",
+    "bar_fill": "#4F9A3C",
+    "button_text": "#E8E6E1",
+    "button_text_hover": "#FFFFFF",
+    "button_text_disabled": "#6E6C68",
+    "panel_tint": "#FFFFFF"
+  }
+}

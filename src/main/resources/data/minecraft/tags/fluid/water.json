@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "eden_ld:liquid_mana",
+    "eden_ld:flowing_liquid_mana"
+  ]
+}

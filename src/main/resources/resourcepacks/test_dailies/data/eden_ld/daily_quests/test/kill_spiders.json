@@ -1,0 +1,19 @@
+{
+  "objective": "kill_mobs",
+  "target": "minecraft:spider",
+  "count": 15,
+  "icon": "minecraft:string",
+  "weight": 10,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:iron_ingot",
+        "count": 4
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 50
+      }
+    ]
+  }
+}

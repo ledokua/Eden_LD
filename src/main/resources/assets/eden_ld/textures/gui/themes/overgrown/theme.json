@@ -1,0 +1,34 @@
+{
+  "text_shadow": true,
+  "tile_edges": true,
+  "palette": {
+    "panel": "#26302A",
+    "panel_2": "#2C3830",
+    "hairline": "#55644F",
+    "hairline_hi": "#101611",
+    "row_bg": "#3C4A40",
+    "row_bg_alt": "#36433A",
+    "ink": "#E6EDDA",
+    "ink_mid": "#C3CFB6",
+    "ink_dim": "#8A9A82",
+    "accent": "#9BD06A",
+    "good": "#8FD873",
+    "warn": "#E3C063",
+    "danger": "#E77A62",
+    "bar_track": "#18201A",
+    "bar_fill": "#5E9A3E",
+    "button_text": "#EEF3E2",
+    "button_text_hover": "#FFFFFF",
+    "button_text_disabled": "#7A8676",
+    "panel_tint": "#FFFFFF",
+    "notification": "#E0402F"
+  },
+  "background": { "texture": "pattern.png", "mode": "tile", "tile": 32, "opacity": 0.3 },
+  "rows": { "texture": "row.png", "alt": "row_alt.png", "border": 3 },
+  "decorations": [
+    { "texture": "vines_left.png", "anchor": "top_left", "x": -12, "y": -6, "width": 24, "height": 176 },
+    { "texture": "vines_right.png", "anchor": "top_right", "x": 10, "y": -4, "width": 20, "height": 96 },
+    { "texture": "crest.png", "anchor": "top", "x": 0, "y": -49, "width": 112, "height": 24 },
+    { "texture": "flowers.png", "anchor": "bottom_right", "x": 10, "y": 8, "width": 40, "height": 24 }
+  ]
+}

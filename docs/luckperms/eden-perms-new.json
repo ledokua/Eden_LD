@@ -1,0 +1,278 @@
+{
+  "metadata": {
+    "generatedBy": "Eden_LD docs/luckperms",
+    "generatedAt": "2026-09-30 12:00:00 EEST"
+  },
+  "groups": {
+    "admin": {
+      "nodes": [
+        {
+          "type": "inheritance",
+          "key": "group.moderator",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "eden_ld.admin.*",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "economy_ld.admin.*",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "kits_ld.manage",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.name_color.#ff4040",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.silent_join.true",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.waystone_cooldown.0",
+          "value": true
+        },
+        {
+          "type": "prefix",
+          "key": "prefix.100.&c&l[Admin]&r ",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.100",
+          "value": true
+        }
+      ]
+    },
+    "moderator": {
+      "nodes": [
+        {
+          "type": "inheritance",
+          "key": "group.helper",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "banhammer.*",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "economy_ld.balance.others",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.name_color.#5c9dff",
+          "value": true
+        },
+        {
+          "type": "prefix",
+          "key": "prefix.70.&9[Mod]&r ",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.70",
+          "value": true
+        }
+      ]
+    },
+    "helper": {
+      "nodes": [
+        {
+          "type": "inheritance",
+          "key": "group.prime",
+          "value": true
+        },
+        {
+          "type": "prefix",
+          "key": "prefix.50.&a[Helper]&r ",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.50",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "banhammer.punish.warn",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "banhammer.punish.tempmute",
+          "value": true
+        }
+      ]
+    },
+    "media": {
+      "nodes": [
+        {
+          "type": "inheritance",
+          "key": "group.prime",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.tab_weight.60",
+          "value": true
+        },
+        {
+          "type": "prefix",
+          "key": "prefix.20.&#b070f0[Media]&r ",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.20",
+          "value": true
+        }
+      ]
+    },
+    "prime": {
+      "nodes": [
+        {
+          "type": "inheritance",
+          "key": "group.default",
+          "value": true
+        },
+        {
+          "type": "display_name",
+          "key": "displayname.Prime",
+          "value": true
+        },
+        {
+          "type": "permission",
+          "key": "economy_ld.auction.remote",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.name_color.#e8c070",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.emoji_favorites.20",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.sticker_favorites.20",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.daily_free_rerolls.3",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.eden_ld\\.waystone_cooldown.10",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.economy_ld\\.auction_max_listings.25",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.xaero\\.pac_max_claims.50",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.xaero\\.pac_max_forceloads.5",
+          "value": true
+        },
+        {
+          "type": "prefix",
+          "key": "prefix.10.&#e8c070&l[Prime]&r ",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.raid_loot_rolls.3",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.dungeon_loot_rolls.3",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.arena_loot_rolls.3",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.currency_multiplier.1\\.5",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.xp_multiplier.1\\.25",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.10",
+          "value": true
+        }
+      ]
+    },
+    "default": {
+      "nodes": [
+        {
+          "type": "permission",
+          "key": "eden_ld.emoji_picker",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.xaero\\.pac_max_claims.20",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.xaero\\.pac_max_forceloads.1",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.raid_loot_rolls.2",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.dungeon_loot_rolls.2",
+          "value": true
+        },
+        {
+          "type": "meta",
+          "key": "meta.arenas_ld\\.arena_loot_rolls.2",
+          "value": true
+        },
+        {
+          "type": "weight",
+          "key": "weight.0",
+          "value": true
+        }
+      ]
+    }
+  },
+  "tracks": {}
+}

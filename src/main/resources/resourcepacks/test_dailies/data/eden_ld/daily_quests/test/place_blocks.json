@@ -1,0 +1,18 @@
+{
+  "objective": "place_blocks",
+  "count": 128,
+  "icon": "minecraft:bricks",
+  "weight": 8,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:oak_log",
+        "count": 16
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 38
+      }
+    ]
+  }
+}

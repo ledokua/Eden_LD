@@ -1,0 +1,172 @@
+# Eden_LD — todo
+
+Open work and ideas. Phase plans live in `docs/PLAN-hub.md`, `docs/PLAN-mail-moderation.md` and
+`docs/PLAN-world-rules.md`; the README documents the current behavior, so anything changed below
+needs a README pass too.
+
+## Now
+
+- [ ] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
+      registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,
+      `eden_ld:hub/tab/<tab>`, `eden_ld:hub/page`, `eden_ld:hub/page/<open tab>`, the ?/maximize/close buttons,
+      `eden_ld:hub/help_window`. **Keep them stable** (NPCs_LD dialogs store them; set the same id wherever the tab
+      row or content Flex is rebuilt). Eden now needs VectorLib >= 0.6.0 (libs jar updated). Not deployed: needs a
+      fresh Eden build and NPCs_LD with VectorLib 0.6.0, when the owner says. Dev runs: point the argFiles at the
+      new remapped VectorLib.
+
+- [ ] **Discord review picks** (owner, 2026-10-10, via the Discord Eden session):
+  - [x] **FTB Teams parties off** — `FtbTeamsCompat`: an FTB Teams party-creation validator refuses new
+        parties while `hub.ftb_teams_parties` is false (button greyed with the reason, `/ftbteams party create`
+        refused, both naming the hub key); `/ftbteams` op-only in Prism's `commands.json`. Checked in the dev
+        client with the pack's FTB Teams (refusal in chat, greyed button + tooltip, `force-disband` of an older
+        party by `<name>#<id8>`). Eden 1.1.0 rebuilt 2026-10-10 14:49; copied to the pack, Prism and the live server
+        2026-10-10 (with live `commands.json`); running on live since the 2026-10-10 15:53 restart (3 commands op-only).
+        The 2 old parties were disbanded on live (owner's decision; both in `world/ftbteams/deleted/`) — by
+        `/ftbteams force-disband <name>#<id8>`.
+  - [x] **Death rule** (08-12 poll): YIGD `soulboundSlots` = hotbar 0–8 + armor 36–39 in Prism Server's
+        `yigd.json`; offhand and trinkets go to the grave. Checked in dev (kept sword/apple/helmet/boots; ingots and
+        shield in the grave and back on claiming it). Live since the 2026-10-10 15:53 restart.
+  - [x] **No armor wear** (owner: armor only for now): Sensible Survival `equipment_takes_damage_chance` 0 and
+        `equipment_damage_multiplier` 0 in Prism Server's `sensible_survival.json` (hits only; Thorns and elytra
+        still wear). Weapons unchanged. Live since the 2026-10-10 15:53 restart.
+
+- [x] **Hazards scale with health** (owner, 2026-10-09; `docs/PLAN-hazards.md`, README "Hazards") — max(vanilla,
+      share of health × multiplier): players 1, mobs 0.5, bosses 0.1 (`#falleneden:bosses`, new global pack
+      `falleneden_bosses`); burning, freezing, lightning, wither and poison another player caused deal half;
+      hazards skip armor. Config `hazards.json`, re-read on /reload. Checked in the dev client (see the plan).
+      Copied to the pack, Prism and the live server 2026-10-09 23:56 (Eden 1.1.0 + global pack `falleneden_bosses`);
+      applies at the next restart.
+
+- [x] **Ignoring players** (owner, 2026-10-09) — `IgnoreList`: Friends tab right-click → Ignore (friends too),
+      `/ignore`, `/unignore`, Settings → Privacy → Ignored players. Hides their chat (client side, marked lines;
+      deaths and advancements carry the subject now), drops their whispers and `/me` (server), no mention pings,
+      party/guild invites refused like the privacy setting, friend requests without notice/reminder/badge, and
+      lists put them last among the online (⊘ mark; friends get an IGNORED group before OFFLINE). Anyone can be
+      ignored, staff too; they aren't told. Checked in the dev client with two players (chat, mention, whisper,
+      `/me`, party invite, death line, Settings list, Stop ignoring brings the lines back). Not checked: the
+      Friends tab itself (needs Minestar, not in dev). Copied to the pack, Prism and the live server
+      2026-10-09 16:58 (Eden 1.1.0, rebuilt); running on the live server since the 2026-10-09 restart
+      (/ignore and /unignore registered). Still to check in game: the Friends tab menu and IGNORED group.
+
+- [x] **EMI stuck on "Reloading..." after a rejoin** (2026-10-07, diagnosed from the owner's client logs) —
+      `EmiReloadFix`: EMI's tags/recipes mask is cleared when the client leaves a world, a reload that
+      stopped at "World is null" is redone once the world and recipes are there, and `/emireload`.
+      Reproduced and checked in the dev client (`dev/emi-rejoin`). The source of the 3 lone recipe syncs
+      after each join on the live server is still unknown (not DataRewriter, not Rechiseled).
+- [ ] **Trinket slots datapack** (owner, 2026-10-07) — `falleneden_trinkets` global pack (data + slot names):
+      every often-used slot in its own spot, backtank/goggles/Tide/belt behind the chestplate/helmet/ring/
+      leggings, second ring on; Tide's gadget slot has a placeholder pocket-watch picture. In Prism, the pack
+      and on the live server (enabled there since the 2026-10-09 restart; Trinkets' default layout:
+      3 next to the player, one column of 4 on the left). If the owner wants
+      one tall column instead: an Eden mixin into Trinkets' group placement (`PlayerScreenHandlerMixin`).
+  - [x] Belt behind the leggings (owner, 2026-10-07; was the column's 4th slot), and Stylish Effects'
+        inventory effects drawn left of the column instead of under it (`StylishEffectsRendererMixin`),
+        and EMI's favorites flow around them (`StylishEffectsEmi`; the move put them in EMI's left panel).
+        Checked in the dev client (both mods, the pack, 3–4 effects, 79 EMI favorites, the hovers and
+        tooltips). Copied to the pack, Prism and the live server 2026-10-07 11:39 (Eden 1.1.0, rebuilt).
+- [x] **Hub button in the inventory** (owner, 2026-10-07) — under the crafting grid (`InventoryHubButton`);
+      the inventory closes as with E before the hub opens (no EMI behind the hub), and closing a hub opened
+      there goes back to the inventory; from the key, back to the game. Tested in the dev client with Not
+      Enough Recipe Book (crafting-grid items came back, Moderation and back, the key from the game).
+      Copied to the pack, Prism and the live server 2026-10-07 in Eden 1.1.0 (with the EMI rejoin fix).
+- [x] **World rules** (owner, 2026-10-05) — per-dimension gamerules, PvP, difficulty and borders in a
+      Moderation → World settings section (GLOBAL + one page per dimension); Eden replaces Multi World
+      Borders. All five phases of `docs/PLAN-world-rules.md` done 2026-10-05: gamerule layer
+      (`dimensions.json`, `/eden gamerule`), `/eden pvp` and `/eden difficulty`, per-dimension borders
+      (`/worldborder` per dimension), Moderation → World settings, and the deploy. The jar is in the pack,
+      Prism and the live server, with the Nether's 20,000 border in the server's `dimensions.json`. It
+      applies at the next restart.
+  - [x] After the restart (checked 2026-10-06 on the live server): the Nether 20,000, the Overworld 30,000
+        (set after its reset), both kept in `dimensions.json`; other dimensions without a border.
+  - [ ] Try a spell between two players in a dimension with PvP off.
+- [x] **VectorLib `NumberOption`** reported every keystroke (via `NumberField.onValue`) though its docs say it
+      commits on Enter or leaving the field — typing 15000 sent 1, 15, 150…. Fixed in VectorLib 0.5.1 (2026-10-05,
+      owner approved): `NumberField.onCommit` (Enter, leaving the field, a scroll/arrow step; `onValue` stays live)
+      and `NumberOption` uses it. Eden's World settings use number boxes since (gamerule numbers, border safe zone
+      and warnings); number boxes and sliders on settings pages step with the wheel only once clicked into.
+- [x] **VectorLib 0.5.2** (owner approved, 2026-10-07): World settings' search box ran past the Moderation window
+      on dimension pages with a Modded tab (4 tabs + the box don't fit in 304 units) — it now drops to its own row
+      under the tabs; and search results with only short rows were narrow — rows now always take the full width.
+      Checked in the dev client (a Modded tab via Puffish Skills' gamerule). Ships inside Eden (jar-in-jar):
+      Eden 1.1.0 rebuilt with it (12:01); copied to the pack, Prism and the live server 2026-10-07 12:36.
+- [x] **Saint's Dragons crash fix** (2026-10-05, asked by the world-rework session, owner approved): its
+      dragon density check queried the live world during chunk generation on C2ME workers and crashed
+      the server; `SaintsDragonsSpawnRulesMixin` skips it while chunks generate and off the server thread.
+      Checked on a production-style test server (patched method seen, dragon biomes generated cleanly).
+      Copied to the pack, Prism and the live server 2026-10-05 19:06 (with phase 1); applies at the next
+      restart. Worth reporting upstream.
+- [x] **Arenas standalone** — Arenas_LD 4.6.0 (2026-10-01): no card art or levels in Arenas; Eden
+      keeps them in Moderation → Activities and compiles against the 4.6.0 jar.
+- [ ] Set `activities.level_category` once the skill tree exists (owner builds the tree first).
+- [ ] **Owner's picks 2026-10-03** (from the improvement list):
+  - [x] **Shop tab** (built as the **Wardrobe** tab, 2026-10-03) for looks (backgrounds, hub themes) with previews, owned/for-sale, buy and equip —
+        built to take more categories later (owner plans character cosmetics: armor, tools, hats,
+        accessories).
+  - [x] **Gifting** a background or theme to another player (paid by the giver, a mail tells them).
+  - [x] **Taller tabs** so the 16 × 16 icons draw at 16 units (pixel-exact).
+  - [x] **Duels alerts** outside the hub: sound + message on "match found", Home card while searching.
+  - [x] **Activities**: warn when a partymate is below an activity's level (no other clutter).
+  - [x] **Theme icon sets**, optional: a theme may ship its own icons; players can turn them off.
+  - [x] **Old Yggdrasil quest textures** (25 MB) out of the jar into a pack resource pack (Global Packs).
+- Waiting (owner, 2026-10-03): Arenas without the lobby block — decided to wait.
+- [x] **Duels tab** — built 2026-10-01, passed the owner's playtest (Ukrainian column widths fixed after).
+- [x] **Hub critique round** (2026-10-04, screenshots of every tab × 3 themes × 2 languages on a
+      3-player dev server; owner's picks): active sub-tab color (`button_active`), language-aware
+      dates, icon-only fixed-width tabs + page titles, Overgrown no longer shrinks, Duels/Party/Guild/
+      Wardrobe/Mail/Help fixes, empty states, wording; plus the Friends declutter (face + name opens
+      the profile, Remove friend in the right-click menu), plain name on the profile, "Minestar
+      activity level", party names translated.
+  - [ ] Later (owner): Wardrobe tab icon art; mail kind icons instead of colored squares; rank icons
+        for Party/Guild (owner draws them, then one shared icon set).
+  - [x] Temporary screenshot tools taken out of the source (2026-10-04); kept in `dev/hub-tour/`
+        with how to restore and run them for the next screenshot round.
+- [x] **Hub round 2** (2026-10-04, owner feedback): profile without the Change background /
+      My profile buttons (backgrounds in the Wardrobe; the bookmark leads home), a plate under the
+      profile name on pictures, no theme shadow on picture cards, Steam-style friend cards (status
+      stripe, colors, right-click menu, hover mini profile), Waystones rename/original/favorite in a
+      right-click menu, Duels folded into Activities as a filter, centered page headings.
+- [x] **Resizable hub** (2026-10-04, VectorLib 0.3.0 phase 3): drag the sides/bottom or maximize;
+      every tab builds at the hub's width (more cards a row, wider lists and chat); dividers between
+      Guild/Party members | chat, Mail list | letter, Waystones favorites | all; Help and the bank
+      Log are windows (move, resize, stay open). The bank's open-tab status moved to the left column
+      so vault + inventory + hotbar fit the smallest hub (now 440 × 262).
+- [x] **Settings pages** (2026-10-04, VectorLib 0.4.0 phase 4): Settings tab declared as a VectorLib
+      settings page (search across sub-tabs, reset-to-default arrows); Guild and Party settings dialogs
+      as stacked forms (fields save with their button or Enter).
+- [x] **Folding lists + drag and drop** (2026-10-04, VectorLib 0.5.0 phase 5): Friends and Waystones sections
+      fold (kept in `hub_folds.json`); Waystones favorites dragged into a per-player order (server-side,
+      new `waystone_order` payload), dragged in from / out to the right column; guild bank stacks dragged
+      between the inventory and the vault. VectorLib also has `TreeView` (not used by the hub yet).
+
+## Handed off
+
+- [x] **Duels_LD onto Eden's parties** (prompt `docs/prompts/duels-eden-parties.md`) — done by the
+      Duels_LD agent 2026-10-01 (Duels 1.3.0, `integration/EdenBridge`); passed the owner's in-game
+      checks 2026-10-01.
+- [ ] **Icon art** — 20 of 53 delivered (the tabs but Wardrobe and maximize/restore, close, check, coin,
+      hourglass; the 16 × 16 set redrawn 2026-10-05, with a sealed envelope for unread mail). Next:
+      small buttons (reroll, favorites, rename, invite), ranks, mail, Moderation sections. List: `docs/ICONS.md`.
+
+## Considering
+
+- [x] **Rich hub themes** — built 2026-10-02 (`background`, `rows`, `decorations`, `tile_edges`);
+      example `eden_ld:overgrown` — owner: good enough (2026-10-03).
+- [ ] **Smoother font** — parked (2026-10-01): keep the Minecraft font. If it comes back: an opt-in
+      VectorLib smooth-text mode (bundled OFL font drawn at the real pixel size), measured through one
+      VectorLib helper so switching is cheap; plus pixel-snapping the hub's shrink and no text below 1×.
+
+## Not important
+
+- [ ] **Shared mob-kill XP in parties** (owner, 2026-09-28): split among partymates within
+      `hub.party_xp_radius` with `hub.party_xp_bonus_percent` (config keys exist, unused); needs a
+      `LivingEntity#dropExperience` redirect of `ExperienceOrb.award`.
+- [ ] ~~Discord lines styled like in-game chat~~ — dropped (Minestar: too complex, not needed; 2026-10-03). `[Discord]`
+      lines show the sender's LuckPerms prefix (role), name color, and guild tag when they turned it on —
+      the same as their in-game chat lines.
+      **Blocked on Minestar:** the chat bridge gives the server only `author` and `content` as plain
+      strings, so Eden can't tell a linked account from someone on Discord using a player's name.
+      Matching by name would let anyone show up as `[Admin]` in red. Ask the Minestar team to include
+      the author's linked Minecraft profile UUID (e.g. `authorProfileUuid`, empty when not linked) and
+      pass it to the server mod. Then: look the player up by UUID (LuckPerms user loaded async when
+      offline, guild + `HubSettings.showGuildTag`) and restyle the line in
+      `ChatChannels.onGameMessage` before `announceDiscord`; unlinked authors keep today's look.

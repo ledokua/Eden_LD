@@ -1,0 +1,56 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.ledok.eden_ld.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BorderPacketMixin",
+    "EntityHazardMixin",
+    "GameProfileCacheAccessor",
+    "GameProfileInfoAccessor",
+    "GameRuleValueMixin",
+    "LevelDimensionMixin",
+    "LivingEntityHazardMixin",
+    "MinecraftServerWorldRulesMixin",
+    "MsgCommandIgnoreMixin",
+    "PlayerEatMixin",
+    "PlayerListIgnoreMixin",
+    "PlayerListBorderMixin",
+    "PlayerMixin",
+    "PoisonMobEffectMixin",
+    "ProjectileMixin",
+    "ResultSlotMixin",
+    "SaintsDragonsSpawnRulesMixin",
+    "ServerPlayerPvpMixin",
+    "ServerPlayerStatMixin",
+    "ServerPlayerTabListMixin",
+    "WorldBorderAccessor",
+    "WorldBorderCommandMixin"
+  ],
+  "client": [
+    "AbstractContainerScreenAccessor",
+    "AudioChannelMixin",
+    "ChatComponentMixin",
+    "ChatPatchesMenuMixin",
+    "ChatScreenMixin",
+    "CommandSuggestionsMixin",
+    "EmiReloadManagerAccessor",
+    "EmiReloadWorkerMixin",
+    "FontManagerMixin",
+    "FontRenderOutputMixin",
+    "FontSetMixin",
+    "GameRendererMixin",
+    "MinecraftMixin",
+    "PlayerRendererMixin",
+    "PlayerTabOverlayMixin",
+    "ScreenMixin",
+    "SoundEngineMixin",
+    "StylishEffectsRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

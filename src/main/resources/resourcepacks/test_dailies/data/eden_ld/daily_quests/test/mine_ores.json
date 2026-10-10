@@ -1,0 +1,19 @@
+{
+  "objective": "break_blocks",
+  "target": "#c:ores",
+  "count": 24,
+  "icon": "minecraft:iron_ore",
+  "weight": 8,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:torch",
+        "count": 32
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 63
+      }
+    ]
+  }
+}

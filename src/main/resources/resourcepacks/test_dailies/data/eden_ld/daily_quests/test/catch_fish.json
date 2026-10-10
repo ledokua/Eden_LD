@@ -1,0 +1,18 @@
+{
+  "objective": "catch_fish",
+  "count": 5,
+  "icon": "minecraft:fishing_rod",
+  "weight": 6,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:cooked_cod",
+        "count": 8
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 50
+      }
+    ]
+  }
+}

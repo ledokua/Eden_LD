@@ -1,0 +1,13 @@
+{
+  "period": "daily",
+  "objective": "break_blocks",
+  "target": "#minecraft:logs",
+  "count": 300,
+  "count_per_member": 30,
+  "icon": "minecraft:oak_log",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 800
+  },
+  "weight": 10
+}

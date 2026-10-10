@@ -1,0 +1,19 @@
+{
+  "objective": "break_blocks",
+  "target": "#minecraft:logs",
+  "count": 64,
+  "icon": "minecraft:oak_log",
+  "weight": 8,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:apple",
+        "count": 4
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 38
+      }
+    ]
+  }
+}

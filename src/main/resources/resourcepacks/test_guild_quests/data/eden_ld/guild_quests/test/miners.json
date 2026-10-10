@@ -1,0 +1,14 @@
+{
+  "period": "daily",
+  "objective": "break_blocks",
+  "target": "#c:ores",
+  "count": 120,
+  "count_per_member": 10,
+  "icon": "minecraft:iron_ore",
+  "min_level": 2,
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 1500
+  },
+  "weight": 10
+}

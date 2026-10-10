@@ -1,0 +1,12 @@
+{
+  "period": "daily",
+  "objective": "catch_fish",
+  "count": 30,
+  "count_per_member": 3,
+  "icon": "minecraft:fishing_rod",
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 600
+  },
+  "weight": 10
+}

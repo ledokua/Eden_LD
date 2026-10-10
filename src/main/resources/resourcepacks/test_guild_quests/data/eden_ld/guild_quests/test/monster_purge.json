@@ -1,0 +1,18 @@
+{
+  "period": "weekly",
+  "objective": "kill_mobs",
+  "count": 2000,
+  "count_per_member": 200,
+  "icon": "minecraft:iron_sword",
+  "rewards": {
+    "guild_xp": 500,
+    "lc": 10000,
+    "items": [
+      {
+        "id": "economy_ld:silver_coin",
+        "count": 5
+      }
+    ]
+  },
+  "weight": 10
+}

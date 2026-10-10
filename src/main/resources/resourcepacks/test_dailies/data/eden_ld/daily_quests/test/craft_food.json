@@ -1,0 +1,15 @@
+{
+  "objective": "craft_items",
+  "target": "#c:foods",
+  "count": 16,
+  "icon": "minecraft:bread",
+  "weight": 8,
+  "rewards": {
+    "items": [
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 38
+      }
+    ]
+  }
+}

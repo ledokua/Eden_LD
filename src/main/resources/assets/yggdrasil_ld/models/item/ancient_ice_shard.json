@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "yggdrasil_ld:item/ancient_ice_shard"
+  }
+}

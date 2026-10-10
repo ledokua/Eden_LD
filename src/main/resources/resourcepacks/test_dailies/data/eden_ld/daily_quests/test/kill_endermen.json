@@ -1,0 +1,23 @@
+{
+  "objective": "kill_mobs",
+  "target": "minecraft:enderman",
+  "count": 5,
+  "icon": "minecraft:ender_pearl",
+  "weight": 5,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:diamond",
+        "count": 1
+      },
+      {
+        "id": "economy_ld:silver_coin",
+        "count": 1
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 25
+      }
+    ]
+  }
+}

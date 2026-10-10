@@ -1,0 +1,15 @@
+{
+  "objective": "stat",
+  "target": "minecraft.custom:minecraft.jump",
+  "count": 200,
+  "icon": "minecraft:rabbit_foot",
+  "weight": 4,
+  "rewards": {
+    "items": [
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 25
+      }
+    ]
+  }
+}

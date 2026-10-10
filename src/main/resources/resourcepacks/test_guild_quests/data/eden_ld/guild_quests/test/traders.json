@@ -1,0 +1,13 @@
+{
+  "period": "weekly",
+  "objective": "stat",
+  "target": "minecraft.custom:minecraft.traded_with_villager",
+  "count": 100,
+  "count_per_member": 10,
+  "icon": "minecraft:emerald",
+  "weight": 10,
+  "rewards": {
+    "guild_xp": 500,
+    "lc": 8000
+  }
+}

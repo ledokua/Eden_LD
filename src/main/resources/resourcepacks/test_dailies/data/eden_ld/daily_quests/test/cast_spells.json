@@ -1,0 +1,18 @@
+{
+  "objective": "cast_spells",
+  "count": 30,
+  "icon": "minecraft:enchanted_book",
+  "weight": 8,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:lapis_lazuli",
+        "count": 8
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 75
+      }
+    ]
+  }
+}

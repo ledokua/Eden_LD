@@ -1,0 +1,13 @@
+{
+  "period": "daily",
+  "objective": "cast_spells",
+  "count": 150,
+  "count_per_member": 15,
+  "icon": "minecraft:enchanted_book",
+  "min_level": 3,
+  "rewards": {
+    "guild_xp": 100,
+    "lc": 2000
+  },
+  "weight": 10
+}

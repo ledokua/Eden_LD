@@ -1,0 +1,12 @@
+{
+  "text_shadow": false,
+  "page_darken": 0,
+  "card_darken": 0,
+  "palette": {
+    "text": "#2B1608",
+    "text_dim": "#5A3218",
+    "text_faint": "#7A4A26",
+    "good": "#2E6B1E",
+    "accent": "#8A2E0E"
+  }
+}

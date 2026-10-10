@@ -1,0 +1,19 @@
+{
+  "objective": "kill_mobs",
+  "target": "minecraft:cave_spider",
+  "count": 10,
+  "icon": "minecraft:fermented_spider_eye",
+  "weight": 7,
+  "rewards": {
+    "items": [
+      {
+        "id": "minecraft:gold_ingot",
+        "count": 3
+      },
+      {
+        "id": "economy_ld:bronze_coin",
+        "count": 75
+      }
+    ]
+  }
+}

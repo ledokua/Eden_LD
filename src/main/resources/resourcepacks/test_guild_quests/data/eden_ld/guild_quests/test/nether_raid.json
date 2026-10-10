@@ -1,0 +1,20 @@
+{
+  "period": "weekly",
+  "objective": "kill_mobs",
+  "target": "minecraft:blaze",
+  "count": 300,
+  "count_per_member": 30,
+  "icon": "minecraft:blaze_rod",
+  "min_level": 3,
+  "rewards": {
+    "guild_xp": 500,
+    "lc": 20000,
+    "items": [
+      {
+        "id": "economy_ld:silver_coin",
+        "count": 10
+      }
+    ]
+  },
+  "weight": 10
+}
