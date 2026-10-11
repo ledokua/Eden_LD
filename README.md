@@ -604,8 +604,8 @@ partymates never land, so they never tag anyone.
 
 ### Mail
 
-An MMO-style mailbox tab (needs [Economy_LD](../Economy_LD), which stores the mail; without it the tab
-stays hidden). Everything a player is owed arrives here: dungeon, raid, arena and duel rewards, auction
+An MMO-style mailbox tab (needs [Economy_LD](../Economy_LD) 1.0.2 or newer, which stores the mail; without
+it the tab stays hidden, and an older Economy_LD refuses to load alongside Eden). Everything a player is owed arrives here: dungeon, raid, arena and duel rewards, auction
 results, offline payments, returned coins, messages from staff — and pending **website purchases**
 (Minestar): one pinned entry per purchase (its name ×quantity) with **Claim**, and **Claim all** when there are
 several. They are read from Minestar each time, so they never expire and stay pending on the website until
@@ -620,6 +620,10 @@ claimed; the join message about them opens this tab (`/hub mail`), and `/shop-re
 - **Text** is Markdown (VectorLib's: `**bold**`, `*italic*`, `{#ff8800}color{/}`, `# headings`,
   `{size:1.5}sizes{/}`, `-# subtext`). Staff mail can carry one version per language — each player reads
   their own, else the default — and `{player}` / Placeholder API placeholders filled in for each reader.
+- **Wallet bar** along the bottom: your Economy_LD balance, an amount field with **Withdraw** (paid out
+  as Economy_LD coins, in the fewest coins; refused when they don't fit your 36 main slots) and
+  **Deposit all** (every coin and money bag you carry). Economy_LD toasts the outcome, and the balance
+  refreshes after every deposit or withdrawal, including ones made by right-click or command.
 - **Tab badge**: the unread count (Settings → Notifications → Unread mail), and a Home card.
 - Claiming (mail and purchases) is refused while BusyLib reports the player busy (duel, dungeon run, the
   tutorial).

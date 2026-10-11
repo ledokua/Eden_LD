@@ -103,8 +103,8 @@ dependencies {
     // A copy of the pack's jar.
     modCompileOnly files("libs/ftb-teams-fabric-2101.1.11.jar")
 
-    modCompileOnly files("libs/Economy_LD-1.0.jar")
-    modLocalRuntime files("libs/Economy_LD-1.0.jar")
+    modCompileOnly files("libs/Economy_LD-1.0.2.jar")
+    modLocalRuntime files("libs/Economy_LD-1.0.2.jar")
     // Its bundled SQLite driver isn't unpacked from a local jar in the dev run.
     localRuntime "org.xerial:sqlite-jdbc:3.49.1.0"
 }

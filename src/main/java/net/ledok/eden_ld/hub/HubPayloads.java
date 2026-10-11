@@ -1016,16 +1016,19 @@ public final class HubPayloads {
 
     /**
      * S2C: the player's whole mailbox (newest first) and the website purchases waiting for them. Sent on join and
-     * whenever it changes; the Mail tab shows only once this has arrived (Economy_LD installed).
+     * whenever it changes; the Mail tab shows only once this has arrived (Economy_LD installed). {@code balance}
+     * is the wallet the tab's wallet bar shows (-1 when it couldn't be read); a coin deposit or withdrawal
+     * resends this.
      */
-    public record MailData(List<MailView> mails, List<ShopPurchase> purchases) implements CustomPacketPayload {
+    public record MailData(List<MailView> mails, List<ShopPurchase> purchases, long balance) implements CustomPacketPayload {
         public static final Type<MailData> TYPE = new Type<>(id("mail_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, MailData> CODEC = StreamCodec.of(
                 (buf, p) -> {
                     writeList(buf, p.mails, MailView::write);
                     writeList(buf, p.purchases, ShopPurchase::write);
+                    buf.writeLong(p.balance);
                 },
-                buf -> new MailData(readList(buf, MailView::read), readList(buf, ShopPurchase::read)));
+                buf -> new MailData(readList(buf, MailView::read), readList(buf, ShopPurchase::read), buf.readLong()));
 
         /** Unread mail, plus every waiting purchase (they stay pinned until claimed). */
         public int unread() {
@@ -1040,10 +1043,11 @@ public final class HubPayloads {
 
     /**
      * C2S: a Mail tab action; {@code mailId} for the one-mail actions. {@code CLAIM_SHOP} takes a purchase id, or 0
-     * for every waiting purchase.
+     * for every waiting purchase. The wallet bar's {@code WITHDRAW} takes the amount in {@code mailId};
+     * {@code DEPOSIT_COINS} deposits every coin the player carries.
      */
     public record MailAction(Action action, long mailId) implements CustomPacketPayload {
-        public enum Action { OPEN, CLAIM, CLAIM_ALL, DELETE, DELETE_READ, CLAIM_SHOP }
+        public enum Action { OPEN, CLAIM, CLAIM_ALL, DELETE, DELETE_READ, CLAIM_SHOP, WITHDRAW, DEPOSIT_COINS }
 
         public static final Type<MailAction> TYPE = new Type<>(id("mail_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, MailAction> CODEC = StreamCodec.of(

@@ -67,6 +67,16 @@ public final class MailHub {
             ServerPlayNetworking.registerGlobalReceiver(HubPayloads.MailAction.TYPE,
                     (payload, context) -> context.server().execute(() -> handle(context.player(), payload)));
             ServerPlayConnectionEvents.JOIN.register((handler, sender, joined) -> push(handler.player));
+            // The wallet bar's balance: a deposit or withdrawal (from the bar, a right-click or a command) resends it.
+            net.ledok.economy_ld.api.EconomyEvents.COINS_MOVED.add(player -> {
+                if (server == null) {
+                    return;
+                }
+                ServerPlayer online = server.getPlayerList().getPlayer(player);
+                if (online != null) {
+                    push(online);
+                }
+            });
             net.ledok.economy_ld.api.EconomyEvents.MAIL_CHANGED.add(player -> {
                 if (server == null) {
                     return;
@@ -110,7 +120,11 @@ public final class MailHub {
             if (!net.ledok.economy_ld.manager.EconomyManager.getInstance().isRunning()) {
                 return;
             }
-            net.ledok.economy_ld.mail.EconomyMail.list(player.getUUID()).whenComplete((mails, error) ->
+            var balanceFuture = net.ledok.economy_ld.manager.EconomyManager.getInstance()
+                    .getBalance(player.getUUID(), player.getGameProfile().getName())
+                    .exceptionally(error -> -1L);
+            net.ledok.economy_ld.mail.EconomyMail.list(player.getUUID()).thenCombine(balanceFuture, MailAndBalance::new)
+                    .whenComplete((both, error) ->
                     player.server.execute(() -> {
                         if (error != null) {
                             EdenLD.LOGGER.warn("[Mail] Can't load the mail of {}", player.getGameProfile().getName(), error);
@@ -119,6 +133,7 @@ public final class MailHub {
                         if (player.hasDisconnected()) {
                             return;
                         }
+                        List<net.ledok.economy_ld.mail.Mail> mails = both.mails();
                         MinestarHook.fetchPendingPurchases(player, purchases -> {
                             if (player.hasDisconnected()) {
                                 return;
@@ -127,9 +142,12 @@ public final class MailHub {
                             for (net.ledok.economy_ld.mail.Mail mail : mails) {
                                 views.add(view(mail, player));
                             }
-                            ServerPlayNetworking.send(player, new HubPayloads.MailData(views, purchases));
+                            ServerPlayNetworking.send(player, new HubPayloads.MailData(views, purchases, both.balance()));
                         });
                     }));
+        }
+
+        private record MailAndBalance(List<net.ledok.economy_ld.mail.Mail> mails, Long balance) {
         }
 
         private static HubPayloads.MailView view(net.ledok.economy_ld.mail.Mail mail, ServerPlayer reader) {
@@ -180,6 +198,9 @@ public final class MailHub {
                             : net.ledok.economy_ld.mail.EconomyMail.claimAll(player);
                     claim.whenComplete((result, error) -> player.server.execute(() -> report(player, result, error)));
                 }
+                // The wallet bar: Economy_LD moves the coins and toasts the outcome; COINS_MOVED resends the balance.
+                case WITHDRAW -> net.ledok.economy_ld.network.CoinNetworking.withdraw(player, action.mailId());
+                case DEPOSIT_COINS -> net.ledok.economy_ld.network.CoinNetworking.depositAll(player);
                 case CLAIM_SHOP -> {
                     MinestarHook.claimPurchase(player, action.mailId());
                     // The delivery runs on its own; show the new count once it's had time to finish.

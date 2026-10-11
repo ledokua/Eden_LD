@@ -32,6 +32,9 @@
     "vectorlib": ">=0.6.1",
     "busylib": "*"
   },
+  "breaks": {
+    "economy_ld": "<1.0.2"
+  },
   "suggests": {
     "minestar": ">=1.4.0",
     "luckperms": ">=5.4",

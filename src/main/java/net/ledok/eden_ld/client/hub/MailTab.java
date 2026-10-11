@@ -16,6 +16,8 @@ import net.ledok.vectorlib.client.canvas.layout.Insets;
 import net.ledok.vectorlib.client.canvas.layout.Justify;
 import net.ledok.vectorlib.client.canvas.layout.Sizing;
 import net.ledok.vectorlib.client.canvas.widget.Button;
+import net.ledok.vectorlib.client.canvas.widget.Label;
+import net.ledok.vectorlib.client.canvas.widget.TextField;
 import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
 import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
@@ -31,7 +33,8 @@ import java.util.Locale;
  * The Mail tab (mail is Economy_LD's): the list on the left — kind, title, date, time left, an
  * unread dot and an attachment marker — and the open mail on the right: its text, items and coins,
  * Claim and Delete. Filters (all / unread / with items), Claim all and Delete read on top. Pending
- * website purchases show as one pinned entry whose Claim runs the delivery.
+ * website purchases show as one pinned entry whose Claim runs the delivery. A wallet bar along the
+ * bottom shows the balance and turns it into Economy_LD coins and back (Withdraw / Deposit all).
  * <p>
  * Written mail shows the reader's language, else its default, as Markdown (VectorLib's
  * {@link MarkdownText}: {@code **bold**}, {@code {#ff8800}color{/}}, headings, sizes…). Opening a
@@ -142,6 +145,67 @@ final class MailTab {
         }
         split.second().item(detail);
         content.item(split);
+        content.item(walletBar(screen, data));
+    }
+
+    // ---------------------------------------------------------------- wallet bar
+
+    /** What the player typed in the wallet bar's amount field; kept across the tab's rebuilds. */
+    private static String withdrawText = "";
+    private static TextField withdrawField;
+
+    /**
+     * Under the mail: the wallet balance, an amount and Withdraw (paid out as Economy_LD coins), and
+     * Deposit all (every coin and money bag carried goes into the wallet). Economy_LD toasts the outcome.
+     */
+    private static Flex walletBar(HubScreen screen, MailData data) {
+        Flex bar = Flex.row().gap(4).padding(Insets.of(3, 6, 3, 6)).alignItems(Align.CENTER);
+        bar.sizing(Sizing.fill(), Sizing.content());
+        bar.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
+        Component balance = data.balance() < 0 ? tr("wallet.unknown")
+                : tr("wallet.balance", String.format(Locale.ROOT, "%,d", data.balance()));
+        Label label = Label.of(60, balance);
+        label.color(EdenParchment.INK);
+        label.tooltipWhenCut(true);
+        label.sizing(Sizing.expand(), Sizing.content());
+        bar.item(label);
+
+        boolean hadFocus = withdrawField != null && withdrawField.isFocused();
+        TextField amount = new TextField(70, withdrawText, text -> withdrawText = text);
+        amount.sizing(Sizing.fixed(70), Sizing.fixed(14));
+        amount.maxLength(16);
+        amount.filter(text -> text.chars().allMatch(Character::isDigit));
+        amount.hint(tr("wallet.amount_hint").getString());
+        bar.item(amount);
+        Button withdraw = EdenParchment.fitButton(tr("wallet.withdraw"), 50, 14, MailTab::withdraw);
+        withdraw.tooltip(tr("wallet.withdraw_tip"));
+        bar.item(withdraw);
+        Button deposit = EdenParchment.fitButton(tr("wallet.deposit_all"), 50, 14,
+                () -> send(MailAction.Action.DEPOSIT_COINS, 0));
+        deposit.tooltip(tr("wallet.deposit_tip"));
+        bar.item(deposit);
+
+        withdrawField = amount;
+        if (hadFocus) {
+            screen.canvas().focus(amount);
+        }
+        return bar;
+    }
+
+    private static void withdraw() {
+        long amount;
+        try {
+            amount = Long.parseLong(withdrawText.trim());
+        } catch (NumberFormatException e) {
+            return;
+        }
+        if (amount > 0) {
+            send(MailAction.Action.WITHDRAW, amount);
+            withdrawText = "";
+            if (withdrawField != null) {
+                withdrawField.text("");
+            }
+        }
     }
 
     // ---------------------------------------------------------------- header
