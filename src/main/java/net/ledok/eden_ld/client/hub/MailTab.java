@@ -108,18 +108,27 @@ final class MailTab {
 
         Flex list = Flex.column().gap(2);
         for (HubPayloads.ShopPurchase purchase : purchases) {
-            list.item(new MailRow(screen, shopKey(purchase.id()), 1, purchaseTitle(purchase), tr("shop.sender"),
-                    false, true, false, listWidth));
+            MailRow row = new MailRow(screen, shopKey(purchase.id()), 1, purchaseTitle(purchase), tr("shop.sender"),
+                    false, true, false, listWidth);
+            if (purchase == purchases.get(0)) {
+                row.id(HubSpotlights.MAIL_PURCHASE);
+            }
+            list.item(row);
         }
         for (MailView mail : shown) {
-            list.item(new MailRow(screen, mail.id(), mail.kind(), title(mail), rowDate(mail), !mail.read(),
-                    mail.hasUnclaimed(), expiringSoon(mail), listWidth));
+            MailRow row = new MailRow(screen, mail.id(), mail.kind(), title(mail), rowDate(mail), !mail.read(),
+                    mail.hasUnclaimed(), expiringSoon(mail), listWidth);
+            if (mail == shown.get(0)) {
+                row.id(HubSpotlights.MAIL_ROW);
+            }
+            list.item(row);
         }
         if (purchases.isEmpty() && shown.isEmpty()) {
             list.item(EdenParchment.text(tr(data.mails().isEmpty() ? "empty" : "no_matches"), EdenParchment.INK_DIM,
                     (int) listWidth));
         }
         ScrollPanel listPanel = HubScroll.panel("mail/list", listWidth + LANE, 100, list);
+        listPanel.id(HubSpotlights.MAIL_LIST);
         listPanel.sizing(Sizing.fill(), Sizing.expand());
         Flex listColumn = Flex.column().gap(4);
         listColumn.sizing(Sizing.fill(), Sizing.fill());
@@ -128,6 +137,7 @@ final class MailTab {
         split.first().item(listColumn);
 
         Flex detail = Flex.column().gap(4).padding(Insets.of(4, 6, 4, 6));
+        detail.id(HubSpotlights.MAIL_DETAIL);
         // As tall as the list column, so its buttons line up with Claim all / Delete read.
         detail.sizing(Sizing.fill(), Sizing.fill());
         detail.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
@@ -160,6 +170,7 @@ final class MailTab {
      */
     private static Flex walletBar(HubScreen screen, MailData data) {
         Flex bar = Flex.row().gap(4).padding(Insets.of(3, 6, 3, 6)).alignItems(Align.CENTER);
+        bar.id(HubSpotlights.MAIL_WALLET);
         bar.sizing(Sizing.fill(), Sizing.content());
         bar.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
         Component balance = data.balance() < 0 ? tr("wallet.unknown")
@@ -179,10 +190,12 @@ final class MailTab {
         bar.item(amount);
         Button withdraw = EdenParchment.fitButton(tr("wallet.withdraw"), 50, 14, MailTab::withdraw);
         withdraw.tooltip(tr("wallet.withdraw_tip"));
+        withdraw.id(HubSpotlights.MAIL_WITHDRAW);
         bar.item(withdraw);
         Button deposit = EdenParchment.fitButton(tr("wallet.deposit_all"), 50, 14,
                 () -> send(MailAction.Action.DEPOSIT_COINS, 0));
         deposit.tooltip(tr("wallet.deposit_tip"));
+        deposit.id(HubSpotlights.MAIL_DEPOSIT_ALL);
         bar.item(deposit);
 
         withdrawField = amount;
@@ -214,11 +227,13 @@ final class MailTab {
         Flex header = Flex.row().gap(4).alignItems(Align.CENTER);
         header.sizing(Sizing.fill(), Sizing.content());
         header.item(EdenParchment.text(tr("title", data.mails().size()), EdenParchment.INK_MID));
-        header.item(EdenParchment.tabs(List.of(Filter.values()),
+        var filters = EdenParchment.tabs(List.of(Filter.values()),
                 candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)), filter, candidate -> {
                     filter = candidate;
                     screen.onMailData();
-                }, 30, "mail/filter"));
+                }, 30, "mail/filter");
+        filters.id(HubSpotlights.MAIL_FILTERS);
+        header.item(filters);
         return header;
     }
 
@@ -234,9 +249,11 @@ final class MailTab {
         Flex actions = row ? Flex.row().gap(4) : Flex.column().gap(3);
         actions.sizing(Sizing.fixed(width), Sizing.content());
         Button claimAll = new Button(each, 14, claimLabel, () -> send(MailAction.Action.CLAIM_ALL, 0));
+        claimAll.id(HubSpotlights.MAIL_CLAIM_ALL);
         claimAll.enabled(data.mails().stream().anyMatch(MailView::hasUnclaimed));
         actions.item(claimAll);
         Button deleteRead = new Button(each, 14, deleteLabel, () -> send(MailAction.Action.DELETE_READ, 0));
+        deleteRead.id(HubSpotlights.MAIL_DELETE_READ);
         deleteRead.enabled(data.mails().stream().anyMatch(m -> m.read() && !m.hasUnclaimed()));
         actions.item(deleteRead);
         return actions;
@@ -307,7 +324,9 @@ final class MailTab {
         Flex row = Flex.row().gap(4).justify(Justify.END).alignItems(Align.CENTER);
         row.sizing(Sizing.fill(), Sizing.content());
         if (mail.hasUnclaimed()) {
-            row.item(EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM, mail.id())));
+            Button claim = EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM, mail.id()));
+            claim.id(HubSpotlights.MAIL_CLAIM);
+            row.item(claim);
         } else {
             if (!mail.items().isEmpty() || mail.coins() > 0) {
                 row.item(EdenParchment.text(tr("claimed"), EdenParchment.GOOD));
@@ -337,7 +356,9 @@ final class MailTab {
         if (pending > 1) {
             row.item(EdenParchment.fitButton(tr("shop.claim_all", pending), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, 0)));
         }
-        row.item(EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, purchase.id())));
+        Button claim = EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, purchase.id()));
+        claim.id(HubSpotlights.MAIL_CLAIM);
+        row.item(claim);
         detail.item(row);
     }
 

@@ -374,6 +374,13 @@ public class EdenConfig {
          * Blocks in the tutorial each player gets their own copy of (items, progress, a lit furnace): ids, or a
          * namespace ending in ':'. Only blocks with a block entity; keep waystones, shops and the like off this list.
          */
+        /**
+         * The hub tabs' tours: tab (home, guild, waystones, activities, mail…) → the NPCs_LD dialog the help window's ▶
+         * starts. A tab without one shows no ▶.
+         */
+        public java.util.Map<String, String> tab_tours = new java.util.LinkedHashMap<>(java.util.Map.of(
+                "guild", "config:hub/guild", "waystones", "config:hub/waystones",
+                "activities", "config:hub/activities", "mail", "config:hub/mail"));
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
                 "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
                 "minecraft:blast_furnace", "minecraft:brewing_stand"));
@@ -387,6 +394,7 @@ public class EdenConfig {
             if (commands_on_finish == null) commands_on_finish = new ArrayList<>();
             if (always_visible == null) always_visible = new ArrayList<>();
             if (private_blocks == null) private_blocks = new ArrayList<>();
+            if (tab_tours == null) tab_tours = new java.util.LinkedHashMap<>();
         }
     }
 

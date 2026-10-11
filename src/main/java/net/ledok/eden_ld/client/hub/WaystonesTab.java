@@ -92,6 +92,7 @@ final class WaystonesTab {
         search.sizing(Sizing.fill(), Sizing.fixed(16));
         search.hint(tr("search").getString());
         searchField = search;
+        search.id(HubSpotlights.WAYSTONES_SEARCH);
         content.item(search);
 
         long favorites = data.waystones().stream().filter(WaystoneEntry::favorite).count();
@@ -107,6 +108,7 @@ final class WaystonesTab {
                         ((WaystoneEntry) ((Reorder.Item) payload).value()).id(), false)));
 
         statusLine = Label.of(HubScreen.innerWidth(), Component.empty());
+        statusLine.id(HubSpotlights.WAYSTONES_STATUS);
         content.item(statusLine);
         builtLocked = timersLocked(data);
         updateStatus();
@@ -242,8 +244,12 @@ final class WaystonesTab {
         return total >= 60 ? String.format("%d:%02d", total / 60, total % 60) : total + "s";
     }
 
+    /** Whether this fill already named its first row's star and Teleport (for the tour). */
+    private static boolean firstRowNamed;
+
     private static Flex column(String key, Component title, Flex list, float width) {
         Flex column = Flex.column().gap(3);
+        column.id(key.equals("favorites") ? HubSpotlights.WAYSTONES_FAVORITES : HubSpotlights.WAYSTONES_ALL);
         column.sizing(Sizing.fill(), Sizing.fill());
         column.item(EdenParchment.text(title, EdenParchment.INK_MID));
         ScrollPanel panel = HubScroll.panel("waystones/" + key, width, 100, list);
@@ -255,6 +261,7 @@ final class WaystonesTab {
     private static void fill(Flex favoritesList, Flex allList, WaystonesData data, float favoritesRow, float allRow) {
         favoritesList.clear();
         allList.clear();
+        firstRowNamed = false;
         String needle = query.trim().toLowerCase(Locale.ROOT);
         List<WaystoneEntry> matching = new ArrayList<>();
         for (WaystoneEntry waystone : data.waystones()) {
@@ -371,6 +378,12 @@ final class WaystonesTab {
         Button star = new Button(12, 12, Component.literal(waystone.favorite() ? "★" : "☆"),
                 () -> ClientPlayNetworking.send(new HubPayloads.WaystoneFavorite(waystone.id(), !waystone.favorite())));
         star.tooltip(tr(waystone.favorite() ? "unfavorite" : "favorite"));
+        // The first row's star and Teleport carry the tour's names.
+        boolean named = !firstRowNamed;
+        firstRowNamed = true;
+        if (named) {
+            star.id(HubSpotlights.WAYSTONES_STAR);
+        }
         row.item(star);
 
         Component teleportLabel = tr("teleport");
@@ -418,6 +431,9 @@ final class WaystonesTab {
         teleport.enabled(blocked == null);
         if (blocked != null) {
             teleport.tooltip(blocked);
+        }
+        if (named) {
+            teleport.id(HubSpotlights.WAYSTONES_TELEPORT);
         }
         row.item(teleport);
         return row;

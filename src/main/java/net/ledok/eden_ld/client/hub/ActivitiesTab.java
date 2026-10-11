@@ -133,11 +133,15 @@ final class ActivitiesTab {
                 shownFilters.add(candidate);
             }
         }
-        filters.item(EdenParchment.tabs(shownFilters, candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)),
-                filter, candidate -> choose(screen, candidate), 36, "activities/filter"));
+        var filterTabs = EdenParchment.tabs(shownFilters, candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)),
+                filter, candidate -> choose(screen, candidate), 36, "activities/filter");
+        filterTabs.id(HubSpotlights.ACTIVITIES_FILTERS);
+        filters.item(filterTabs);
         filters.spacer();
         if (data != null && data.gated() && !duels) {
-            filters.item(EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_MID));
+            var level = EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_MID);
+            level.id(HubSpotlights.ACTIVITIES_LEVEL);
+            filters.item(level);
         }
         content.item(filters);
 
@@ -155,6 +159,7 @@ final class ActivitiesTab {
         }
 
         Flex sorting = Flex.row().gap(3).alignItems(Align.CENTER);
+        sorting.id(HubSpotlights.ACTIVITIES_SORT);
         sorting.sizing(Sizing.fill(), Sizing.content());
         sorting.item(EdenParchment.text(tr("sort"), EdenParchment.INK_DIM));
         sorting.item(EdenParchment.tabs(List.of(Sort.values()), candidate -> tr("sort." + candidate.name().toLowerCase(Locale.ROOT)),
@@ -182,8 +187,13 @@ final class ActivitiesTab {
             return;
         }
         Grid grid = Grid.of(columns).gap(GAP, GAP).cell(cardWidth, CARD_H);
+        grid.id(HubSpotlights.ACTIVITIES_CARDS);
         for (ActivityEntry entry : shown) {
-            grid.item(new Card(entry, GLOWING.contains(entry.id().toString()), below(data, entry)));
+            Card card = new Card(entry, GLOWING.contains(entry.id().toString()), below(data, entry));
+            if (entry == shown.get(0)) {
+                card.id(HubSpotlights.ACTIVITIES_CARD);
+            }
+            grid.item(card);
         }
         ScrollPanel panel = HubScroll.panel("activities", HubScreen.innerWidth(), 100, grid);
         panel.sizing(Sizing.fill(), Sizing.expand());

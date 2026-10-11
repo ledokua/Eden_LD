@@ -734,6 +734,8 @@
   "vectorlib.settings.off": "Off",
   "vectorlib.settings.empty": "(empty)",
   "gui.eden_ld.hub.help.title": "Help — %s",
+  "gui.eden_ld.hub.help.tour": "Show me around this tab",
+  "message.eden_ld.tour.unavailable": "This tab's tour isn't available right now.",
   "gui.eden_ld.hub.help.home": "Your summary: level, balance and today's daily quests.\n\nCards below the summary show what needs you right now: party and guild invites, friend requests, quests to claim and shop purchases to collect. Click a card to go there.\n\nServer news is at the bottom.",
   "gui.eden_ld.hub.help.profile": "Your Minestar profile: Minestar activity level (separate from this server's skill tree), rewards and playtime on all servers.\n\nEvery level brings something: emoji and sticker slots, extra land claims, free daily rerolls. The track shows what you have and what comes next.\n\nBackgrounds for your page and your player card are in the Wardrobe tab. Who can open your page is set in Settings → Privacy.",
   "gui.eden_ld.hub.help.friends": "Your Minestar friends, on every Minestar server, grouped by where they are right now. Click a group's heading to fold it away (it stays folded).\n\n\"On this server\" lists everyone online here: add them as a friend, invite them to your party (✉) or open their profile.\n\nIncoming and sent requests are in the panel on the right. Search friends by name or by @modpack.",

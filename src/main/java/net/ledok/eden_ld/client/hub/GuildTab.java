@@ -211,6 +211,7 @@ final class GuildTab {
 
     private static Flex createColumn(HubScreen screen, GuildData data) {
         Flex box = Flex.column().gap(4).padding(Insets.of(4, 4, 4, 4));
+        box.id(HubSpotlights.GUILD_CREATE);
         box.sizing(Sizing.fixed(CREATE_WIDTH), Sizing.fill());
         box.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
         float inner = CREATE_WIDTH - 8;
@@ -267,6 +268,7 @@ final class GuildTab {
         if (!affordable) {
             create.tooltip(tr("no_economy"));
         }
+        create.id(HubSpotlights.GUILD_CREATE_BUTTON);
         box.item(create);
 
         if (nameFocus) {
@@ -281,6 +283,7 @@ final class GuildTab {
 
     private static Flex directoryColumn(HubScreen screen, GuildData data, float width) {
         Flex column = Flex.column().gap(3);
+        column.id(HubSpotlights.GUILD_DIRECTORY);
         column.sizing(Sizing.fixed(width), Sizing.fill());
         float rowWidth = width - LANE;
 
@@ -295,6 +298,7 @@ final class GuildTab {
         search.sizing(Sizing.fixed(width), Sizing.fixed(16));
         search.hint(tr("search").getString());
         directoryField = search;
+        search.id(HubSpotlights.GUILD_SEARCH);
         column.item(search);
 
         ScrollPanel panel = HubScroll.panel("guild/directory", width, 100, list);
@@ -414,6 +418,7 @@ final class GuildTab {
         });
         bar.sizing(Sizing.fixed(BAR_WIDTH), Sizing.fill());
         bar.tooltip(tr("create_toggle"));
+        bar.id(HubSpotlights.GUILD_CREATE_TOGGLE);
         return bar;
     }
 
@@ -429,6 +434,7 @@ final class GuildTab {
         });
         bar.sizing(Sizing.fixed(BAR_WIDTH), Sizing.fill());
         bar.tooltip(tr("invites_toggle", invites));
+        bar.id(HubSpotlights.GUILD_INVITES_TOGGLE);
         return bar;
     }
 
@@ -468,6 +474,7 @@ final class GuildTab {
         ScrollPanel panel = HubScroll.panel("guild/invites", panelWidth, 100, list);
         panel.sizing(Sizing.fixed(panelWidth), Sizing.fill());
         Flex column = Flex.column().padding(Insets.of(3, 3, 3, 3));
+        column.id(HubSpotlights.GUILD_INVITES);
         column.sizing(Sizing.fixed(INVITES_WIDTH), Sizing.fill());
         column.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
         column.item(panel);
@@ -518,6 +525,7 @@ final class GuildTab {
         rosterPanel.sizing(Sizing.fixed(width - 8), Sizing.expand());
 
         Flex box = Flex.column().padding(Insets.of(4, 4, 4, 4));
+        box.id(HubSpotlights.GUILD_ROSTER);
         box.sizing(Sizing.fill(), Sizing.expand());
         box.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
         box.item(rosterPanel);
@@ -625,6 +633,7 @@ final class GuildTab {
             chat.item(line);
         }
         ScrollPanel chatPanel = new ScrollPanel(linesWidth, 100, chat);
+        chatPanel.id(HubSpotlights.GUILD_CHAT);
         chatPanel.scrollTo(Float.MAX_VALUE);
         if (picker) {
             Flex area = Flex.row().gap(4);
@@ -698,6 +707,7 @@ final class GuildTab {
             return label;
         }, views.contains(HubState.guildView) ? HubState.guildView : views.get(0), GuildTab::show, 28, "guild/view")
                 .tabPadding(4);
+        tabs.id(HubSpotlights.GUILD_SUBTABS);
         float tabsWidth = tabs.width() + 3;
         boolean canSettings = data.myRank() >= GuildRank.OFFICER.level;
         Component level = tr("level_short", Math.max(1, guild.level()));
@@ -714,6 +724,7 @@ final class GuildTab {
         if (canSettings) {
             Button gear = new Button(16, 14, Component.literal("⚙"), () -> openSettings(screen, data));
             gear.tooltip(tr("settings"));
+            gear.id(HubSpotlights.GUILD_SETTINGS);
             header.item(gear);
         }
         return header;
@@ -730,6 +741,7 @@ final class GuildTab {
         float ratio = quests == null ? 0 : quests.xpNeeded() <= 0 ? 1 : (float) quests.xpInto() / quests.xpNeeded();
         float fill = Math.max(0, Math.min(1, ratio));
         Flex bar = Flex.column().gap(1).alignItems(Align.CENTER);
+        bar.id(HubSpotlights.GUILD_XP);
         bar.sizing(Sizing.fixed(width), Sizing.content());
         bar.item(Label.of(width, level).color(EdenParchment.INK_MID).align(net.ledok.vectorlib.client.canvas.TextNode.Align.CENTER));
         Flex track = Flex.row();

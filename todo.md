@@ -29,6 +29,11 @@ needs a README pass too.
         entities can be hit by any phase (dev-checked: a shared villager hittable, an unphased zombie not). Copied to
         the pack, Prism and live 2026-10-11 15:09 (1.1.2 to the backups); applies at the next restart.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
+  - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
+        `Window.titleButton`, owner approved) starts the tab's NPCs_LD dialog (`tutorial.tab_tours`, default
+        `config:hub/<tab>` for Guild, Waystones, Activities, Mail; `HubTours`, `NpcsCompat`); highlight ids for those
+        tabs in `HubSpotlights`. Eden 1.1.5 built and checked in dev (▶ shown, Mail test tour highlighted the list, then
+        Claim all). Not deployed. The dialogs: NPCs_LD session.
   - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
         after the tutorial — and a tutorial step for it.
 

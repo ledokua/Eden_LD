@@ -138,6 +138,8 @@ public class EdenLDClient implements ClientModInitializer {
             }
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.HubTours.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.hub.HubHelp.onTours(payload.tabs()));
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.IgnoreData.TYPE, (payload, context) -> {
             HubState.onIgnoreData(payload);
             // Their lines hide (or come back) in the chat window at once.

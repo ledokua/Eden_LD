@@ -99,6 +99,9 @@ dependencies {
     modLocalRuntime files("libs/arenas_ld-fabric-4.6.0.jar", "libs/duels_ld-1.4.0.jar")
     modLocalRuntime "io.wispforest:owo-lib:0.12.15.4+1.21"
 
+    // NPCs_LD — optional: the hub help's ▶ starts a tab's tour dialog (NpcsCompat). A copy of the pack's jar.
+    modCompileOnly files("libs/NPCs_LD-fabric-1.1.1.jar")
+
     // FTB Teams (FTB Quests needs it) — optional: Eden refuses its parties (FtbTeamsCompat).
     // A copy of the pack's jar.
     modCompileOnly files("libs/ftb-teams-fabric-2101.1.11.jar")

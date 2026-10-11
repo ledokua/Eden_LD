@@ -201,7 +201,11 @@ never opened; or a glow inside the tab, or both — see Settings → Notificatio
 **"?"** next to Settings explains the open tab (lang keys `gui.eden_ld.hub.help.<tab>`, so a
 server can reword them in `config/eden_ld/lang/`) in a small window that can be moved, resized
 and kept open while using the tab — it switches to the help of whichever tab opens; "?" again
-closes it.
+closes it. On tabs with a **tour** (`tutorial.tab_tours`: Guild, Waystones, Activities and Mail), **▶** in its title
+bar starts a short NPCs_LD walk-through of the tab — pinned lines that highlight its parts one by one — any time,
+as often as wanted (a dialog waiting for something, like the guide, is set aside and comes back after). The parts
+have stable names for dialogs (`eden_ld:hub/guild/…`, `…/waystones/…`, `…/activities/…`, `…/mail/…`, listed in
+`HubSpotlights` and in NPCs_LD's editor picker).
 
 **Any size.** Drag the hub's sides or bottom (or the dotted corner) to make it bigger, or press
 the maximize button left of "?" to fill the window (again to go back); every tab stretches to
@@ -1317,6 +1321,8 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     "commands_on_start": ["realmkeys player {player} lockall", "realmkeys player {player} unlock yggdrasil:tutorial_dim"],
     "commands_on_finish": ["realmkeys player {player} unlock yggdrasil:spawn_dim", "…"],
     "always_visible": ["npcs_ld:npc"],
+    "tab_tours": {"guild": "config:hub/guild", "waystones": "config:hub/waystones",
+                  "activities": "config:hub/activities", "mail": "config:hub/mail"},
     "private_blocks": ["potions_ld:alchemy_table", "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
                        "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"]
   }

@@ -511,6 +511,31 @@ public final class HubPayloads {
     }
 
     /** C2S: ignore {@code target}, or stop ignoring them. */
+    /** S2C: the hub tabs that have a tour (their help window shows ▶). Sent on join and after /reload. */
+    public record HubTours(List<String> tabs) implements CustomPacketPayload {
+        public static final Type<HubTours> TYPE = new Type<>(id("hub_tours"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, HubTours> CODEC = StreamCodec.of(
+                (buf, p) -> writeList(buf, p.tabs, (b, tab) -> b.writeUtf(tab, 32)),
+                buf -> new HubTours(readList(buf, b -> b.readUtf(32))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S: start the tour of this hub tab (the help window's ▶). */
+    public record TourStart(String tab) implements CustomPacketPayload {
+        public static final Type<TourStart> TYPE = new Type<>(id("tour_start"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, TourStart> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeUtf(p.tab, 32), buf -> new TourStart(buf.readUtf(32)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record IgnoreAction(java.util.UUID target, boolean ignore) implements CustomPacketPayload {
         public static final Type<IgnoreAction> TYPE = new Type<>(id("ignore_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, IgnoreAction> CODEC = StreamCodec.of(
@@ -2915,6 +2940,8 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(FriendAction.TYPE, FriendAction.CODEC);
         PayloadTypeRegistry.playS2C().register(IgnoreData.TYPE, IgnoreData.CODEC);
         PayloadTypeRegistry.playC2S().register(IgnoreAction.TYPE, IgnoreAction.CODEC);
+        PayloadTypeRegistry.playS2C().register(HubTours.TYPE, HubTours.CODEC);
+        PayloadTypeRegistry.playC2S().register(TourStart.TYPE, TourStart.CODEC);
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);

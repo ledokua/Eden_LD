@@ -10,14 +10,15 @@ import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The "?" window: what the open tab is for and how it works. The text is the lang key
+ * The "?" window: what the open tab is for and how it works — and, on tabs with a tour, ▶ in its title bar, which
+ * starts that tab's NPCs_LD walk-through ({@code tutorial.tab_tours}; the server lists the tabs). The text is the lang key
  * {@code gui.eden_ld.hub.help.<tab>} (paragraphs split on blank lines), so it's translated and a
  * server can reword it through {@code config/eden_ld/lang/}.
  * <p>
  * A window over the hub, not a dialog: the player can move it, resize it, keep it open while using the
  * tab, and it switches to the help of whichever tab they open. "?" again closes it.
  */
-final class HubHelp {
+public final class HubHelp {
 
     private static final float WIDTH = 300;
     private static final float HEIGHT = 180;
@@ -26,6 +27,8 @@ final class HubHelp {
     @Nullable
     private static Window window;
     private static HubTab shown = HubTab.HOME;
+    /** Tabs with a tour (lower-case names), from the server. */
+    private static java.util.Set<String> tours = java.util.Set.of();
 
     private HubHelp() {
     }
@@ -43,8 +46,30 @@ final class HubHelp {
         help.body().gap(0);
         window = help;
         shown = tab;
+        tourButton(help);
         fill(help);
         help.open(canvas);
+    }
+
+    /** The server's list of tabs with a tour (join, /reload): an open help window follows it. */
+    public static void onTours(java.util.List<String> tabs) {
+        tours = java.util.Set.copyOf(tabs);
+        if (window != null) {
+            tourButton(window);
+        }
+    }
+
+    /** ▶ in the title bar when the shown tab has a tour; it starts the tour and closes this window. */
+    private static void tourButton(Window help) {
+        help.clearTitleButtons();
+        String tab = shown.name().toLowerCase(java.util.Locale.ROOT);
+        if (tours.contains(tab)) {
+            help.titleButton(Component.literal("▶"), Component.translatable("gui.eden_ld.hub.help.tour"), () -> {
+                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                        new net.ledok.eden_ld.hub.HubPayloads.TourStart(tab));
+                help.close();
+            }, HubSpotlights.HELP_TOUR);
+        }
     }
 
     /** The open tab changed: an open help window shows that tab's help. */
@@ -54,6 +79,7 @@ final class HubHelp {
         }
         shown = tab;
         window.title(title(tab));
+        tourButton(window);
         fill(window);
     }
 
