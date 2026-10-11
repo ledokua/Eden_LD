@@ -26,6 +26,9 @@ public final class HubState {
     public static HubPayloads.DailiesData dailiesData;
     /** When {@link #dailiesData} arrived; the reset timer counts down from here. */
     public static long dailiesReceivedAt;
+    /** Kits_LD's kits for this player (null: the server has no Kits_LD, so no Kits tab) and when they came. */
+    public static HubPayloads.KitsData kitsData;
+    public static long kitsReceivedAt;
     public static HubPayloads.WaystonesData waystonesData;
     /** When {@link #waystonesData} arrived; its timers count down from here. */
     public static long waystonesReceivedAt;
@@ -71,6 +74,7 @@ public final class HubState {
         activityUnlocks = java.util.List.of();
         waystonesData = null;
         dailiesData = null;
+        kitsData = null;
         waystoneMessage = null;
         partyChat.clear();
         guildData = null;
@@ -122,6 +126,22 @@ public final class HubState {
     }
 
     /** Hidden until the server says Blay's Waystones is present (Home data carries the flag). */
+    /** The wait left on a kit now (its data counts down from when it came): 0 ready, -1 claimed once. */
+    public static long kitRemaining(HubPayloads.KitView kit) {
+        if (kit.remainingMillis() <= 0) {
+            return kit.remainingMillis();
+        }
+        return Math.max(0, kit.remainingMillis() - (System.currentTimeMillis() - kitsReceivedAt));
+    }
+
+    /** Kits that can be claimed right now (the Kits tab's badge). */
+    public static int kitsReady() {
+        if (kitsData == null) {
+            return 0;
+        }
+        return (int) kitsData.kits().stream().filter(kit -> !kit.locked() && kitRemaining(kit) == 0).count();
+    }
+
     public static boolean waystonesAvailable() {
         return homeData != null && homeData.waystonesAvailable();
     }

@@ -114,6 +114,13 @@ public final class HubSpotlights {
     /** Matches · Top 1v1 · Top 2v2. */
     public static final String DUELS_VIEWS = PREFIX + "duels/views";
     public static final String DUELS_LIST = PREFIX + "duels/list";
+    // Kits (Kits_LD): the list, the first card, the first Claim that can be pressed, the first Preview.
+    public static final String KITS_LIST = PREFIX + "kits/list";
+    public static final String KITS_FIRST = PREFIX + "kits/first";
+    public static final String KITS_CLAIM = PREFIX + "kits/claim";
+    public static final String KITS_PREVIEW = PREFIX + "kits/preview";
+    /** The open Preview dialog. */
+    public static final String KITS_PREVIEW_WINDOW = PREFIX + "kits/preview_window";
 
     /** The tab's bookmark in the tab row. */
     public static String tab(HubTab tab) {
@@ -173,7 +180,10 @@ public final class HubSpotlights {
                 {GUILD_BANK_LOG, "Guild Bank: Log"}, {DUELS_CARD_1V1, "Duels: 1v1 card"},
                 {DUELS_CARD_2V2, "Duels: 2v2 card"}, {DUELS_QUEUE_1V1, "Duels: 1v1 queue button"},
                 {DUELS_QUEUE_2V2, "Duels: 2v2 queue button"}, {DUELS_REWARDS, "Duels: today's rewards"},
-                {DUELS_VIEWS, "Duels: Matches / Top"}, {DUELS_LIST, "Duels: list"}};
+                {DUELS_VIEWS, "Duels: Matches / Top"}, {DUELS_LIST, "Duels: list"},
+                {KITS_LIST, "Kits: list"}, {KITS_FIRST, "Kits: first kit"},
+                {KITS_CLAIM, "Kits: first Claim that can be pressed"}, {KITS_PREVIEW, "Kits: first Preview"},
+                {KITS_PREVIEW_WINDOW, "Kits: Preview window"}};
         for (String[] part : parts) {
             Spotlight.register(part[0], Component.literal("Hub: " + part[1]));
         }

@@ -124,6 +124,14 @@ public class EdenLDClient implements ClientModInitializer {
             }
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.KitsData.TYPE, (payload, context) -> {
+            HubState.kitsData = payload;
+            HubState.kitsReceivedAt = System.currentTimeMillis();
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onKitsData();
+            }
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.Balance.TYPE, (payload, context) -> {
             if (HubState.homeData != null) {
                 HubState.homeData = HubState.homeData.withBalance(payload.balance());

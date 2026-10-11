@@ -45,8 +45,15 @@ needs a README pass too.
           `EconomyCompat` gives or takes, and Economy_LD's `COINS_MOVED`, sends `HubPayloads.Balance`; the client
           patches it into its Home and Mail data (Home rebuilds when open). Dev-checked: bank withdraw and deposit,
           then Home and the Mail wallet; a Mail wallet withdrawal, then Home.
-  - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
-        after the tutorial — and a tutorial step for it.
+  - [ ] **Kits tab** (owner, 2026-10-11; `docs/PLAN-kits.md`): its own hub tab (after Dailies) for Kits_LD's kits —
+        cards with status and countdown, Preview (inventory-shaped), Claim (busy-locked), a badge for ready kits;
+        `/kits` opens it for Eden clients. Eden 1.1.6 built and dev-checked 2026-10-11 (see the plan's Checked).
+        Not deployed. Live has Kits_LD 0.2.0 but no kits yet. Deploying: add `"kits": "config:hub/kits"` to
+        `tab_tours` in Prism's and live `tutorial.json` (an existing file keeps its own list).
+    - [ ] Tutorial step (owner asked whether it needs another NPC — no): `npcs_ld talk <dialog> {player}` at the end
+          of `commands_on_finish` starts it at the finish spot; the dialog (hub button → Kits → Claim, ids
+          `eden_ld:hub/kits/...`) and the tab's ▶ tour (`config:hub/kits`) by the NPCs_LD session. Awaiting the go.
+    - [ ] `tab_kits` icon art (placeholder square until then; `docs/ICONS.md`).
 
 - [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
       registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,

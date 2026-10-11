@@ -300,6 +300,7 @@ public class HubScreen extends CanvasScreen {
             case FRIENDS -> FriendsTab.build(this, content);
             case MAIL -> MailTab.build(this, content);
             case DAILIES -> DailiesTab.build(this, content);
+            case KITS -> KitsTab.build(this, content);
             case WAYSTONES -> WaystonesTab.build(this, content);
             case ACTIVITIES -> ActivitiesTab.build(this, content);
             case WARDROBE -> WardrobeTab.build(this, content);
@@ -330,6 +331,8 @@ public class HubScreen extends CanvasScreen {
             WaystonesTab.tick(this);
         } else if (HubState.lastTab == HubTab.DAILIES) {
             DailiesTab.tick();
+        } else if (HubState.lastTab == HubTab.KITS) {
+            KitsTab.tick(this);
         } else if (HubState.lastTab == HubTab.GUILD && HubState.guildView == GuildView.QUESTS) {
             GuildQuestsView.tick();
         } else if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
@@ -480,6 +483,7 @@ public class HubScreen extends CanvasScreen {
             case FRIENDS -> HubState.friendsAvailable();
             case WAYSTONES -> HubState.waystonesAvailable();
             case MAIL -> HubState.mailData != null;
+            case KITS -> HubState.kitsData != null;
             case MODERATION -> HubState.homeData != null
                     && (HubState.homeData.staff() & HubPayloads.HomeData.STAFF_MODERATION) != 0;
             default -> true;
@@ -598,6 +602,9 @@ public class HubScreen extends CanvasScreen {
         } else if (tab == HubTab.DAILIES) {
             ClientPlayNetworking.send(HubPayloads.DailiesDataRequest.INSTANCE);
             DailiesTab.build(this, content);
+        } else if (tab == HubTab.KITS) {
+            ClientPlayNetworking.send(HubPayloads.KitsRequest.INSTANCE);
+            KitsTab.build(this, content);
         } else if (tab == HubTab.WAYSTONES) {
             HubState.waystoneMessage = null;
             ClientPlayNetworking.send(HubPayloads.WaystonesDataRequest.INSTANCE);
@@ -921,6 +928,21 @@ public class HubScreen extends CanvasScreen {
         if (HubState.lastTab == HubTab.HOME) {
             rebuildContent();
         }
+    }
+
+    /** Fresh kits (joined, the tab opened, a claim): the tab bar (the tab itself, its badge) and the tab. */
+    public void onKitsData() {
+        rebuildTabRow();
+        if (HubState.lastTab == HubTab.KITS) {
+            relayoutKits();
+        }
+    }
+
+    /** The Kits tab again from the data it has (a cooldown ran out: its card turns claimable). */
+    void relayoutKits() {
+        content.clear();
+        content.id(HubSpotlights.page(HubTab.KITS));
+        KitsTab.build(this, content);
     }
 
     /** Fresh guild level/quest data: only the sub-tabs that show it rebuild (not the chat). */

@@ -106,6 +106,10 @@ dependencies {
     // A copy of the pack's jar.
     modCompileOnly files("libs/ftb-teams-fabric-2101.1.11.jar")
 
+    // Kits_LD — optional: the hub's Kits tab and /kits (KitsCompat). A copy of the pack's jar (to test, put it in
+    // run-server/mods and run-main/mods).
+    modCompileOnly files("libs/Kits_LD-fabric-0.2.0.jar")
+
     modCompileOnly files("libs/Economy_LD-1.0.2.jar")
     modLocalRuntime files("libs/Economy_LD-1.0.2.jar")
     // Its bundled SQLite driver isn't unpacked from a local jar in the dev run.

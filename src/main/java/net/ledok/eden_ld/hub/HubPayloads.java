@@ -2779,6 +2779,91 @@ public final class HubPayloads {
         }
     }
 
+    // ---------------------------------------------------------------- kits (Kits_LD)
+
+    /** C2S: the Kits tab opened (or wants fresh data). */
+    public record KitsRequest() implements CustomPacketPayload {
+        public static final KitsRequest INSTANCE = new KitsRequest();
+        public static final Type<KitsRequest> TYPE = new Type<>(id("kits_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, KitsRequest> CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * One stack of a kit, where it lands: {@code area} {@link #MAIN} (slot 0-35, 0-8 the hotbar), {@link #ARMOR}
+     * (0 feet … 3 head), {@link #OFFHAND}, or {@link #TRINKET} ({@code trinket} = its "group/slot").
+     */
+    public record KitItem(int area, int slot, String trinket, net.minecraft.world.item.ItemStack stack) {
+        public static final int MAIN = 0, ARMOR = 1, OFFHAND = 2, TRINKET = 3;
+
+        static void write(RegistryFriendlyByteBuf buf, KitItem item) {
+            buf.writeVarInt(item.area);
+            buf.writeVarInt(item.slot);
+            buf.writeUtf(item.trinket, 64);
+            net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, item.stack);
+        }
+
+        static KitItem read(RegistryFriendlyByteBuf buf) {
+            return new KitItem(buf.readVarInt(), buf.readVarInt(), buf.readUtf(64),
+                    net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
+        }
+    }
+
+    /**
+     * A kit as the Kits tab shows it. {@code remainingMillis}: 0 ready, -1 a one-time kit already claimed, else the
+     * wait (counted down on the client from when the data came). {@code cooldownSeconds}: Kits_LD's (0 none, -1 once).
+     * {@code lockMessage} is the kit's own text for players without its permission (empty: the default).
+     */
+    public record KitView(String id, net.minecraft.network.chat.Component name, net.minecraft.world.item.ItemStack icon,
+                          long remainingMillis, boolean locked, String lockMessage, long cooldownSeconds,
+                          List<KitItem> items) {
+        static void write(RegistryFriendlyByteBuf buf, KitView kit) {
+            buf.writeUtf(kit.id, 64);
+            net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(buf, kit.name);
+            net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, kit.icon);
+            buf.writeLong(kit.remainingMillis);
+            buf.writeBoolean(kit.locked);
+            buf.writeUtf(kit.lockMessage, 512);
+            buf.writeLong(kit.cooldownSeconds);
+            writeList(buf, kit.items, KitItem::write);
+        }
+
+        static KitView read(RegistryFriendlyByteBuf buf) {
+            return new KitView(buf.readUtf(64), net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
+                    net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.decode(buf), buf.readLong(),
+                    buf.readBoolean(), buf.readUtf(512), buf.readLong(), readList(buf, KitItem::read));
+        }
+    }
+
+    /** S2C: the kits this player sees (on join, when the tab opens, after a claim). Only sent where Kits_LD runs. */
+    public record KitsData(List<KitView> kits) implements CustomPacketPayload {
+        public static final Type<KitsData> TYPE = new Type<>(id("kits_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, KitsData> CODEC = StreamCodec.of(
+                (buf, p) -> writeList(buf, p.kits, KitView::write),
+                buf -> new KitsData(readList(buf, KitView::read)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S: claim a kit (the server checks everything again). */
+    public record KitClaim(String kit) implements CustomPacketPayload {
+        public static final Type<KitClaim> TYPE = new Type<>(id("kit_claim"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, KitClaim> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeUtf(p.kit, 64), buf -> new KitClaim(buf.readUtf(64)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     private static <T> void writeList(RegistryFriendlyByteBuf buf, List<T> list,
                                       java.util.function.BiConsumer<RegistryFriendlyByteBuf, T> writer) {
         buf.writeVarInt(list.size());
@@ -2973,6 +3058,9 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(DailiesData.TYPE, DailiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(HubNotice.TYPE, HubNotice.CODEC);
         PayloadTypeRegistry.playS2C().register(Balance.TYPE, Balance.CODEC);
+        PayloadTypeRegistry.playC2S().register(KitsRequest.TYPE, KitsRequest.CODEC);
+        PayloadTypeRegistry.playS2C().register(KitsData.TYPE, KitsData.CODEC);
+        PayloadTypeRegistry.playC2S().register(KitClaim.TYPE, KitClaim.CODEC);
         PayloadTypeRegistry.playS2C().register(MailData.TYPE, MailData.CODEC);
         PayloadTypeRegistry.playC2S().register(MailAction.TYPE, MailAction.CODEC);
         PayloadTypeRegistry.playC2S().register(ModOpen.TYPE, ModOpen.CODEC);

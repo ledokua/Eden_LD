@@ -20,6 +20,8 @@ public enum HubTab {
     WAYSTONES(true, 5, 0xFF2FB8B8, true),
     ACTIVITIES(true, 6, 0xFF8C8C96, false),
     DAILIES(true, 7, 0xFFF0C23C, true),
+    /** Kits_LD's kits to claim (only where the server runs Kits_LD). */
+    KITS(true, 13, 0xFF9C6B30, false),
     /** Staff only: opens the Moderation window instead of a page. */
     MODERATION(true, 10, 0xFF6A6F78, false),
     SETTINGS(true, 8, 0, false);
@@ -29,7 +31,7 @@ public enum HubTab {
      * The tab's bit in the player's "opened tabs" setting — fixed per tab, so reordering or adding
      * tabs never shifts what players have already opened.
      */
-    public final int bit; // 11 was the Duels tab (now a filter in Activities): don't reuse it
+    public final int bit; // 11 was the Duels tab (now a filter in Activities): don't reuse it; next free: 14
     /** Placeholder icon: its color and whether it's a circle (else a square). */
     public final int iconColor;
     public final boolean round;

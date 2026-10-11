@@ -390,7 +390,8 @@ public class EdenConfig {
                 java.util.Map.entry("waystones", "config:hub/waystones"),
                 java.util.Map.entry("activities", "config:hub/activities"),
                 java.util.Map.entry("activities/duels", "config:hub/duels"),
-                java.util.Map.entry("mail", "config:hub/mail")));
+                java.util.Map.entry("mail", "config:hub/mail"),
+                java.util.Map.entry("kits", "config:hub/kits")));
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
                 "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
                 "minecraft:blast_furnace", "minecraft:brewing_stand"));

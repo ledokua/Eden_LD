@@ -74,6 +74,8 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.command.EdenPermissions.initialize();
         net.ledok.eden_ld.command.OpOnlyCommands.initialize();
         net.ledok.eden_ld.command.BusyBlockedCommands.initialize();
+        // After BusyBlockedCommands: /kits is wrapped on top of its busy block.
+        net.ledok.eden_ld.hub.kits.KitsHub.initialize();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EdenCommands.register(dispatcher));
 

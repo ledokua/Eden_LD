@@ -18,7 +18,7 @@ public final class HubNotifications {
 
     /** The kinds, in {@link HubSettings#NOTIFY_OFF} bit order. */
     public enum Kind {
-        NEW_TABS, FRIEND_REQUESTS, PARTY_INVITES, GUILD_INVITES, DAILIES, SHOP, MAIL, ACTIVITIES, DUELS
+        NEW_TABS, FRIEND_REQUESTS, PARTY_INVITES, GUILD_INVITES, DAILIES, SHOP, MAIL, ACTIVITIES, DUELS, KITS
     }
 
     /** The fixed colors after the theme's own, in {@link HubSettings#NOTIFY_COLOR} order (1..8). */
@@ -62,6 +62,7 @@ public final class HubNotifications {
             case PARTY -> enabled(Kind.PARTY_INVITES) ? HubState.partyInvites() : 0;
             case GUILD -> enabled(Kind.GUILD_INVITES) ? HubState.guildInvites() : 0;
             case DAILIES -> enabled(Kind.DAILIES) ? HubState.dailiesClaimable() : 0;
+            case KITS -> enabled(Kind.KITS) ? HubState.kitsReady() : 0;
             case ACTIVITIES -> enabled(Kind.ACTIVITIES) ? HubState.activityUnlocks.size() : 0;
             default -> 0;
         };

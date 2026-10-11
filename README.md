@@ -183,7 +183,7 @@ replaces the old tutorial-mod-for-yggdrasil; the NPCs_LD guide dialog runs its s
 
 One parchment-styled hub screen (default key **F4**, or `/hub`) gathers the server's social and
 progression features under bookmark tabs: Home · Profile · Wardrobe · Friends · Party · Guild ·
-Waystones · Activities (with Duels) · Dailies, plus Settings. The hub remembers the last-opened tab during a play session and opens on
+Waystones · Activities (with Duels) · Dailies · Kits, plus Settings. The hub remembers the last-opened tab during a play session and opens on
 Home after joining.
 
 The inventory has a hub button too, under the crafting grid (where the recipe book button is when Not
@@ -196,7 +196,7 @@ opens); each names itself on hover, and the open tab's name is the page title ab
 The open sub-tab or filter inside a page (Settings sections, Mail filters, Guild views…) uses the
 theme's accent-tinted button. **News on a tab**
 shows Discord-style: a badge in its top right corner with a count (friend requests on Friends,
-invites on Party and Guild, quests to claim on Dailies, shop purchases on Home) or a dot on a tab
+invites on Party and Guild, quests to claim on Dailies, kits ready on Kits, shop purchases on Home) or a dot on a tab
 never opened; or a glow inside the tab, or both — see Settings → Notifications and → Visual.
 **"?"** next to Settings explains the open tab (lang keys `gui.eden_ld.hub.help.<tab>`, so a
 server can reword them in `config/eden_ld/lang/`) in a small window that can be moved, resized
@@ -205,9 +205,9 @@ closes it. When what the tab shows has a **tour** (`tutorial.tab_tours`), **▶*
 NPCs_LD walk-through of it — pinned lines that highlight its parts one by one — any time, as often as wanted (a
 dialog waiting for something, like the guide, is set aside and comes back after). Tours go by what's on screen:
 Guild for players without a guild, each guild sub-tab for members (`guild/members`, `guild/recruiting`,
-`guild/quests`, `guild/level`, `guild/bank`), Waystones, Activities, Duels (`activities/duels`) and Mail; ▶ follows
+`guild/quests`, `guild/level`, `guild/bank`), Waystones, Activities, Duels (`activities/duels`), Mail and Kits; ▶ follows
 the sub-tab as it changes, and shows only for tours whose dialog NPCs_LD has. The parts have stable names for dialogs
-(`eden_ld:hub/guild/…`, `…/duels/…`, `…/waystones/…`, `…/activities/…`, `…/mail/…`, listed in `HubSpotlights` and in
+(`eden_ld:hub/guild/…`, `…/duels/…`, `…/waystones/…`, `…/activities/…`, `…/mail/…`, `…/kits/…`, listed in `HubSpotlights` and in
 NPCs_LD's editor picker).
 
 **Any size.** Drag the hub's sides or bottom (or the dotted corner) to make it bigger, or press
@@ -222,7 +222,7 @@ a divider to drag (double-click it to reset); it's remembered for the session.
 with Economy_LD, today's dailies — over your [profile](#profile) background), pending shop
 purchases, party invites and friend requests with action buttons, and the server's news (Markdown,
 in the reader's language — written in the [Moderation window](#moderation-window)). **Friends**, **Party**, **Guild**, **Waystones**,
-**Activities**, **Duels**, **Dailies**, and **Settings** are live too; the other
+**Activities**, **Duels**, **Dailies**, **Kits** and **Settings** are live too; the other
 tabs arrive in future updates — see [docs/PLAN-hub.md](docs/PLAN-hub.md) for the roadmap.
 
 ### Guilds
@@ -476,6 +476,25 @@ endermen, craft food, place blocks, eat, mine ores/logs, fish, cast spells, jump
 jar as a disabled datapack — `/datapack enable "eden_ld:test_dailies"` (then
 `/dailies reset <player>` to redraw today's set). Disable it again once your own pool is ready. `complete_dungeon` counts won activity runs (target = the activity id), and
 custom objectives from other mods through `EdenDailyApi` (see API.md).
+
+### Kits
+
+With **Kits_LD** (0.2.0+) on the server, the **Kits** tab lists the kits a player can see and lets them
+claim them ([docs/PLAN-kits.md](docs/PLAN-kits.md)). Kits_LD decides everything: which kits show
+(`hidden_when_locked` hides a kit from players without its permission), who may claim one (`kits_ld.kit.<name>`),
+the cooldown or one-time claim, and the claim itself (items into their saved slots, the kit's commands). Kits are
+made and edited with Kits_LD's `/kit save` and `/kit editor`.
+
+Each kit is a card: its icon and name (with the kit's `&` colors), a status — **Ready** (with "once every 2d" or
+"a one-time kit"), **Ready in 1h 20m** counting down (the card turns claimable at zero), **Claimed** for one-time
+kits, or **Locked** with the kit's own `lock_message` — and **Preview** and **Claim**. Preview shows the kit laid
+out like the inventory it lands in: armor and offhand on the left, the three rows and the hotbar beside them,
+trinkets below, each item with its tooltip. Claiming says what happened in a notice; it's refused while the player
+is busy (the tutorial, a duel), like every hub reward. The tab's badge counts the kits ready to claim (Settings →
+Notifications → Kits to claim).
+
+**`/kits`** opens the Kits tab for players with Eden on their client; vanilla clients keep Kits_LD's chat list, and
+`/kit claim <name>` works as before. The tab shows only where the server runs Kits_LD.
 
 ### Waystones
 
@@ -1328,7 +1347,7 @@ changed into the new files, then delete it). Below, each top-level key is the fi
                   "guild/recruiting": "config:hub/guild_recruiting", "guild/quests": "config:hub/guild_quests",
                   "guild/level": "config:hub/guild_level", "guild/bank": "config:hub/guild_bank",
                   "waystones": "config:hub/waystones", "activities": "config:hub/activities",
-                  "activities/duels": "config:hub/duels", "mail": "config:hub/mail"},
+                  "activities/duels": "config:hub/duels", "mail": "config:hub/mail", "kits": "config:hub/kits"},
     "private_blocks": ["potions_ld:alchemy_table", "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
                        "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"]
   }
@@ -1357,6 +1376,7 @@ is the player's name.
 | `/hub theme lock <players> <theme>` | `eden_ld.admin.themes` | Removes an unlocked theme (free themes stay). |
 | `/hub profile` | any player | Opens the hub on your profile. |
 | `/hub mail` | any player | Opens the hub on the Mail tab (the website-purchases join message links here). |
+| `/kits` | any player | With Kits_LD: opens the hub on the Kits tab (vanilla clients: Kits_LD's chat list). |
 | `/hub background unlock <players> <background>` | `eden_ld.admin.backgrounds` | Unlocks a profile background (e.g. `eden_ld:aurora`) for players. |
 | `/hub background lock <players> <background>` | `eden_ld.admin.backgrounds` | Removes an unlocked background (free ones stay). |
 | `/invite <player>` | any player | Invites to your party — or, when solo, starts one (created when they accept). |
@@ -1415,6 +1435,7 @@ Other mods can register flight rules and read cached Minestar profiles — see [
   and Eden's level check is its entry gate (see Eden Hub → Activities).
 - **Duels_LD** (1.4.0+) — optional; the Duels tab (see Eden Hub → Duels). Duels uses Eden's parties
   for 2v2.
+- **Kits_LD** (0.2.0+) — optional; the Kits tab and `/kits` (see Eden Hub → Kits).
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — works alongside Eden's chat; right-click on an emoji or sticker stars / saves
   it instead of opening ChatPatches' menu. Its right-click menu is drawn above the chat lines (on

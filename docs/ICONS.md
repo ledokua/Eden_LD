@@ -36,7 +36,7 @@ shrunk to 24 px), and the framed `close` (unused).
   `<name>.png.mcmeta` with `{"texture": {"blur": true}}`, so shrinking blends pixels; icons drawn
   *bigger* than their file (the 16 × 16 set) have none — blur would make them soft.
 
-## Tabs (18)
+## Tabs (19)
 
 Shown at **16 × 16** in the tab bar, pixel-exact (every tab is the icon alone; the open tab's name is
 the page title). An empty tab shows its icon at 32 × 32.
@@ -56,6 +56,7 @@ the page title). An empty tab shows its icon at 32 × 32.
 | `tab_dailies_done` | Dailies, all claimed today | book with a check | ✅ |
 | `tab_mail` | Mail, everything read | open envelope | ✅ |
 | `tab_mail_unread` | Mail, unread mail or a website purchase waiting | sealed envelope | ✅ |
+| `tab_kits` | Kits (Kits_LD's kits to claim) | chest / bundle | |
 | `tab_moderation` | Moderation (staff only) | judge's gavel | ✅ |
 | `tab_settings` | Settings | gear | ✅ |
 | `tab_help` | the "?" button | question mark | ✅ |
