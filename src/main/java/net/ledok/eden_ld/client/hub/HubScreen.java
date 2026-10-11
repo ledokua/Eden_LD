@@ -694,7 +694,8 @@ public class HubScreen extends CanvasScreen {
         Flex stats = Flex.column().gap(2).alignItems(Align.END);
         if (data.hasEconomy()) {
             stats.item(net.ledok.vectorlib.client.canvas.TextNode.of(
-                    Component.translatable("gui.eden_ld.hub.home.balance", data.balance())).color(text).shadow(shadow));
+                    Component.translatable("gui.eden_ld.hub.home.balance", data.balance())).color(text).shadow(shadow)
+                    .id(HubSpotlights.BALANCE));
         }
         int[] dailies = HubState.dailiesProgress();
         if (dailies[1] > 0) {

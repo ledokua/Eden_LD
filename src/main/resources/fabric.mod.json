@@ -29,7 +29,7 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "minecraft": "${minecraft_version}",
-    "vectorlib": ">=0.6.0",
+    "vectorlib": ">=0.6.1",
     "busylib": "*"
   },
   "suggests": {

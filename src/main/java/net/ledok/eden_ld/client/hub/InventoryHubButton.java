@@ -7,6 +7,8 @@ import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.client.EdenLDClient;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.mixin.AbstractContainerScreenAccessor;
+import net.ledok.vectorlib.client.canvas.Rect;
+import net.ledok.vectorlib.client.presentation.Spotlight;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
@@ -54,6 +56,17 @@ public final class InventoryHubButton extends AbstractButton {
             if (screen instanceof InventoryScreen inventory && ClientPlayNetworking.canSend(HubPayloads.ProfileRequest.TYPE)) {
                 Screens.getButtons(screen).add(new InventoryHubButton(inventory, recipeBook(inventory)));
             }
+        });
+        // Tutorials can point at the button like at any Hub part.
+        Spotlight.registerLocator((screen, id) -> {
+            if (!id.equals(HubSpotlights.INVENTORY_BUTTON) || !(screen instanceof InventoryScreen)) return null;
+            for (var widget : Screens.getButtons(screen)) {
+                if (widget instanceof InventoryHubButton button && button.visible) {
+                    button.place();
+                    return new Rect(button.getX(), button.getY(), button.getWidth(), button.getHeight());
+                }
+            }
+            return null;
         });
     }
 
