@@ -9,9 +9,12 @@ needs a README pass too.
 - [ ] **Tutorial in Eden** (owner, 2026-10-11; `docs/PLAN-tutorial.md`) — first-join placement into `tutorial_dim`,
       phasing and private containers ported from the old tutorial mod, the busy state locking teleports, party and
       guild, getting items and spending coins; website purchases as Mail entries. Built 2026-10-11 (Eden 1.1.2) and checked in
-      the dev client (see the plan's Checked); not deployed. Needs from the owner: the arrival spot in `tutorial_dim`
-      and the finish spot in `spawn_dim`. At rollout: the old tutorial mod to the backups, the guide's cleanup runs
-      `eden tutorial finish {player}` last (NPCs_LD session), natural mob spawning off in `tutorial_dim`.
+      the dev client (see the plan's Checked). The owner's spots are in `tutorial.json` (arrival 80.5 161 -88.5
+      south, finish -37.5 91 92.5 west in `spawn_dim`). **Copied to the pack, Prism and the live server 2026-10-11
+      14:36** (Eden 1.1.2 + live `tutorial.json`; Eden 1.1.1 and tutorial-mod-for-yggdrasil 1.0.0 moved to the
+      backups); running on live since the 2026-10-11 15:41 start (4 commands busy-blocked); the guide's cleanup runs `eden tutorial
+      finish {player}` last (NPCs_LD session, live with that start). Still to do: natural mob spawning off in
+      `tutorial_dim`; a live run-through (finish and skip, the waystone stage, the alchemy table).
   - [x] Busy locks: `BusyLocks` (guild create/invite/accept/apply/join, the guild bank's items/LC/upgrades, daily
         claims and rerolls, Wardrobe buy and gift, website purchases), messages naming the tutorial; config
         `commands.busy_blocked` (`pay`, `withdraw`, `kit`, `kits` — other mods' commands, every subcommand).

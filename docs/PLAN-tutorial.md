@@ -1,7 +1,8 @@
 # Plan: the tutorial in Eden
 
-**Status (2026-10-11): built and checked in the dev client** (see Checked below); not deployed. Still needed from the
-owner: the arrival spot in `tutorial_dim` and the finish spot in `spawn_dim`.
+**Status (2026-10-11): built, checked in the dev client** (see Checked below) **and copied to the pack, Prism and the
+live server** (Eden 1.1.2, commit d6a74e6; the old tutorial mod moved to the backups); applies at the next restart. The owner's spots are in Prism Server's `config/eden_ld/tutorial.json`: arrival `80.5 161 -88.5` facing south,
+finish `-37.5 91 92.5` in `spawn_dim` facing west.
 
 Owner's request (2026-10-11): players in the tutorial must not be able to break it — teleport to other waystones,
 make a party, join or create a guild, and so on. Answers came from the NPCs_LD + VectorLib session (the guide dialog)
