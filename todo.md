@@ -33,11 +33,12 @@ needs a README pass too.
         `Window.titleButton`, owner approved) starts the tab's NPCs_LD dialog (`tutorial.tab_tours`, default
         `config:hub/<tab>` for Guild, Waystones, Activities, Mail; `HubTours`, `NpcsCompat`); highlight ids for those
         tabs in `HubSpotlights`. Eden 1.1.5 built and checked in dev (▶ shown, Mail test tour highlighted the list, then
-        Claim all). Not deployed. The dialogs: NPCs_LD session (the first four written and dev-tested 2026-10-11).
+        Claim all). 1.1.5 deployed 2026-10-11 by the NPCs_LD session (Prism, pack 65113f8, live upload by the owner;
+        1.1.4 to removed-mods-2026-10-11). The dialogs: NPCs_LD session (the first four written and dev-tested 2026-10-11).
     - [x] Sub-tab tours (owner): `guild/members|recruiting|quests|level|bank` for members, `activities/duels`; ▶
           follows the open sub-tab and only shows when NPCs_LD has the dialog; highlight ids for the guild sub-views
           and Duels. Dev-checked (no ▶ on Chat, ▶ on Bank, a test Bank tour lit the vault). Dialogs: NPCs_LD session;
-          all six run in Eden dev 2026-10-11 (every step framed on the right widget, clean end). Go to live with 1.1.5.
+          all six run in Eden dev 2026-10-11 (every step framed on the right widget, clean end); on live with 1.1.5.
     - [x] Moderation: the player page's admin tabs keep their scroll (Unlocks no longer jumps to the top); the
           Ukrainian sidebar label "Світ" (the page title stays "Налаштування світу").
     - [x] Stale LC balance (owner: withdrawing from the guild bank left Home/Wardrobe on the old amount): every LC
