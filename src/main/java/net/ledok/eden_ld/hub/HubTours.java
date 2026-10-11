@@ -31,8 +31,18 @@ public final class HubTours {
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> sendAll(server));
     }
 
+    /** The tours whose dialog NPCs_LD has (checked on join and /reload — after `npcs_ld dialogs reload`, a relog). */
     private static List<String> tabs() {
-        return NpcsCompat.LOADED ? List.copyOf(EdenLD.CONFIG.tutorial.tab_tours.keySet()) : List.of();
+        if (!NpcsCompat.LOADED) {
+            return List.of();
+        }
+        return EdenLD.CONFIG.tutorial.tab_tours.entrySet().stream()
+                .filter(entry -> {
+                    ResourceLocation id = ResourceLocation.tryParse(entry.getValue());
+                    return id != null && NpcsCompat.exists(id);
+                })
+                .map(java.util.Map.Entry::getKey)
+                .toList();
     }
 
     static void send(ServerPlayer player) {

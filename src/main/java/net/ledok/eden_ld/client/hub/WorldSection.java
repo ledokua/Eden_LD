@@ -107,7 +107,7 @@ final class WorldSection {
 
     void build(Flex main) {
         stale = false;
-        main.item(text(Component.translatable("gui.eden_ld.moderation.section.world"), TEXT));
+        main.item(text(Component.translatable("gui.eden_ld.moderation.world.title"), TEXT));
         if (data == null) {
             main.item(text(Component.translatable("gui.eden_ld.hub.home.loading"), DIM));
             return;

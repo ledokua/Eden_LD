@@ -75,6 +75,7 @@ final class GuildQuestsView {
         dailyReset = section(list, data, 0, tr("daily"));
         weeklyReset = section(list, data, 1, tr("weekly"));
         ScrollPanel panel = HubScroll.panel("guild/quests", width, 100, list);
+        panel.id(HubSpotlights.GUILD_QUESTS);
         panel.sizing(Sizing.fill(), Sizing.expand());
         content.item(panel);
         updateResets();

@@ -536,6 +536,7 @@ final class GuildTab {
 
     private static Flex memberCard(HubScreen screen, GuildData data, float width) {
         Flex card = Flex.column().gap(3).padding(Insets.of(4, 5, 4, 5));
+        card.id(HubSpotlights.GUILD_MEMBER_CARD);
         card.sizing(Sizing.fill(), Sizing.content());
         card.background(EdenParchment.framed(EdenParchment.ROW_BG_ALT, EdenParchment.HAIRLINE));
         float inner = width - 10;
@@ -795,6 +796,7 @@ final class GuildTab {
 
         // Invite: search + online players without a guild (friends first).
         Flex invite = recruitBox(INVITE_COLUMN);
+        invite.id(HubSpotlights.GUILD_RECRUIT_INVITE);
         invite.item(EdenParchment.text(tr("invite_menu"), EdenParchment.INK));
         invite.item(EdenParchment.text(full ? tr("full") : tr("size", data.members().size(), data.guild().limit()),
                 full ? EdenParchment.WARN : EdenParchment.INK_DIM));
@@ -819,6 +821,7 @@ final class GuildTab {
 
         // Applications: accept / decline.
         Flex applications = recruitBox(rest);
+        applications.id(HubSpotlights.GUILD_APPLICATIONS);
         applications.item(EdenParchment.text(tr("applications", data.applications().size()), EdenParchment.INK));
         Flex applicationList = Flex.column().gap(2);
         float rowWidth = rest - 8 - LANE;
@@ -850,6 +853,7 @@ final class GuildTab {
 
         // Pending invites: cancel.
         Flex pending = recruitBox(rest);
+        pending.id(HubSpotlights.GUILD_PENDING_INVITES);
         pending.item(EdenParchment.text(tr("pending", data.outgoing().size()), EdenParchment.INK));
         Flex pendingList = Flex.column().gap(2);
         if (data.outgoing().isEmpty()) {

@@ -85,6 +85,35 @@ public final class HubSpotlights {
     public static final String MAIL_WALLET = PREFIX + "mail/wallet";
     public static final String MAIL_WITHDRAW = PREFIX + "mail/withdraw";
     public static final String MAIL_DEPOSIT_ALL = PREFIX + "mail/deposit_all";
+    // Guild sub-tabs (in a guild).
+    /** Members: the card under the roster (the picked member's options). */
+    public static final String GUILD_MEMBER_CARD = PREFIX + "guild/member_card";
+    /** Recruiting (officers): invite players (search + list), applications, invites waiting for an answer. */
+    public static final String GUILD_RECRUIT_INVITE = PREFIX + "guild/recruit_invite";
+    public static final String GUILD_APPLICATIONS = PREFIX + "guild/applications";
+    public static final String GUILD_PENDING_INVITES = PREFIX + "guild/pending_invites";
+    /** Quests: the daily and weekly guild quests. */
+    public static final String GUILD_QUESTS = PREFIX + "guild/quests";
+    /** Level: the level and XP card, and the perks card. */
+    public static final String GUILD_LEVEL = PREFIX + "guild/level";
+    public static final String GUILD_PERKS = PREFIX + "guild/perks";
+    /** Bank: LC balance, vault tabs, upgrades, the vault grid, the player's inventory, and the Log button. */
+    public static final String GUILD_BANK_BALANCE = PREFIX + "guild/bank_balance";
+    public static final String GUILD_BANK_TABS = PREFIX + "guild/bank_tabs";
+    public static final String GUILD_BANK_UPGRADES = PREFIX + "guild/bank_upgrades";
+    public static final String GUILD_BANK_VAULT = PREFIX + "guild/bank_vault";
+    public static final String GUILD_BANK_INVENTORY = PREFIX + "guild/bank_inventory";
+    public static final String GUILD_BANK_LOG = PREFIX + "guild/bank_log";
+    // Activities → Duels.
+    public static final String DUELS_CARD_1V1 = PREFIX + "duels/card_1v1";
+    public static final String DUELS_CARD_2V2 = PREFIX + "duels/card_2v2";
+    public static final String DUELS_QUEUE_1V1 = PREFIX + "duels/queue_1v1";
+    public static final String DUELS_QUEUE_2V2 = PREFIX + "duels/queue_2v2";
+    /** Today's duel rewards bar (only where duels pay rewards). */
+    public static final String DUELS_REWARDS = PREFIX + "duels/rewards";
+    /** Matches · Top 1v1 · Top 2v2. */
+    public static final String DUELS_VIEWS = PREFIX + "duels/views";
+    public static final String DUELS_LIST = PREFIX + "duels/list";
 
     /** The tab's bookmark in the tab row. */
     public static String tab(HubTab tab) {
@@ -134,7 +163,17 @@ public final class HubSpotlights {
                 {MAIL_ROW, "Mail: first mail"}, {MAIL_CLAIM_ALL, "Mail: Claim all"},
                 {MAIL_DELETE_READ, "Mail: Delete read"}, {MAIL_DETAIL, "Mail: open mail"},
                 {MAIL_CLAIM, "Mail: Claim (open mail)"}, {MAIL_WALLET, "Mail: wallet bar"},
-                {MAIL_WITHDRAW, "Mail: Withdraw"}, {MAIL_DEPOSIT_ALL, "Mail: Deposit all"}};
+                {MAIL_WITHDRAW, "Mail: Withdraw"}, {MAIL_DEPOSIT_ALL, "Mail: Deposit all"},
+                {GUILD_MEMBER_CARD, "Guild Members: member card"}, {GUILD_RECRUIT_INVITE, "Guild Recruiting: invite players"},
+                {GUILD_APPLICATIONS, "Guild Recruiting: applications"}, {GUILD_PENDING_INVITES, "Guild Recruiting: sent invites"},
+                {GUILD_QUESTS, "Guild Quests: quest list"}, {GUILD_LEVEL, "Guild Level: level card"},
+                {GUILD_PERKS, "Guild Level: perks"}, {GUILD_BANK_BALANCE, "Guild Bank: LC balance"},
+                {GUILD_BANK_TABS, "Guild Bank: vault tabs"}, {GUILD_BANK_UPGRADES, "Guild Bank: upgrades"},
+                {GUILD_BANK_VAULT, "Guild Bank: vault"}, {GUILD_BANK_INVENTORY, "Guild Bank: your inventory"},
+                {GUILD_BANK_LOG, "Guild Bank: Log"}, {DUELS_CARD_1V1, "Duels: 1v1 card"},
+                {DUELS_CARD_2V2, "Duels: 2v2 card"}, {DUELS_QUEUE_1V1, "Duels: 1v1 queue button"},
+                {DUELS_QUEUE_2V2, "Duels: 2v2 queue button"}, {DUELS_REWARDS, "Duels: today's rewards"},
+                {DUELS_VIEWS, "Duels: Matches / Top"}, {DUELS_LIST, "Duels: list"}};
         for (String[] part : parts) {
             Spotlight.register(part[0], Component.literal("Hub: " + part[1]));
         }

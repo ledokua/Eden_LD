@@ -66,6 +66,7 @@ final class GuildLevelView {
 
     private static Flex levelCard(GuildQuestsData data) {
         Flex card = card();
+        card.id(HubSpotlights.GUILD_LEVEL);
         Flex line = Flex.row().gap(10).alignItems(Align.CENTER);
         boolean max = data.xpNeeded() <= 0;
         float progress = max ? 1f : (float) data.xpInto() / data.xpNeeded();
@@ -88,6 +89,7 @@ final class GuildLevelView {
                 .toList();
         int level = data.level();
         Flex card = card();
+        card.id(HubSpotlights.GUILD_PERKS);
         card.item(EdenParchment.text(tr("perks"), EdenParchment.INK_MID));
         if (rules.isEmpty()) {
             card.item(EdenParchment.text(tr("perks.none_configured"), EdenParchment.INK_DIM, (int) (inner - 16)));

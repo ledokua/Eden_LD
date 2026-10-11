@@ -157,6 +157,7 @@ final class GuildBankView {
         // Leader and vice-leader: purchases and the permissions editor.
         boolean leader = bank.myRank() >= GuildRank.VICE_LEADER.level;
         Button log = EdenParchment.fitButton(tr("bank.log"), 34, 14, () -> openLog(screen));
+        log.id(HubSpotlights.GUILD_BANK_LOG);
         Button permissions = leader
                 ? EdenParchment.fitButton(tr("bank.permissions"), 50, 14, () -> openPermissions(screen, bank)) : null;
         // The open storage tab's status leads the row (the vault and inventory need the right column's height).
@@ -188,6 +189,7 @@ final class GuildBankView {
 
     private static Flex balanceBox(BankData bank, float inner) {
         Flex box = Flex.column().gap(3).padding(Insets.of(4, 4, 4, 4));
+        box.id(HubSpotlights.GUILD_BANK_BALANCE);
         box.sizing(Sizing.fill(), Sizing.content());
         box.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
 
@@ -256,6 +258,7 @@ final class GuildBankView {
 
     private static Flex tabsBox(HubScreen screen, BankData bank, float inner, boolean leader) {
         Flex box = Flex.column().gap(3).padding(Insets.of(4, 4, 4, 4));
+        box.id(HubSpotlights.GUILD_BANK_TABS);
         box.sizing(Sizing.fill(), Sizing.expand());
         box.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
 
@@ -320,6 +323,7 @@ final class GuildBankView {
 
     private static Flex upgradesBox(HubScreen screen, BankData bank, float inner, boolean leader) {
         Flex box = Flex.column().gap(3).padding(Insets.of(4, 5, 4, 5));
+        box.id(HubSpotlights.GUILD_BANK_UPGRADES);
         box.sizing(Sizing.fill(), Sizing.content());
         box.background(EdenParchment.framed(EdenParchment.ROW_BG_ALT, EdenParchment.HAIRLINE));
 
@@ -418,6 +422,7 @@ final class GuildBankView {
             int tabIndex = bank.viewTab();
             int itemsLeft = tab.itemsLeft();
             Grid vault = Grid.of(9).cell(SLOT, SLOT);
+            vault.id(HubSpotlights.GUILD_BANK_VAULT);
             for (int slot = 0; slot < GuildBank.TAB_SIZE; slot++) {
                 ItemStack stack = bank.contents().get(slot);
                 int index = slot;
@@ -448,6 +453,7 @@ final class GuildBankView {
         boolean canPut = shown && access >= GuildBank.Access.DEPOSIT.ordinal();
         column.item(EdenParchment.spacer(3));
         Flex inventory = Flex.column().gap(2);
+        inventory.id(HubSpotlights.GUILD_BANK_INVENTORY);
         Grid main = Grid.of(9).cell(SLOT, SLOT);
         for (int i = 9; i < 36; i++) {
             main.item(inventorySlot(i, canPut));

@@ -27,8 +27,10 @@ public final class HubHelp {
     @Nullable
     private static Window window;
     private static HubTab shown = HubTab.HOME;
-    /** Tabs with a tour (lower-case names), from the server. */
+    /** Tours there are (tab names, or tab/sub-tab like guild/bank), from the server. */
     private static java.util.Set<String> tours = java.util.Set.of();
+    /** The tour the open window's ▶ starts ("" = none checked yet). */
+    private static String buttonKey = "";
 
     private HubHelp() {
     }
@@ -41,7 +43,10 @@ public final class HubHelp {
         }
         Window help = screen.window(title(tab), WIDTH, HEIGHT, "help");
         help.onResize((width, height) -> fill(help));
-        help.onClose(() -> window = null);
+        help.onClose(() -> {
+            window = null;
+            buttonKey = "";
+        });
         help.id(HubSpotlights.HELP_WINDOW);
         help.body().gap(0);
         window = help;
@@ -59,14 +64,37 @@ public final class HubHelp {
         }
     }
 
-    /** ▶ in the title bar when the shown tab has a tour; it starts the tour and closes this window. */
+    /**
+     * The tour for what the tab shows now: a guild member's sub-tab ({@code guild/bank}), Activities' Duels
+     * ({@code activities/duels}), else the tab itself ({@code guild} is the one for players without a guild).
+     */
+    static String tourKey(HubTab tab) {
+        String key = tab.name().toLowerCase(java.util.Locale.ROOT);
+        if (tab == HubTab.GUILD && HubState.guildData != null && HubState.guildData.inGuild()) {
+            return key + "/" + HubState.guildView.name().toLowerCase(java.util.Locale.ROOT);
+        }
+        if (tab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
+            return key + "/duels";
+        }
+        return key;
+    }
+
+    /** After a rebuild (a sub-tab or filter switched, data arrived): ▶ follows what the tab shows. */
+    static void refreshTour() {
+        if (window != null && !tourKey(shown).equals(buttonKey)) {
+            tourButton(window);
+        }
+    }
+
+    /** ▶ in the title bar when what the tab shows has a tour; it starts the tour and closes this window. */
     private static void tourButton(Window help) {
         help.clearTitleButtons();
-        String tab = shown.name().toLowerCase(java.util.Locale.ROOT);
-        if (tours.contains(tab)) {
+        String key = tourKey(shown);
+        buttonKey = key;
+        if (tours.contains(key)) {
             help.titleButton(Component.literal("▶"), Component.translatable("gui.eden_ld.hub.help.tour"), () -> {
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
-                        new net.ledok.eden_ld.hub.HubPayloads.TourStart(tab));
+                        new net.ledok.eden_ld.hub.HubPayloads.TourStart(key));
                 help.close();
             }, HubSpotlights.HELP_TOUR);
         }

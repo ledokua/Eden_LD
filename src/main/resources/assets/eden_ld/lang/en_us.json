@@ -912,6 +912,7 @@
   "gui.eden_ld.moderation.section.parties": "Parties",
   "gui.eden_ld.moderation.section.server": "Server",
   "gui.eden_ld.moderation.section.world": "World settings",
+  "gui.eden_ld.moderation.world.title": "World settings",
   "gui.eden_ld.moderation.world.global": "GLOBAL",
   "gui.eden_ld.moderation.world.changes": "Changed settings: %s",
   "gui.eden_ld.moderation.world.has_border": "Has a world border",

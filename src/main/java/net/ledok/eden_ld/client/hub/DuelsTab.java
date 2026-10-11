@@ -84,18 +84,22 @@ final class DuelsTab {
 
         if (data.rewards()) {
             long cap = Math.max(1, data.dailyCap());
-            content.item(EdenParchment.progressBar(width, 12, (float) data.earnedToday() / cap,
+            var rewards = EdenParchment.progressBar(width, 12, (float) data.earnedToday() / cap,
                     tr("rewards", data.earnedToday(), data.dailyCap()), data.earnedToday() >= data.dailyCap())
-                    .remember("eden_ld/duels/rewards"));
+                    .remember("eden_ld/duels/rewards");
+            rewards.id(HubSpotlights.DUELS_REWARDS);
+            content.item(rewards);
         }
 
         Flex views = Flex.row().gap(3).alignItems(Align.CENTER);
         views.sizing(Sizing.fill(), Sizing.content());
-        views.item(EdenParchment.tabs(List.of(View.values()),
+        var viewTabs = EdenParchment.tabs(List.of(View.values()),
                 candidate -> tr("view." + candidate.name().toLowerCase(Locale.ROOT)), view, candidate -> {
                     view = candidate;
                     screen.onDuelsData();
-                }, 40, "duels/view"));
+                }, 40, "duels/view");
+        viewTabs.id(HubSpotlights.DUELS_VIEWS);
+        views.item(viewTabs);
         content.item(views);
 
         Flex list = Flex.column().gap(1);
@@ -105,6 +109,7 @@ final class DuelsTab {
             case TOP_2V2 -> leaderboard(list, data.top2v2(), data.twoVsTwo());
         }
         ScrollPanel panel = HubScroll.panel("duels/" + view.name().toLowerCase(Locale.ROOT), width, 60, list);
+        panel.id(HubSpotlights.DUELS_LIST);
         panel.sizing(Sizing.fill(), Sizing.expand());
         content.item(panel);
         tick();
@@ -117,6 +122,7 @@ final class DuelsTab {
         boolean searching = stats.searching();
         float inner = cardWidth - 12;
         Flex card = Flex.column().gap(3).padding(Insets.of(4, 6, 4, 6));
+        card.id(mode == 0 ? HubSpotlights.DUELS_CARD_1V1 : HubSpotlights.DUELS_CARD_2V2);
         card.sizing(Sizing.fixed(cardWidth), Sizing.fixed(CARD_H));
         card.background(EdenParchment.framed(EdenParchment.ROW_BG, searching ? EdenParchment.ACCENT : EdenParchment.HAIRLINE));
 
@@ -155,6 +161,7 @@ final class DuelsTab {
         Flex actions = Flex.row().gap(5).alignItems(Align.CENTER);
         actions.sizing(Sizing.fixed(inner), Sizing.content());
         Button button = queueButton(data, mode);
+        button.id(mode == 0 ? HubSpotlights.DUELS_QUEUE_1V1 : HubSpotlights.DUELS_QUEUE_2V2);
         actions.item(button);
         Label status = Label.of(Math.max(20, inner - button.width() - 5), statusLine(data, mode));
         status.color(searching ? EdenParchment.ACCENT : EdenParchment.INK_DIM);

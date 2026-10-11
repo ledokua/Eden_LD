@@ -33,7 +33,12 @@ needs a README pass too.
         `Window.titleButton`, owner approved) starts the tab's NPCs_LD dialog (`tutorial.tab_tours`, default
         `config:hub/<tab>` for Guild, Waystones, Activities, Mail; `HubTours`, `NpcsCompat`); highlight ids for those
         tabs in `HubSpotlights`. Eden 1.1.5 built and checked in dev (▶ shown, Mail test tour highlighted the list, then
-        Claim all). Not deployed. The dialogs: NPCs_LD session.
+        Claim all). Not deployed. The dialogs: NPCs_LD session (the first four written and dev-tested 2026-10-11).
+    - [x] Sub-tab tours (owner): `guild/members|recruiting|quests|level|bank` for members, `activities/duels`; ▶
+          follows the open sub-tab and only shows when NPCs_LD has the dialog; highlight ids for the guild sub-views
+          and Duels. Dev-checked (no ▶ on Chat, ▶ on Bank, a test Bank tour lit the vault). Dialogs: NPCs_LD session.
+    - [x] Moderation: the player page's admin tabs keep their scroll (Unlocks no longer jumps to the top); the
+          Ukrainian sidebar label "Світ" (the page title stays "Налаштування світу").
   - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
         after the tutorial — and a tutorial step for it.
 

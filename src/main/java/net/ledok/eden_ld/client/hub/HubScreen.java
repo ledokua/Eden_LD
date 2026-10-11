@@ -306,6 +306,8 @@ public class HubScreen extends CanvasScreen {
             case SETTINGS -> SettingsTab.build(this, content);
             default -> rebuildContent();
         }
+        // The help window's ▶ follows the sub-tab or filter just shown.
+        HubHelp.refreshTour();
     }
 
     /** The tab-row button that maximizes the hub or puts it back (only when the window has room to grow). */
@@ -925,6 +927,8 @@ public class HubScreen extends CanvasScreen {
         if (HubState.lastTab == HubTab.GUILD) {
             content.clear();
             GuildTab.build(this, content);
+            // Joining or leaving a guild, or another sub-tab: the help window's ▶ follows.
+            HubHelp.refreshTour();
         } else if (HubState.lastTab == HubTab.HOME) {
             rebuildContent();
         }
@@ -964,6 +968,8 @@ public class HubScreen extends CanvasScreen {
         if (HubState.lastTab == HubTab.ACTIVITIES) {
             content.clear();
             ActivitiesTab.build(this, content);
+            // Duels picked or left: the help window's ▶ follows.
+            HubHelp.refreshTour();
         }
     }
 

@@ -375,12 +375,22 @@ public class EdenConfig {
          * namespace ending in ':'. Only blocks with a block entity; keep waystones, shops and the like off this list.
          */
         /**
-         * The hub tabs' tours: tab (home, guild, waystones, activities, mail…) → the NPCs_LD dialog the help window's ▶
-         * starts. A tab without one shows no ▶.
+         * The hub tabs' tours: what the tab shows → the NPCs_LD dialog the help window's ▶ starts. Keys are tab names
+         * (home, guild, waystones, activities, mail…; {@code guild} is for players without a guild) or tab/sub-tab:
+         * {@code guild/members|recruiting|quests|level|bank} for guild members, {@code activities/duels}. Nothing
+         * listed = no ▶.
          */
-        public java.util.Map<String, String> tab_tours = new java.util.LinkedHashMap<>(java.util.Map.of(
-                "guild", "config:hub/guild", "waystones", "config:hub/waystones",
-                "activities", "config:hub/activities", "mail", "config:hub/mail"));
+        public java.util.Map<String, String> tab_tours = new java.util.LinkedHashMap<>(java.util.Map.ofEntries(
+                java.util.Map.entry("guild", "config:hub/guild"),
+                java.util.Map.entry("guild/members", "config:hub/guild_members"),
+                java.util.Map.entry("guild/recruiting", "config:hub/guild_recruiting"),
+                java.util.Map.entry("guild/quests", "config:hub/guild_quests"),
+                java.util.Map.entry("guild/level", "config:hub/guild_level"),
+                java.util.Map.entry("guild/bank", "config:hub/guild_bank"),
+                java.util.Map.entry("waystones", "config:hub/waystones"),
+                java.util.Map.entry("activities", "config:hub/activities"),
+                java.util.Map.entry("activities/duels", "config:hub/duels"),
+                java.util.Map.entry("mail", "config:hub/mail")));
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
                 "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
                 "minecraft:blast_furnace", "minecraft:brewing_stand"));

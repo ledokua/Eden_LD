@@ -16,14 +16,23 @@ public final class NpcsCompat {
     private NpcsCompat() {
     }
 
+    /** Whether NPCs_LD has this dialog loaded. */
+    public static boolean exists(ResourceLocation dialog) {
+        return LOADED && Api.exists(dialog);
+    }
+
     /** Opens the dialog for the player; false when NPCs_LD or the dialog isn't there. */
     public static boolean start(ServerPlayer player, ResourceLocation dialog) {
         return LOADED && Api.start(player, dialog);
     }
 
     private static final class Api {
+        static boolean exists(ResourceLocation dialog) {
+            return net.ledok.npcsld.dialog.DialogManager.get().graph(dialog) != null;
+        }
+
         static boolean start(ServerPlayer player, ResourceLocation dialog) {
-            if (net.ledok.npcsld.dialog.DialogManager.get().graph(dialog) == null) {
+            if (!exists(dialog)) {
                 return false;
             }
             net.ledok.npcsld.dialog.runtime.DialogSessions.open(player, null, dialog);

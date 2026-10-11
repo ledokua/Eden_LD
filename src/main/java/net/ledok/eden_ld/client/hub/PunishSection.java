@@ -298,7 +298,8 @@ final class PunishSection {
                 default -> {
                 }
             }
-            ScrollPanel scroll = new ScrollPanel(w, 100, content);
+            // Kept across the rebuild each Unlock/Lock (and every other action) brings, per tab.
+            ScrollPanel scroll = HubScroll.panel("moderation/player/" + tab, w, 100, content);
             scroll.sizing(Sizing.fill(), Sizing.expand());
             pageBox.item(scroll);
             return;

@@ -130,7 +130,7 @@ public final class Tutorial {
         BusyState.setBusy(player, BusyLocks.TUTORIAL);
         TutorialPhases.enter(player);
         player.setGameMode(GameType.ADVENTURE);
-        teleport(player, level, config.spawn);
+        teleport(player, level, config.spawn, true);
         run(player, config.commands_on_start);
         player.inventoryMenu.broadcastChanges();
         EdenLD.LOGGER.info("[Tutorial] {} started the tutorial.", player.getGameProfile().getName());
@@ -156,7 +156,7 @@ public final class Tutorial {
         run(player, config.commands_on_finish);
         ServerLevel level = level(player.server, config.finish_dimension);
         if (level != null) {
-            teleport(player, level, config.finish_spot);
+            teleport(player, level, config.finish_spot, true);
         } else {
             EdenLD.LOGGER.error("[Tutorial] Finish dimension {} doesn't exist; {} stays where they are.",
                     config.finish_dimension, player.getGameProfile().getName());
@@ -195,7 +195,7 @@ public final class Tutorial {
         player.fallDistance = 0;
         ServerLevel level = level(player.server, EdenLD.CONFIG.tutorial.dimension);
         if (level != null) {
-            teleport(player, level, EdenLD.CONFIG.tutorial.spawn);
+            teleport(player, level, EdenLD.CONFIG.tutorial.spawn, false);
         }
     }
 
@@ -212,24 +212,41 @@ public final class Tutorial {
         return dimension.location().toString().equals(EdenLD.CONFIG.tutorial.dimension);
     }
 
-    /** To "x y z [yaw pitch]" in the level, or to its spawn point when the spot is empty or unreadable. */
-    private static void teleport(ServerPlayer player, ServerLevel level, String spot) {
+    /**
+     * To "x y z [yaw pitch]" in the level, or to its spawn point when the spot is empty or unreadable; with
+     * {@code respawn}, that spot becomes their respawn point too (start: the tutorial; finish: the finish spot).
+     */
+    private static void teleport(ServerPlayer player, ServerLevel level, String spot, boolean respawn) {
         String[] parts = spot == null ? new String[0] : spot.trim().split("\\s+");
+        double x;
+        double y;
+        double z;
+        float yaw;
+        float pitch;
         try {
-            if (parts.length >= 3) {
-                double x = Double.parseDouble(parts[0]);
-                double y = Double.parseDouble(parts[1]);
-                double z = Double.parseDouble(parts[2]);
-                float yaw = parts.length >= 5 ? Float.parseFloat(parts[3]) : player.getYRot();
-                float pitch = parts.length >= 5 ? Float.parseFloat(parts[4]) : player.getXRot();
-                player.teleportTo(level, x, y, z, yaw, pitch);
-                return;
+            if (parts.length < 3) {
+                throw new NumberFormatException("no spot");
             }
+            x = Double.parseDouble(parts[0]);
+            y = Double.parseDouble(parts[1]);
+            z = Double.parseDouble(parts[2]);
+            yaw = parts.length >= 5 ? Float.parseFloat(parts[3]) : player.getYRot();
+            pitch = parts.length >= 5 ? Float.parseFloat(parts[4]) : player.getXRot();
         } catch (NumberFormatException e) {
-            EdenLD.LOGGER.warn("[Tutorial] Can't read the spot \"{}\"; using {}'s spawn point.", spot, level.dimension().location());
+            if (parts.length >= 3) {
+                EdenLD.LOGGER.warn("[Tutorial] Can't read the spot \"{}\"; using {}'s spawn point.", spot, level.dimension().location());
+            }
+            BlockPos pos = level.getSharedSpawnPos();
+            x = pos.getX() + 0.5;
+            y = pos.getY();
+            z = pos.getZ() + 0.5;
+            yaw = level.getSharedSpawnAngle();
+            pitch = 0;
         }
-        BlockPos pos = level.getSharedSpawnPos();
-        player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.getSharedSpawnAngle(), 0);
+        player.teleportTo(level, x, y, z, yaw, pitch);
+        if (respawn) {
+            player.setRespawnPosition(level.dimension(), BlockPos.containing(x, y, z), yaw, true, false);
+        }
     }
 
     private static void run(ServerPlayer player, List<String> commands) {
