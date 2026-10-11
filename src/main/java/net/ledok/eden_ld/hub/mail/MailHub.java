@@ -119,7 +119,7 @@ public final class MailHub {
                         if (player.hasDisconnected()) {
                             return;
                         }
-                        MinestarHook.fetchPendingShopCount(player, shopPending -> {
+                        MinestarHook.fetchPendingPurchases(player, purchases -> {
                             if (player.hasDisconnected()) {
                                 return;
                             }
@@ -127,7 +127,7 @@ public final class MailHub {
                             for (net.ledok.economy_ld.mail.Mail mail : mails) {
                                 views.add(view(mail, player));
                             }
-                            ServerPlayNetworking.send(player, new HubPayloads.MailData(views, shopPending));
+                            ServerPlayNetworking.send(player, new HubPayloads.MailData(views, purchases));
                         });
                     }));
         }
@@ -170,7 +170,9 @@ public final class MailHub {
                 case CLAIM, CLAIM_ALL -> {
                     // No looting the mailbox mid-fight (a duel, a dungeon run).
                     if (BusyState.isBusy(player)) {
-                        notice(player, Component.translatable("message.eden_ld.mail.busy"));
+                        notice(player, BusyState.getReasons(player.getUUID()).contains(net.ledok.eden_ld.hub.BusyLocks.TUTORIAL)
+                                ? net.ledok.eden_ld.hub.BusyLocks.reason(player)
+                                : Component.translatable("message.eden_ld.mail.busy"));
                         return;
                     }
                     var claim = action.action() == HubPayloads.MailAction.Action.CLAIM
@@ -179,7 +181,7 @@ public final class MailHub {
                     claim.whenComplete((result, error) -> player.server.execute(() -> report(player, result, error)));
                 }
                 case CLAIM_SHOP -> {
-                    MinestarHook.claimPurchases(player);
+                    MinestarHook.claimPurchase(player, action.mailId());
                     // The delivery runs on its own; show the new count once it's had time to finish.
                     player.server.tell(new TickTask(player.server.getTickCount() + 40, () -> {
                         if (!player.hasDisconnected()) {

@@ -138,6 +138,9 @@ public final class LookRules extends SavedData {
     }
 
     private static void buy(ServerPlayer player, Kind kind, String id) {
+        if (net.ledok.eden_ld.hub.BusyLocks.refuse(player)) {
+            return;
+        }
         MinecraftServer server = player.server;
         LookRule rule = get(server, kind).rule(id);
         List<String> available = kind == Kind.THEME ? HubSettings.availableThemes(server, player.getUUID())

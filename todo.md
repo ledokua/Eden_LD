@@ -6,13 +6,34 @@ needs a README pass too.
 
 ## Now
 
-- [ ] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
+- [ ] **Tutorial in Eden** (owner, 2026-10-11; `docs/PLAN-tutorial.md`) — first-join placement into `tutorial_dim`,
+      phasing and private containers ported from the old tutorial mod, the busy state locking teleports, party and
+      guild, getting items and spending coins; website purchases as Mail entries. Built 2026-10-11 (Eden 1.1.2) and checked in
+      the dev client (see the plan's Checked); not deployed. Needs from the owner: the arrival spot in `tutorial_dim`
+      and the finish spot in `spawn_dim`. At rollout: the old tutorial mod to the backups, the guide's cleanup runs
+      `eden tutorial finish {player}` last (NPCs_LD session), natural mob spawning off in `tutorial_dim`.
+  - [x] Busy locks: `BusyLocks` (guild create/invite/accept/apply/join, the guild bank's items/LC/upgrades, daily
+        claims and rerolls, Wardrobe buy and gift, website purchases), messages naming the tutorial; config
+        `commands.busy_blocked` (`pay`, `withdraw`, `kit`, `kits` — other mods' commands, every subcommand).
+  - [x] Website purchases: one Mail row per purchase (name ×quantity, Claim, Claim all), never expiring; the join
+        message opens the Mail tab (`/hub mail`).
+  - [x] Tutorial state (`tutorial/Tutorial`, `tutorial.json`, `/eden tutorial start|finish|status`), phasing and
+        private containers (`tutorial/phase/*`, `mixin/phase/*`, ported from tutorial-mod-for-yggdrasil with its
+        bugs fixed: saved inventory persisted, only first-time players, projectiles phased, shared sounds audible,
+        private blocks by list), Waystones limited to the tutorial dimension.
+  - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
+        after the tutorial — and a tutorial step for it.
+
+- [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
       registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,
       `eden_ld:hub/tab/<tab>`, `eden_ld:hub/page`, `eden_ld:hub/page/<open tab>`, the ?/maximize/close buttons,
       `eden_ld:hub/help_window`. **Keep them stable** (NPCs_LD dialogs store them; set the same id wherever the tab
-      row or content Flex is rebuilt). Eden now needs VectorLib >= 0.6.0 (libs jar updated). Not deployed: needs a
-      fresh Eden build and NPCs_LD with VectorLib 0.6.0, when the owner says. Dev runs: point the argFiles at the
-      new remapped VectorLib.
+      row or content Flex is rebuilt). Eden now needs VectorLib >= 0.6.0 (libs jar updated). Checked in the dev client
+      2026-10-10 with NPCs_LD 1.1.0 (the session's `spotlight_test` dialog: tab row lit, then the Mail tab, the
+      `part_shown` wait finished on opening Mail; the dialog editor and its text popup open). Copied to the pack, Prism
+      and the live server 2026-10-10 15:07 with NPCs_LD 1.1.0 (old NPCs_LD 1.0.0 moved to the backups); running on live
+      since the 2026-10-10 16:09 restart — server and pack must update together (dialog packet changed). Dev runs: argFiles point at the
+      remapped VectorLib 0.6.0 (`1c2fe20254`).
 
 - [ ] **Discord review picks** (owner, 2026-10-10, via the Discord Eden session):
   - [x] **FTB Teams parties off** — `FtbTeamsCompat`: an FTB Teams party-creation validator refuses new

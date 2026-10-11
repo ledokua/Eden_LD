@@ -47,8 +47,14 @@ final class MailTab {
     private static final float GAP = 6;
     /** The open mail's panel at the smallest hub; the Moderation window's preview copies it exactly. */
     static final float DETAIL_WIDTH = HubScreen.MIN_WIDTH - 24 - LIST_WIDTH - LANE - GAP;
-    /** The pinned website-purchases entry. */
-    private static final long SHOP_ID = -1;
+    /** Website purchases are pinned rows keyed below zero: {@code -1 - purchase id} (mail ids are positive). */
+    private static long shopKey(long purchaseId) {
+        return -1 - purchaseId;
+    }
+
+    private static boolean isShop(long key) {
+        return key < 0 && key != Long.MIN_VALUE;
+    }
     /** Kind icon colors, by Economy_LD's MailKind order: reward, shop, admin, system. */
     private static final int[] KIND_COLORS = {0xFFE8B84A, 0xFF4CC46A, 0xFFD2463C, 0xFF3A8FE0};
 
@@ -79,9 +85,13 @@ final class MailTab {
             }
             shown.add(mail);
         }
-        boolean shop = data.shopPending() > 0 && filter != Filter.UNREAD;
-        if (selected == Long.MIN_VALUE || !(selected == SHOP_ID ? shop : shown.stream().anyMatch(m -> m.id() == selected))) {
-            selected = shop ? SHOP_ID : shown.isEmpty() ? Long.MIN_VALUE : shown.get(0).id();
+        // Waiting website purchases: pinned on top in every filter (they count as unread and hold items).
+        List<HubPayloads.ShopPurchase> purchases = data.purchases();
+        boolean valid = isShop(selected) ? purchases.stream().anyMatch(p -> shopKey(p.id()) == selected)
+                : shown.stream().anyMatch(m -> m.id() == selected);
+        if (selected == Long.MIN_VALUE || !valid) {
+            selected = !purchases.isEmpty() ? shopKey(purchases.get(0).id())
+                    : shown.isEmpty() ? Long.MIN_VALUE : shown.get(0).id();
         }
 
         content.item(header(screen, data));
@@ -94,15 +104,15 @@ final class MailTab {
         float detailWidth = widths[1];
 
         Flex list = Flex.column().gap(2);
-        if (shop) {
-            list.item(new MailRow(screen, SHOP_ID, 1, tr("shop.title", data.shopPending()), Component.empty(),
+        for (HubPayloads.ShopPurchase purchase : purchases) {
+            list.item(new MailRow(screen, shopKey(purchase.id()), 1, purchaseTitle(purchase), tr("shop.sender"),
                     false, true, false, listWidth));
         }
         for (MailView mail : shown) {
             list.item(new MailRow(screen, mail.id(), mail.kind(), title(mail), rowDate(mail), !mail.read(),
                     mail.hasUnclaimed(), expiringSoon(mail), listWidth));
         }
-        if (!shop && shown.isEmpty()) {
+        if (purchases.isEmpty() && shown.isEmpty()) {
             list.item(EdenParchment.text(tr(data.mails().isEmpty() ? "empty" : "no_matches"), EdenParchment.INK_DIM,
                     (int) listWidth));
         }
@@ -118,8 +128,9 @@ final class MailTab {
         // As tall as the list column, so its buttons line up with Claim all / Delete read.
         detail.sizing(Sizing.fill(), Sizing.fill());
         detail.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
-        if (selected == SHOP_ID) {
-            shopDetail(detail, data.shopPending(), detailWidth);
+        if (isShop(selected)) {
+            purchases.stream().filter(p -> shopKey(p.id()) == selected).findFirst()
+                    .ifPresent(purchase -> shopDetail(detail, purchase, purchases.size(), detailWidth));
         } else if (shown.stream().anyMatch(m -> m.id() == selected && !m.read()) && OPENED.add(selected)) {
             // Shown first (not clicked): it counts as opened too.
             send(MailAction.Action.OPEN, selected);
@@ -242,18 +253,27 @@ final class MailTab {
         return row;
     }
 
-    private static void shopDetail(Flex detail, int pending, float width) {
+    /** The shop's name for it, "×N" when more than one; a plain name when the website gave none. */
+    private static Component purchaseTitle(HubPayloads.ShopPurchase purchase) {
+        Component name = purchase.name().isBlank() ? tr("shop.unnamed") : Component.literal(purchase.name());
+        return purchase.quantity() > 1 ? Component.empty().append(name).append(" ×" + purchase.quantity()) : name;
+    }
+
+    private static void shopDetail(Flex detail, HubPayloads.ShopPurchase purchase, int pending, float width) {
         int textWidth = (int) width - 12;
-        detail.item(EdenParchment.text(tr("shop.title", pending), EdenParchment.INK, textWidth));
+        detail.item(EdenParchment.text(purchaseTitle(purchase), EdenParchment.INK, textWidth));
         detail.item(EdenParchment.text(tr("from", tr("shop.sender"), ""), EdenParchment.INK_DIM, textWidth));
         detail.item(EdenParchment.hairline());
         detail.item(EdenParchment.text(tr("shop.body"), EdenParchment.INK_MID, textWidth));
         Flex spacer = Flex.column();
         spacer.sizing(Sizing.fill(), Sizing.expand());
         detail.item(spacer);
-        Flex row = Flex.row().justify(Justify.END);
+        Flex row = Flex.row().gap(4).justify(Justify.END);
         row.sizing(Sizing.fill(), Sizing.content());
-        row.item(EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, 0)));
+        if (pending > 1) {
+            row.item(EdenParchment.fitButton(tr("shop.claim_all", pending), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, 0)));
+        }
+        row.item(EdenParchment.fitButton(tr("claim"), 60, 14, () -> send(MailAction.Action.CLAIM_SHOP, purchase.id())));
         detail.item(row);
     }
 
@@ -382,7 +402,7 @@ final class MailTab {
             }
             UiSounds.click();
             selected = id;
-            if (unread && id != SHOP_ID) {
+            if (unread && !isShop(id)) {
                 send(MailAction.Action.OPEN, id);
             }
             screen.onMailData();

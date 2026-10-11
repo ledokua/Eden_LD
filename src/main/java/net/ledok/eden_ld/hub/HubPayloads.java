@@ -1001,22 +1001,35 @@ public final class HubPayloads {
         }
     }
 
+    /** A website purchase waiting for delivery (Minestar): its id, the shop's name for it, how many. */
+    public record ShopPurchase(long id, String name, int quantity) {
+        static void write(RegistryFriendlyByteBuf buf, ShopPurchase purchase) {
+            buf.writeVarLong(purchase.id);
+            buf.writeUtf(purchase.name, 256);
+            buf.writeVarInt(purchase.quantity);
+        }
+
+        static ShopPurchase read(RegistryFriendlyByteBuf buf) {
+            return new ShopPurchase(buf.readVarLong(), buf.readUtf(256), buf.readVarInt());
+        }
+    }
+
     /**
-     * S2C: the player's whole mailbox (newest first) and how many website purchases wait
-     * ({@code shopPending}). Sent on join and whenever it changes; the Mail tab shows only once
-     * this has arrived (Economy_LD installed).
+     * S2C: the player's whole mailbox (newest first) and the website purchases waiting for them. Sent on join and
+     * whenever it changes; the Mail tab shows only once this has arrived (Economy_LD installed).
      */
-    public record MailData(List<MailView> mails, int shopPending) implements CustomPacketPayload {
+    public record MailData(List<MailView> mails, List<ShopPurchase> purchases) implements CustomPacketPayload {
         public static final Type<MailData> TYPE = new Type<>(id("mail_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, MailData> CODEC = StreamCodec.of(
                 (buf, p) -> {
                     writeList(buf, p.mails, MailView::write);
-                    buf.writeVarInt(p.shopPending);
+                    writeList(buf, p.purchases, ShopPurchase::write);
                 },
-                buf -> new MailData(readList(buf, MailView::read), buf.readVarInt()));
+                buf -> new MailData(readList(buf, MailView::read), readList(buf, ShopPurchase::read)));
 
+        /** Unread mail, plus every waiting purchase (they stay pinned until claimed). */
         public int unread() {
-            return (int) mails.stream().filter(m -> !m.read()).count() + (shopPending > 0 ? 1 : 0);
+            return (int) mails.stream().filter(m -> !m.read()).count() + purchases.size();
         }
 
         @Override
@@ -1025,7 +1038,10 @@ public final class HubPayloads {
         }
     }
 
-    /** C2S: a Mail tab action; {@code mailId} for the one-mail actions. */
+    /**
+     * C2S: a Mail tab action; {@code mailId} for the one-mail actions. {@code CLAIM_SHOP} takes a purchase id, or 0
+     * for every waiting purchase.
+     */
     public record MailAction(Action action, long mailId) implements CustomPacketPayload {
         public enum Action { OPEN, CLAIM, CLAIM_ALL, DELETE, DELETE_READ, CLAIM_SHOP }
 

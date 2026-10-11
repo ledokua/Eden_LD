@@ -73,6 +73,9 @@ public final class Wardrobe {
     }
 
     private static void gift(ServerPlayer giver, HubPayloads.LookGift gift) {
+        if (net.ledok.eden_ld.hub.BusyLocks.refuse(giver)) {
+            return;
+        }
         MinecraftServer server = giver.server;
         LookRules.Kind kind = LookRules.Kind.of(gift.theme());
         LookRule rule = LookRules.get(server, kind).rule(gift.id());

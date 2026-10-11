@@ -25,6 +25,7 @@ public class EdenConfig {
     public Profile profile = new Profile();
     public Commands commands = new Commands();
     public Hazards hazards = new Hazards();
+    public Tutorial tutorial = new Tutorial();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -313,6 +314,12 @@ public class EdenConfig {
          * when the server starts and on /reload (which re-reads this file).
          */
         public List<String> op_only = new ArrayList<>(List.of("structure_upgrade", "dungeon_difficulty_config_reload"));
+        /**
+         * Other mods' commands a busy player (BusyLib: a duel, a dungeon run, the tutorial) can't run — paying or
+         * taking coins out, claiming kits. Root names without the slash; every subcommand is covered. Applied
+         * when the server starts and on /reload.
+         */
+        public List<String> busy_blocked = new ArrayList<>(List.of("pay", "withdraw", "kit", "kits"));
     }
 
     public static class Combat {
@@ -331,6 +338,58 @@ public class EdenConfig {
      * reduce them; Protection enchantments and effects (Fire Resistance, Resistance…) still do.
      * Re-read on /reload.
      */
+    /**
+     * The tutorial ({@code docs/PLAN-tutorial.md}): first-time players are put into its room, alone in their own phase
+     * and busy (locked out of teleports, guilds, rewards and spending) until the guide runs {@code /eden tutorial
+     * finish}. Re-read on /reload.
+     */
+    public static class Tutorial {
+        /** Put first-time players (no play time yet) into the tutorial. */
+        public boolean enabled = true;
+        /** The tutorial's dimension. */
+        public String dimension = "yggdrasil:tutorial_dim";
+        /** Where they arrive: "x y z" or "x y z yaw pitch"; empty = the dimension's spawn point. */
+        public String spawn = "";
+        /** Where they go when they finish or skip. */
+        public String finish_dimension = "yggdrasil:spawn_dim";
+        /** "x y z" or "x y z yaw pitch" in {@link #finish_dimension}; empty = its spawn point. */
+        public String finish_spot = "";
+        /** Server commands when a player starts ({player} = their name). By default: Realm Keys locks every dimension but the tutorial's. */
+        public List<String> commands_on_start = new ArrayList<>(List.of(
+                "realmkeys player {player} lockall",
+                "realmkeys player {player} unlock yggdrasil:tutorial_dim"));
+        /** Server commands when they finish or skip. By default: Realm Keys opens the first worlds. */
+        public List<String> commands_on_finish = new ArrayList<>(List.of(
+                "realmkeys player {player} unlock yggdrasil:spawn_dim",
+                "realmkeys player {player} unlock yggdrasil:dungeon_dim",
+                "realmkeys player {player} unlock yggdrasil:tower_dim",
+                "realmkeys player {player} unlock yggdrasil:pvp_dim",
+                "realmkeys player {player} unlock minecraft:overworld"));
+        /**
+         * Entity types every phase sees and hears (the guide and other NPCs): ids, or a namespace ending in ':'
+         * for all of a mod's.
+         */
+        public List<String> always_visible = new ArrayList<>(List.of("npcs_ld:npc"));
+        /**
+         * Blocks in the tutorial each player gets their own copy of (items, progress, a lit furnace): ids, or a
+         * namespace ending in ':'. Only blocks with a block entity; keep waystones, shops and the like off this list.
+         */
+        public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
+                "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
+                "minecraft:blast_furnace", "minecraft:brewing_stand"));
+
+        void fillMissing() {
+            if (dimension == null) dimension = "yggdrasil:tutorial_dim";
+            if (spawn == null) spawn = "";
+            if (finish_dimension == null) finish_dimension = "yggdrasil:spawn_dim";
+            if (finish_spot == null) finish_spot = "";
+            if (commands_on_start == null) commands_on_start = new ArrayList<>();
+            if (commands_on_finish == null) commands_on_finish = new ArrayList<>();
+            if (always_visible == null) always_visible = new ArrayList<>();
+            if (private_blocks == null) private_blocks = new ArrayList<>();
+        }
+    }
+
     public static class Hazards {
         public boolean enabled = true;
         /** Multipliers on the health share: players, other living things, and bosses (#falleneden:bosses, else #c:bosses). */
@@ -483,7 +542,9 @@ public class EdenConfig {
         if (config.tab_list.header == null) config.tab_list.header = new ArrayList<>();
         if (config.tab_list.footer == null) config.tab_list.footer = new ArrayList<>();
         if (config.commands.op_only == null) config.commands.op_only = new ArrayList<>();
+        if (config.commands.busy_blocked == null) config.commands.busy_blocked = new ArrayList<>();
         config.hazards.fillMissing();
+        config.tutorial.fillMissing();
         config.save();
         return config;
     }
@@ -500,6 +561,9 @@ public class EdenConfig {
                 if (section.op_only == null) {
                     section.op_only = new ArrayList<>();
                 }
+                if (section.busy_blocked == null) {
+                    section.busy_blocked = new ArrayList<>();
+                }
                 commands = section;
             }
         } catch (Exception e) {
@@ -508,6 +572,23 @@ public class EdenConfig {
     }
 
     /** Re-reads {@code hazards.json} (the values follow /reload). */
+    /** Re-reads {@code tutorial.json} (on /reload). */
+    public void reloadTutorial() {
+        Path file = FOLDER.resolve("tutorial.json");
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            Tutorial section = GSON.fromJson(Files.readString(file), Tutorial.class);
+            if (section != null) {
+                section.fillMissing();
+                tutorial = section;
+            }
+        } catch (Exception e) {
+            EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous values.", file.getFileName(), e);
+        }
+    }
+
     public void reloadHazards() {
         Path file = FOLDER.resolve("hazards.json");
         if (!Files.exists(file)) {

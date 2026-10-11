@@ -159,6 +159,16 @@ public final class GuildBankServer {
             return;
         }
         GuildRank rank = GuildRank.of(action.rank());
+        switch (action.kind()) {
+            case SET_TAB_RIGHTS, SET_LC_LIMIT, RENAME_TAB -> {
+            }
+            default -> {
+                // Nothing in or out (items, LC, upgrades) mid-run or in the tutorial.
+                if (net.ledok.eden_ld.hub.BusyLocks.refuse(player)) {
+                    return;
+                }
+            }
+        }
         Component error = switch (action.kind()) {
             case DEPOSIT_ITEM -> GuildBankService.depositItem(manager, player, action.tab(), action.slot(),
                     (int) Math.max(0, Math.min(Integer.MAX_VALUE, action.amount())));

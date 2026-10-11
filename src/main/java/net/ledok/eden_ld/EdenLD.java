@@ -68,9 +68,11 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.compat.FtbTeamsCompat.initialize();
         net.ledok.eden_ld.world.WorldRules.initialize();
         net.ledok.eden_ld.world.Hazards.initialize();
+        net.ledok.eden_ld.tutorial.Tutorial.initialize();
 
         net.ledok.eden_ld.command.EdenPermissions.initialize();
         net.ledok.eden_ld.command.OpOnlyCommands.initialize();
+        net.ledok.eden_ld.command.BusyBlockedCommands.initialize();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EdenCommands.register(dispatcher));
 

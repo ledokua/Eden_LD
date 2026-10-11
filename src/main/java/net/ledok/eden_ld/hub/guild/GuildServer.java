@@ -174,6 +174,16 @@ public final class GuildServer {
         GuildManager manager = GuildManager.get(server);
         UUID me = player.getUUID();
         UUID target = action.target();
+        switch (action.kind()) {
+            case CREATE, INVITE, ACCEPT_INVITE, APPLY, JOIN -> {
+                // No joining, founding or inviting mid-run or in the tutorial.
+                if (net.ledok.eden_ld.hub.BusyLocks.refuse(player)) {
+                    return;
+                }
+            }
+            default -> {
+            }
+        }
         if (action.kind() == HubPayloads.GuildAction.Action.CREATE) {
             create(server, player, action.text(), action.text2(), action.value());
             return;

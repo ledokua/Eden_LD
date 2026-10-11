@@ -29,8 +29,14 @@ public final class MinestarHook {
     }
 
     public static void claimPurchases(ServerPlayer player) {
-        if (LOADED) {
-            ShopClaim.claim(player);
+        claimPurchase(player, 0);
+    }
+
+    /** Delivers one waiting website purchase by id, or every one ({@code 0}). */
+    public static void claimPurchase(ServerPlayer player, long productId) {
+        // Purchases wait on the website until the run or the tutorial is over.
+        if (LOADED && !net.ledok.eden_ld.hub.BusyLocks.refuse(player)) {
+            ShopClaim.claim(player, productId);
         }
     }
 
@@ -117,10 +123,16 @@ public final class MinestarHook {
 
     /** Pending shop purchase count; always answers exactly once, on the server thread. */
     public static void fetchPendingShopCount(ServerPlayer player, IntConsumer onCount) {
+        fetchPendingPurchases(player, purchases -> onCount.accept(purchases.size()));
+    }
+
+    /** The website purchases waiting for the player (none without Minestar); answers once, on the server thread. */
+    public static void fetchPendingPurchases(ServerPlayer player,
+                                             java.util.function.Consumer<java.util.List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase>> onPurchases) {
         if (LOADED) {
-            ShopClaim.pendingCount(player, onCount);
+            ShopClaim.pending(player, onPurchases);
         } else {
-            onCount.accept(0);
+            onPurchases.accept(java.util.List.of());
         }
     }
 }

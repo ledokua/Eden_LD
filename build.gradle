@@ -26,6 +26,7 @@ repositories {
     maven { name = "TerraformersMC"; url = "https://maven.terraformersmc.com/releases/"; content { includeGroup "dev.emi" } }
     maven { name = "Puffish"; url = "https://maven.puffish.net"; content { includeGroup "net.puffish" } }
     maven { name = "Wisp Forest"; url = "https://maven.wispforest.io/releases/"; content { includeGroupByRegex "io\\.wispforest(\\..*)?" } }
+    maven { name = "Ladysnake"; url = "https://maven.ladysnake.org/releases"; content { includeGroup "org.ladysnake.cardinal-components-api" } }
 }
 
 dependencies {
@@ -76,6 +77,9 @@ dependencies {
     // Trinkets + Stylish Effects — optional: the effect widgets start left of Trinkets' slot columns
     // (TrinketsEffectsArea), and EMI's panels keep clear of them (StylishEffectsEmi)
     modCompileOnly("maven.modrinth:trinkets:3.10.0") { transitive = false }
+    // Trinkets' component API (the tutorial puts trinkets aside and gives them back).
+    modCompileOnly("org.ladysnake.cardinal-components-api:cardinal-components-base:6.1.3") { transitive = false }
+    modCompileOnly("org.ladysnake.cardinal-components-api:cardinal-components-entity:6.1.3") { transitive = false }
     modCompileOnly("maven.modrinth:stylish-effects:v21.1.3-1.21.1-Fabric") { transitive = false }
 
     // BanHammer — optional: the Moderation window's Players and Punishments sections (server-only

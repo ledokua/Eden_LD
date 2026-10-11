@@ -511,6 +511,11 @@ public final class HubServer {
     }
 
     private static void handleDailyAction(ServerPlayer player, HubPayloads.DailyAction action) {
+        // Rewards and rerolls wait until the run or the tutorial is over.
+        if (BusyLocks.refuse(player)) {
+            pushDailies(player);
+            return;
+        }
         switch (action.kind()) {
             case CLAIM -> {
                 Component error = DailyQuests.claim(player, action.slot());
@@ -626,7 +631,8 @@ public final class HubServer {
             return;
         }
         Component refused = BusyState.isBusy(player)
-                ? Component.translatable("message.eden_ld.waystones.busy")
+                ? BusyState.getReasons(player.getUUID()).contains(BusyLocks.TUTORIAL) ? BusyLocks.reason(player)
+                : Component.translatable("message.eden_ld.waystones.busy")
                 : HubTeleportRules.pvpMillisLeft(player.getUUID()) > 0
                 ? Component.translatable("message.eden_ld.waystones.pvp")
                 : HubTeleportRules.cooldownMillisLeft(player.getUUID()) > 0

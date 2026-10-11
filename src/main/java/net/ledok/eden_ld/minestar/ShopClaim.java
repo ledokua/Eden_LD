@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 import static ua.com.minestar.Minestar.minestar;
 
 /**
- * Delivery of pending platform shop purchases via {@code /shop-receive}.
+ * Delivery of pending platform shop purchases: the Mail tab's purchase entries (one, or Claim all) and
+ * {@code /shop-receive}.
  * API calls stay on Minestar's executor; product commands are executed
  * on the server thread, and only successfully delivered products get
  * confirmed back to the platform.
@@ -27,19 +28,26 @@ final class ShopClaim {
     private ShopClaim() {
     }
 
-    /** Pending purchase count for the Hub's Home tab; always answers once, on the server thread. */
-    static void pendingCount(ServerPlayer player, java.util.function.IntConsumer onCount) {
+    /** The purchases waiting for the player (Home card, Mail tab); always answers once, on the server thread. */
+    static void pending(ServerPlayer player,
+                        java.util.function.Consumer<List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase>> onPurchases) {
         MinecraftServer server = player.getServer();
         if (server == null) {
-            onCount.accept(0);
+            onPurchases.accept(List.of());
             return;
         }
         minestar.getUserPendingShopProductsByProfileUuidAndServerId(player.getUUID())
-                .onSuccess(products -> server.execute(() -> onCount.accept(products.size())))
+                .onSuccess(products -> {
+                    List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> purchases = products.stream()
+                            .map(product -> new net.ledok.eden_ld.hub.HubPayloads.ShopPurchase(product.id(),
+                                    product.name() == null ? "" : product.name(), product.quantity()))
+                            .toList();
+                    server.execute(() -> onPurchases.accept(purchases));
+                })
                 .onFailure(cause -> {
                     EdenLD.LOGGER.warn("[Shop] Failed to count pending products for {}.",
                             player.getGameProfile().getName(), cause);
-                    server.execute(() -> onCount.accept(0));
+                    server.execute(() -> onPurchases.accept(List.of()));
                 });
     }
 
@@ -56,7 +64,7 @@ final class ShopClaim {
                                 .append(Component.translatable("message.eden_ld.shop.claim_button")
                                         .withStyle(ChatFormatting.AQUA, ChatFormatting.UNDERLINE)
                                         .withStyle(style -> style.withClickEvent(
-                                                new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/shop-receive"))))
+                                                new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hub mail"))))
                                 .append(Component.translatable("message.eden_ld.shop.claim_suffix").withStyle(ChatFormatting.GOLD));
                         server.execute(() -> player.sendSystemMessage(message));
                     }
@@ -65,7 +73,8 @@ final class ShopClaim {
                         player.getGameProfile().getName(), cause));
     }
 
-    static void claim(ServerPlayer player) {
+    /** Delivers the purchase with this id, or every waiting one ({@code 0}). */
+    static void claim(ServerPlayer player, long productId) {
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;
@@ -73,7 +82,9 @@ final class ShopClaim {
         player.sendSystemMessage(Component.translatable("message.eden_ld.shop.checking").withStyle(ChatFormatting.GRAY));
 
         minestar.getUserPendingShopProductsByProfileUuidAndServerId(player.getUUID())
-                .onSuccess(products -> server.execute(() -> {
+                .onSuccess(all -> server.execute(() -> {
+                    List<ShopProduct> products = productId == 0 ? all
+                            : all.stream().filter(product -> product.id() == productId).toList();
                     if (products.isEmpty()) {
                         player.sendSystemMessage(Component.translatable("message.eden_ld.shop.no_items").withStyle(ChatFormatting.YELLOW));
                         return;

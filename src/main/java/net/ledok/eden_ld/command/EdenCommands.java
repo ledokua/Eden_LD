@@ -103,7 +103,10 @@ public class EdenCommands {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("eden")
-                .requires(EdenPermissions.require(EdenPermissions.COMMANDS).or(EdenPermissions.require(EdenPermissions.WORLD)))
+                .requires(EdenPermissions.require(EdenPermissions.COMMANDS).or(EdenPermissions.require(EdenPermissions.WORLD))
+                        .or(EdenPermissions.require(EdenPermissions.TUTORIAL)))
+                // The tutorial: put players in, finish it for them (the guide's cleanup does), see where they are.
+                .then(net.ledok.eden_ld.tutorial.TutorialCommand.node())
                 // A dimension's own gamerules, PvP and difficulty.
                 .then(WorldRulesCommand.gamerule())
                 .then(WorldRulesCommand.pvp())
@@ -323,6 +326,16 @@ public class EdenCommands {
                         return 0;
                     }
                     HubServer.openHub(player, "profile");
+                    return 1;
+                }))
+                // The hub on the Mail tab (the join message about website purchases links here).
+                .then(Commands.literal("mail").executes(context -> {
+                    ServerPlayer player = context.getSource().getPlayer();
+                    if (player == null) {
+                        context.getSource().sendFailure(Component.translatable("message.eden_ld.players_only"));
+                        return 0;
+                    }
+                    HubServer.openHub(player, "mail");
                     return 1;
                 }))
                 .executes(context -> {

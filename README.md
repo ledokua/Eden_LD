@@ -15,7 +15,8 @@ delivery, prime role sync, player profiles). It replaces the old Yggdrasil_LD mo
 ## Contents
 
 [Legacy content](#legacy-content-yggdrasil_ld) · [Liquid Mana](#liquid-mana) ·
-[Flight control](#flight-control) · [World rules](#world-rules) · [Chat](#chat) · [Minestar integration](#minestar-integration) ·
+[Flight control](#flight-control) · [World rules](#world-rules) · [Hazards](#hazards) · [Tutorial](#tutorial) · [Chat](#chat) ·
+[Minestar integration](#minestar-integration) ·
 [Configuration](#configuration) · [Commands](#commands) · [Addon API](#addon-api) ·
 [Compatibility](#compatibility) · [License](#license)
 
@@ -146,6 +147,35 @@ player takes exactly vanilla damage, and the share takes over around 70–100 ma
 - Attacks stay as they are: mobs and players hitting, explosions, harming potions, falling anvils, and
   skills' damage over time (More RPG Classes' bleeding, fatal poison and molten, Soulslike's bleed, Mine
   Cells' bleeding).
+
+## Tutorial
+
+New players start in the tutorial (`docs/PLAN-tutorial.md`; config `tutorial.json`, re-read on `/reload`). It
+replaces the old tutorial-mod-for-yggdrasil; the NPCs_LD guide dialog runs its stages.
+
+- **Entering**: a player's very first join (no play time yet) puts them in: their inventory and trinkets are put
+  aside (kept in Eden's data, so a relog or restart doesn't lose them), they get Adventure mode and are sent to
+  `spawn` in `dimension` (default `yggdrasil:tutorial_dim`; empty spot = its spawn point), and
+  `commands_on_start` run (default: Realm Keys locks every dimension but the tutorial's). Players who have played
+  before are never put in; staff use `/eden tutorial start`.
+- **Alone together**: everyone in the tutorial shares one room, but each player is in their own **phase** — they
+  don't see, hear, hurt, target or push other tutorial players, and the mobs, projectiles and items they make are
+  theirs alone (and go when they log out or finish). The room, decorations and the guide NPCs
+  (`always_visible`, default `npcs_ld:npc`) are seen and heard by everyone.
+- **Private containers**: the blocks in `private_blocks` (default: the alchemy table, chests, barrels, furnaces,
+  smokers, blast furnaces, brewing stands) give each player their own copy — their own items, smelting or brewing
+  and lit state; the world's block stays untouched. Keep waystones, shops and the binding table off this list.
+- **Locked while in it** (the busy state `eden_ld:tutorial`, so dungeon runs and duels lock the same things): the
+  hub's waystone teleports, guilds and parties, claiming mail, daily rewards and rerolls, the guild bank, Wardrobe
+  purchases, website purchases, `/pay`, `/withdraw` and kits (`commands.busy_blocked`), dungeons and the duel queue.
+  The Waystones mod's own menu lists only waystones in the tutorial dimension, and scrolls or stones can't leave
+  it. Items can't be thrown away. The hub itself stays open to look at.
+- **Dying** there is cancelled: back at the tutorial spawn, healed.
+- **Finishing or skipping**: the guide's cleanup runs `/eden tutorial finish {player}` last: busy and phase off,
+  the saved inventory and trinkets back (what they hold is kept too), their game mode back, `commands_on_finish`
+  (default: Realm Keys opens `spawn_dim`, `dungeon_dim`, `tower_dim`, `pvp_dim` and the Overworld), and a teleport
+  to `finish_spot` in `finish_dimension` (default `yggdrasil:spawn_dim`).
+- **Natural mob spawning** in the tutorial dimension is best turned off in World settings (`doMobSpawning`).
 
 ## Eden Hub
 
@@ -575,7 +605,9 @@ partymates never land, so they never tag anyone.
 An MMO-style mailbox tab (needs [Economy_LD](../Economy_LD), which stores the mail; without it the tab
 stays hidden). Everything a player is owed arrives here: dungeon, raid, arena and duel rewards, auction
 results, offline payments, returned coins, messages from staff — and pending **website purchases**
-(Minestar) as one pinned entry whose Claim runs the delivery (`/shop-receive` still works).
+(Minestar): one pinned entry per purchase (its name ×quantity) with **Claim**, and **Claim all** when there are
+several. They are read from Minestar each time, so they never expire and stay pending on the website until
+claimed; the join message about them opens this tab (`/hub mail`), and `/shop-receive` claims them all.
 
 - **List** (newest first): the mail's kind, title, date and time left, an unread dot, and a marker when
   it still holds items or coins. Filters: All, Unread, With items. **Claim all** takes every mail whose
@@ -587,7 +619,8 @@ results, offline payments, returned coins, messages from staff — and pending *
   `{size:1.5}sizes{/}`, `-# subtext`). Staff mail can carry one version per language — each player reads
   their own, else the default — and `{player}` / Placeholder API placeholders filled in for each reader.
 - **Tab badge**: the unread count (Settings → Notifications → Unread mail), and a Home card.
-- Claiming is refused while BusyLib reports the player busy (duel, dungeon run).
+- Claiming (mail and purchases) is refused while BusyLib reports the player busy (duel, dungeon run, the
+  tutorial).
 - Expired mail is deleted with whatever it still holds (Economy_LD's `mail.systemExpiryDays`, 7 days,
   for automatic mail; staff choose up to `mail.maxExpiryDays`, 30).
 
@@ -1266,7 +1299,20 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     ]
   },
   "commands": {
-    "op_only": ["structure_upgrade", "dungeon_difficulty_config_reload"]
+    "op_only": ["structure_upgrade", "dungeon_difficulty_config_reload"],
+    "busy_blocked": ["pay", "withdraw", "kit", "kits"]
+  },
+  "tutorial": {
+    "enabled": true,
+    "dimension": "yggdrasil:tutorial_dim",
+    "spawn": "",
+    "finish_dimension": "yggdrasil:spawn_dim",
+    "finish_spot": "",
+    "commands_on_start": ["realmkeys player {player} lockall", "realmkeys player {player} unlock yggdrasil:tutorial_dim"],
+    "commands_on_finish": ["realmkeys player {player} unlock yggdrasil:spawn_dim", "…"],
+    "always_visible": ["npcs_ld:npc"],
+    "private_blocks": ["potions_ld:alchemy_table", "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
+                       "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"]
   }
 }
 ```
@@ -1277,6 +1323,13 @@ own (`tp` next to `teleport`). The console and command blocks keep them. Applied
 `/reload`, which re-reads the file. `/eden commands dump` shows what each command needs (a listed
 one shows as level 2).
 
+**`commands.busy_blocked`** — other mods' commands a busy player (a duel, a dungeon run, the tutorial) can't run:
+paying, taking coins out, kits. Every subcommand is covered; the command stays visible and says why. Applied at
+start and on `/reload`.
+
+**`tutorial`** — see [Tutorial](#tutorial). Spots are `"x y z"` or `"x y z yaw pitch"`; `{player}` in the commands
+is the player's name.
+
 ## Commands
 
 | Command | Who | What |
@@ -1285,6 +1338,7 @@ one shows as level 2).
 | `/hub theme unlock <players> <theme>` | `eden_ld.admin.themes` | Unlocks a hub theme (e.g. `eden_ld:stone_tablet`) for players. |
 | `/hub theme lock <players> <theme>` | `eden_ld.admin.themes` | Removes an unlocked theme (free themes stay). |
 | `/hub profile` | any player | Opens the hub on your profile. |
+| `/hub mail` | any player | Opens the hub on the Mail tab (the website-purchases join message links here). |
 | `/hub background unlock <players> <background>` | `eden_ld.admin.backgrounds` | Unlocks a profile background (e.g. `eden_ld:aurora`) for players. |
 | `/hub background lock <players> <background>` | `eden_ld.admin.backgrounds` | Removes an unlocked background (free ones stay). |
 | `/invite <player>` | any player | Invites to your party — or, when solo, starts one (created when they accept). |
@@ -1314,6 +1368,9 @@ one shows as level 2).
 | `/eden gamerule <dimension> <rule> <value>\|reset` | `eden_ld.admin.world` | Sets a dimension's own value of a gamerule, or (`reset`, or the server-wide value) makes it follow the server-wide one again — see [World rules](#world-rules). |
 | `/eden pvp <dimension> [on\|off\|reset]` | `eden_ld.admin.world` | Shows or sets PvP in a dimension (`reset` follows `server.properties`) — see [World rules](#world-rules). |
 | `/eden difficulty <dimension> [peaceful\|easy\|normal\|hard\|reset]` | `eden_ld.admin.world` | Shows or sets a dimension's difficulty (`reset` follows the server's). |
+| `/eden tutorial start <players>` | `eden_ld.admin.tutorial` | Puts players into the tutorial (again) — see [Tutorial](#tutorial). |
+| `/eden tutorial finish <players>` | `eden_ld.admin.tutorial`, console | Ends their tutorial: everything back, the finish spot. The guide's cleanup runs it last. |
+| `/eden tutorial status <player>` | `eden_ld.admin.tutorial` | Not started, in the tutorial, or finished. |
 | `/eden gamerule <dimension> [<rule>]` | `eden_ld.admin.world` | Shows a rule's value in that dimension and where it comes from, or lists everything the dimension changes. |
 | `/eden commands dump` | `eden_ld.admin.commands` | Writes every command on the server, by mod, with the op level each needs (and subcommands needing a different one) to `eden_ld-commands.md` in the server folder — for deciding what players get. |
 

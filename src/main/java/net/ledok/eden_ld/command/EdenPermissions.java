@@ -52,9 +52,11 @@ public final class EdenPermissions {
     public static final String NEWS = "eden_ld.admin.news";
     /** A dimension's own settings: {@code /eden gamerule|pvp|difficulty}, and Moderation → World settings (docs/PLAN-world-rules.md). */
     public static final String WORLD = "eden_ld.admin.world";
+    /** {@code /eden tutorial start|finish|status} (docs/PLAN-tutorial.md). */
+    public static final String TUTORIAL = "eden_ld.admin.tutorial";
 
     private static final List<String> ALL = List.of(THEMES, BACKGROUNDS, EMOJIS, GUILDS, PARTIES, DUNGEONS, DAILIES, COMMANDS, MAIL,
-            MAIL_LOG, PUNISH_LOG, NEWS, WORLD);
+            MAIL_LOG, PUNISH_LOG, NEWS, WORLD, TUTORIAL);
 
     /** Which nodes each online player had when their command list was last sent (bit per {@link #ALL} entry). */
     private static final Map<UUID, Integer> SENT = new ConcurrentHashMap<>();

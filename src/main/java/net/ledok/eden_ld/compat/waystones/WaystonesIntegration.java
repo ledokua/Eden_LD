@@ -1,5 +1,7 @@
 package net.ledok.eden_ld.compat.waystones;
 
+import net.ledok.eden_ld.tutorial.Tutorial;
+import net.blay09.mods.waystones.api.event.WaystoneTeleportEntityEvent;
 import net.blay09.mods.balm.api.Balm;
 import net.blay09.mods.waystones.api.requirement.WarpRequirement;
 import net.blay09.mods.waystones.api.Waystone;
@@ -89,6 +91,14 @@ final class WaystonesIntegration {
         Balm.getEvents().onEvent(WaystoneUpdatedEvent.class, event -> runOnServer(onAllChanged));
         Balm.getEvents().onEvent(WaystoneRemovedEvent.class, event -> runOnServer(onAllChanged));
         Balm.getEvents().onEvent(BuildWaystoneSelectionMenuEvent.class, WaystonesIntegration::onBuildMenu);
+        // Tutorial players stay in the tutorial: no stone, scroll or plate takes them elsewhere.
+        Balm.getEvents().onEvent(WaystoneTeleportEntityEvent.Pre.class, event -> {
+            if (event.getEntity() instanceof ServerPlayer player && event.getTargetLevel() != null
+                    && Tutorial.isActive(player) && !Tutorial.isTutorialDimension(event.getTargetLevel().dimension())) {
+                event.setCanceled(true);
+                player.displayClientMessage(Component.translatable("message.eden_ld.busy.tutorial"), true);
+            }
+        });
     }
 
     /** A TEAM stone shared with the player through their guild (their own included). */
@@ -117,6 +127,11 @@ final class WaystonesIntegration {
     private static void onBuildMenu(BuildWaystoneSelectionMenuEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer player) || player.getServer() == null
                 || event.getFlags().contains(TeleportFlags.ADMIN)) {
+            return;
+        }
+        if (Tutorial.isActive(player)) {
+            // Only the tutorial's own stones (its waystone stage); nothing else is offered.
+            event.getWaystones().removeIf(waystone -> !Tutorial.isTutorialDimension(waystone.getDimension()));
             return;
         }
         Waystone source = event.getSourceWaystone();
