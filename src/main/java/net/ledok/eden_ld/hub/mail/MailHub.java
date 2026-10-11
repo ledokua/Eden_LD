@@ -75,6 +75,8 @@ public final class MailHub {
                 ServerPlayer online = server.getPlayerList().getPlayer(player);
                 if (online != null) {
                     push(online);
+                    // The other tabs showing the balance (Home, Wardrobe, Settings).
+                    net.ledok.eden_ld.hub.HubServer.sendBalance(online);
                 }
             });
             net.ledok.economy_ld.api.EconomyEvents.MAIL_CHANGED.add(player -> {

@@ -913,6 +913,16 @@ public class HubScreen extends CanvasScreen {
         }
     }
 
+    /**
+     * The balance changed (guild bank, a purchase, coins): Home shows it on the player's card; the other tabs read it
+     * from the cached data when they open. Mail gets its own resend from the coin moves that start on it.
+     */
+    public void onBalance() {
+        if (HubState.lastTab == HubTab.HOME) {
+            rebuildContent();
+        }
+    }
+
     /** Fresh guild level/quest data: only the sub-tabs that show it rebuild (not the chat). */
     public void onGuildQuests() {
         if (HubState.lastTab == HubTab.GUILD

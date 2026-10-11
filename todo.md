@@ -36,9 +36,14 @@ needs a README pass too.
         Claim all). Not deployed. The dialogs: NPCs_LD session (the first four written and dev-tested 2026-10-11).
     - [x] Sub-tab tours (owner): `guild/members|recruiting|quests|level|bank` for members, `activities/duels`; ▶
           follows the open sub-tab and only shows when NPCs_LD has the dialog; highlight ids for the guild sub-views
-          and Duels. Dev-checked (no ▶ on Chat, ▶ on Bank, a test Bank tour lit the vault). Dialogs: NPCs_LD session.
+          and Duels. Dev-checked (no ▶ on Chat, ▶ on Bank, a test Bank tour lit the vault). Dialogs: NPCs_LD session;
+          all six run in Eden dev 2026-10-11 (every step framed on the right widget, clean end). Go to live with 1.1.5.
     - [x] Moderation: the player page's admin tabs keep their scroll (Unlocks no longer jumps to the top); the
           Ukrainian sidebar label "Світ" (the page title stays "Налаштування світу").
+    - [x] Stale LC balance (owner: withdrawing from the guild bank left Home/Wardrobe on the old amount): every LC
+          `EconomyCompat` gives or takes, and Economy_LD's `COINS_MOVED`, sends `HubPayloads.Balance`; the client
+          patches it into its Home and Mail data (Home rebuilds when open). Dev-checked: bank withdraw and deposit,
+          then Home and the Mail wallet; a Mail wallet withdrawal, then Home.
   - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
         after the tutorial — and a tutorial step for it.
 

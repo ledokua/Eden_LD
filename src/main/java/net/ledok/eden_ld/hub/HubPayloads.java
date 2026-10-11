@@ -107,6 +107,28 @@ public final class HubPayloads {
                         buf.readBoolean(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readUtf(128),
                         buf.readVarInt(), buf.readBoolean()));
 
+        /** The same data with a fresh balance ({@link Balance}). */
+        public HomeData withBalance(long balance) {
+            return new HomeData(group, prime, hasEconomy, balance, playtimeTicks, news, shopPending, partyInvites,
+                    friendsAvailable, friendRequests, waystonesAvailable, dailiesClaimable, dailiesClaimed,
+                    dailiesTotal, hasLevel, level, levelXp, levelXpNeeded, background, staff, duelsAvailable);
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * S2C: the player's LC balance after Eden moved it (guild bank, rerolls, looks, guild founding) or Economy_LD's
+     * coins did. The client patches it into its Home and Mail data, which every tab showing the balance reads.
+     */
+    public record Balance(long balance) implements CustomPacketPayload {
+        public static final Type<Balance> TYPE = new Type<>(id("balance"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Balance> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarLong(p.balance), buf -> new Balance(buf.readVarLong()));
+
         @Override
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
@@ -2950,6 +2972,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(DuelsAlert.TYPE, DuelsAlert.CODEC);
         PayloadTypeRegistry.playS2C().register(DailiesData.TYPE, DailiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(HubNotice.TYPE, HubNotice.CODEC);
+        PayloadTypeRegistry.playS2C().register(Balance.TYPE, Balance.CODEC);
         PayloadTypeRegistry.playS2C().register(MailData.TYPE, MailData.CODEC);
         PayloadTypeRegistry.playC2S().register(MailAction.TYPE, MailAction.CODEC);
         PayloadTypeRegistry.playC2S().register(ModOpen.TYPE, ModOpen.CODEC);

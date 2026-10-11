@@ -204,6 +204,15 @@ public final class HubServer {
         }
     }
 
+    /** The player's LC balance changed: the hub's tabs show the new amount (no full Home resend, no web calls). */
+    public static void sendBalance(ServerPlayer player) {
+        EconomyCompat.fetchBalance(player, (hasEconomy, balance) -> {
+            if (hasEconomy && !player.hasDisconnected()) {
+                ServerPlayNetworking.send(player, new HubPayloads.Balance(balance));
+            }
+        });
+    }
+
     private static void sendHomeData(ServerPlayer player) {
         String group = MinestarHook.platformGroup(player.getUUID()).orElse("");
         boolean prime = MinestarHook.isPrime(player.getUUID());

@@ -2,6 +2,7 @@ package net.ledok.eden_ld.compat;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
+import net.ledok.eden_ld.hub.HubServer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -12,7 +13,8 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Optional Economy_LD access via reflection (same approach as Arenas_LD's compat):
  * no compile-time dependency, everything degrades to "no economy" when the mod or
- * a method is missing. Callbacks are delivered on the server thread.
+ * a method is missing. Callbacks are delivered on the server thread. Every LC it gives or takes resends the
+ * player's balance to the hub ({@link HubServer#sendBalance}).
  */
 public final class EconomyCompat {
 
@@ -69,7 +71,8 @@ public final class EconomyCompat {
 
     /** Adds LC to the player's balance; fire-and-forget (failures are logged). */
     public static void give(ServerPlayer player, long amount) {
-        if (amount <= 0 || !available()) {
+        MinecraftServer server = player.getServer();
+        if (amount <= 0 || server == null || !available()) {
             return;
         }
         try {
@@ -79,6 +82,8 @@ public final class EconomyCompat {
                         if (cause != null) {
                             EdenLD.LOGGER.error("[Economy] Failed to give {} LC to {}.", amount,
                                     player.getGameProfile().getName(), cause);
+                        } else {
+                            server.execute(() -> HubServer.sendBalance(player));
                         }
                     });
         } catch (Exception e) {
@@ -106,7 +111,11 @@ public final class EconomyCompat {
                     EdenLD.LOGGER.error("[Economy] Failed to take {} LC from {}.", amount,
                             player.getGameProfile().getName(), cause);
                 }
-                onResult.accept(cause == null && Boolean.TRUE.equals(ok));
+                boolean paid = cause == null && Boolean.TRUE.equals(ok);
+                if (paid) {
+                    HubServer.sendBalance(player);
+                }
+                onResult.accept(paid);
             }));
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Economy] take threw.", e);
