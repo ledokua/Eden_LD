@@ -160,8 +160,10 @@ replaces the old tutorial-mod-for-yggdrasil; the NPCs_LD guide dialog runs its s
   before are never put in; staff use `/eden tutorial start`.
 - **Alone together**: everyone in the tutorial shares one room, but each player is in their own **phase** — they
   don't see, hear, hurt, target or push other tutorial players, and the mobs, projectiles and items they make are
-  theirs alone (and go when they log out or finish). The room, decorations and the guide NPCs
-  (`always_visible`, default `npcs_ld:npc`) are seen and heard by everyone.
+  theirs alone (and go when they log out or finish). The room and decorations are seen and heard by everyone; shared
+  entities (`always_visible`: the guide NPCs `npcs_ld:npc`, on Fallen Eden also the target dummy
+  `dummmmmmy:target_dummy`) are seen by everyone and anyone can hit them. Any other unphased entity in the room is
+  out of sight for tutorial players — add it to the list (`/reload`).
 - **Private containers**: the blocks in `private_blocks` (default: the alchemy table, chests, barrels, furnaces,
   smokers, blast furnaces, brewing stands) give each player their own copy — their own items, smelting or brewing
   and lit state; the world's block stays untouched. Keep waystones, shops and the binding table off this list.

@@ -27,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Phasing for the tutorial ({@code docs/PLAN-tutorial.md} section 3, ported from tutorial-mod-for-yggdrasil):
  * everyone in the tutorial shares one room, but each player is in their own phase. Entities of different phases don't
- * see, hurt, target or push each other; an unphased decoration or NPC ({@code tutorial.always_visible}) is seen by all.
+ * see, hurt, target or push each other; an unphased decoration is seen by all, and a shared entity
+ * ({@code tutorial.always_visible}: the guide NPCs, a target dummy) is seen and can be touched by all.
  * Keeps an index of each phase's entities, to clear them when the player leaves or logs out.
  */
 public final class Phases {
@@ -50,9 +51,17 @@ public final class Phases {
         return entity instanceof Phased phased ? phased.eden_ld$phase() : null;
     }
 
-    /** Whether these two can touch: hurt, target, push. */
+    /**
+     * Whether these two can touch: hurt, target, push. A shared entity ({@code tutorial.always_visible}, unphased —
+     * a target dummy, the guide) is everyone's, so any phase may hit it.
+     */
     public static boolean together(Entity a, @Nullable Entity b) {
-        return b == null || Objects.equals(of(a), of(b));
+        if (b == null) {
+            return true;
+        }
+        UUID phaseA = of(a);
+        UUID phaseB = of(b);
+        return Objects.equals(phaseA, phaseB) || phaseA == null && alwaysVisible(a) || phaseB == null && alwaysVisible(b);
     }
 
     /** Whether {@code viewer} sees (and hears) {@code entity}: the same phase, or a shared decoration or NPC. */

@@ -24,6 +24,11 @@ needs a README pass too.
         private containers (`tutorial/phase/*`, `mixin/phase/*`, ported from tutorial-mod-for-yggdrasil with its
         bugs fixed: saved inventory persisted, only first-time players, projectiles phased, shared sounds audible,
         private blocks by list), Waystones limited to the tutorial dimension.
+  - [x] Live test 2026-10-11 (kombo, l1llight): both put in on first join. The target dummy was invisible (unphased,
+        not shared) — `dummmmmmy:target_dummy` added to `always_visible` (Prism + live, /reload); Eden 1.1.3: shared
+        entities can be hit by any phase (dev-checked: a shared villager hittable, an unphased zombie not). Copied to
+        the pack, Prism and live 2026-10-11 15:09 (1.1.2 to the backups); applies at the next restart.
+  - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
   - [ ] Later (owner, 2026-10-11): a **Kits** place in the hub (a tab, or somewhere) so players can claim their kits
         after the tutorial — and a tutorial step for it.
 
