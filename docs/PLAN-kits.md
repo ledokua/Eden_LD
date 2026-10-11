@@ -9,9 +9,11 @@ tutorial, plus a tutorial step for it. Kits come from Kits_LD (the pack's 0.2.0;
 - **Its own tab** in the hub's tab row (after Dailies), not a Home card.
 - **`/kits` opens the hub's Kits tab** for players with Eden on their client; vanilla clients keep Kits_LD's chat
   listing. `/kit claim <name>` and the admin `/kit editor` stay as they are.
-- **Tutorial:** asked whether "right after finishing" needs another NPC — no: `/npcs_ld talk <dialog> <player>` opens
-  a dialog with no NPC (like the hub's ▶ tours), so one line in `tutorial.json`'s `commands_on_finish` starts it the
-  moment the player lands at the finish spot. The NPCs_LD session writes that dialog. Awaiting the owner's go.
+- **Tutorial:** a kits step right after the finish, with no new NPC (owner: yes). The NPCs_LD session's guide ends its
+  `tutorial_cleanup` with `open_dialog config:tutorial/kits` — applied after the whole action list, so after
+  `eden tutorial finish` (inventory back, teleport) — instead of an `npcs_ld talk` in `commands_on_finish`, which would
+  close the guide's session mid-list. The step: hub button → Kits tab → the first kit → Claim; skipping the tutorial
+  gets it too. The tab's tour is `config:hub/kits`.
 
 ## How it works
 

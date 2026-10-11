@@ -56,7 +56,7 @@ the page title). An empty tab shows its icon at 32 × 32.
 | `tab_dailies_done` | Dailies, all claimed today | book with a check | ✅ |
 | `tab_mail` | Mail, everything read | open envelope | ✅ |
 | `tab_mail_unread` | Mail, unread mail or a website purchase waiting | sealed envelope | ✅ |
-| `tab_kits` | Kits (Kits_LD's kits to claim) | chest / bundle | |
+| `tab_kits` | Kits (Kits_LD's kits to claim) | for now a copy of `tab_duels` (owner, 2026-10-11); later a chest / bundle | ✅ |
 | `tab_moderation` | Moderation (staff only) | judge's gavel | ✅ |
 | `tab_settings` | Settings | gear | ✅ |
 | `tab_help` | the "?" button | question mark | ✅ |

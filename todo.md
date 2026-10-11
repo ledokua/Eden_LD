@@ -48,12 +48,17 @@ needs a README pass too.
   - [ ] **Kits tab** (owner, 2026-10-11; `docs/PLAN-kits.md`): its own hub tab (after Dailies) for Kits_LD's kits —
         cards with status and countdown, Preview (inventory-shaped), Claim (busy-locked), a badge for ready kits;
         `/kits` opens it for Eden clients. Eden 1.1.6 built and dev-checked 2026-10-11 (see the plan's Checked).
-        Not deployed. Live has Kits_LD 0.2.0 but no kits yet. Deploying: add `"kits": "config:hub/kits"` to
-        `tab_tours` in Prism's and live `tutorial.json` (an existing file keeps its own list).
-    - [ ] Tutorial step (owner asked whether it needs another NPC — no): `npcs_ld talk <dialog> {player}` at the end
-          of `commands_on_finish` starts it at the finish spot; the dialog (hub button → Kits → Claim, ids
-          `eden_ld:hub/kits/...`) and the tab's ▶ tour (`config:hub/kits`) by the NPCs_LD session. Awaiting the go.
-    - [ ] `tab_kits` icon art (placeholder square until then; `docs/ICONS.md`).
+        Not deployed. Live has Kits_LD 0.2.0 but **no kits yet** (the tab and the tutorial step show "No kits for you
+        yet" until there are). `tab_tours`: Prism's and live `tutorial.json` have none, so 1.1.6's defaults (with
+        `kits`) apply — nothing to add.
+    - [x] Tour and tutorial step (owner said yes; NPCs_LD session, tested 2026-10-11 with 1.1.6 and the test kits):
+          tour `config:hub/kits` (list → first card → Preview → Claim → tab badge); step `config:tutorial/kits`
+          (hub button → Kits tab → first kit → Claim) opened by the guide's `tutorial_cleanup` with `open_dialog` after
+          `eden tutorial finish` (also on skip) — no `commands_on_finish` line (`npcs_ld talk` there would close the
+          guide's session mid-list). Both dialogs on Prism Server; the guide change waits in
+          `Documents/Minestar/FallenEden/NPCs/pending-eden-1.1.6/guide.json` — the NPCs_LD session installs it with
+          the 1.1.6 deploy.
+    - [x] `tab_kits` icon: a copy of the old Duels icon (owner, 2026-10-11).
 
 - [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
       registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,
