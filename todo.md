@@ -68,15 +68,22 @@ needs a README pass too.
           the 1.1.6 deploy.
     - [x] `tab_kits` icon: a copy of the old Duels icon (owner, 2026-10-11).
 
-- [ ] **Chat activity** (owner, 2026-10-12; `docs/PLAN-chat-activity.md`): channel pips instead of the badge (dot =
+- [x] **Chat activity** (owner, 2026-10-12; `docs/PLAN-chat-activity.md`): channel pips instead of the badge (dot =
       unseen, @N = mentions), mention lines highlighted and lingering, "↓ Mentions", right-click menu (mute 5m-24h /
       until on, notifications All / Only @mentions / Nothing, Mark as read, Chat settings), per-channel rows in
-      Settings → Chat; a click picks a switched-off channel, Ctrl+Tab skips it. Eden 1.1.9 built and dev-checked
-      2026-10-12 with two clients (see the plan's Checked). Copied to the pack (not committed), Prism and live
-      2026-10-12 20:56 (1.1.8 to the backups; live checked with cmp); applies at the next restart — server and pack
-      together (the settings and mention-ping packets changed).
-  - [ ] Next (owner, 2026-10-12): Eden's own chat panel instead of modifying Minecraft's — plan in
-        `docs/PLAN-custom-chat.md`. ChatPatches won't be needed (owner).
+      Settings → Chat; a click picks a switched-off channel, Ctrl+Tab skips it. Eden 1.1.9 (2026-10-12), then 1.1.10:
+      the input starts right after the pips (owner: the gap after "Guild"), a "!l " prefix lights its pip.
+- [x] **Eden's own chat window** (owner, 2026-10-12; `docs/PLAN-custom-chat.md`; decisions: vanilla input, dark
+      see-through, fixed like vanilla, pips): built on the `custom-chat` branch in three steps and dev-checked with two
+      clients — the store and panel (1000 messages, heads, scroll that holds still), message actions (hover toolbar,
+      right-click menu: Reply, Copy text, Open profile, Ignore, Moderate), spam protection (×N, owner), timestamps on
+      hover and the System pip (owner's picks). No private-message channel (owner: `/tell NAME`). Eden 1.2.0-chat.3
+      copied to Prism, the pack and live 2026-10-12 22:46; running on live since the 2026-10-13 00:01 restart. Merged
+      into `master` and the branch deleted 2026-10-13; README updated.
+  - [ ] Still open extras (owner to pick): search, inline GIF/sticker previews, reactions, the hub's party/guild chat
+        on the same panel.
+  - [ ] Chat Heads can leave the pack (Eden draws heads); ChatPatches is gone already. Owner's call.
+  - [ ] Next master build: drop the "-chat" tag (suggested 1.2.1).
 
 - [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
       registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,
