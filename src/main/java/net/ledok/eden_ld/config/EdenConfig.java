@@ -378,20 +378,26 @@ public class EdenConfig {
          * The hub tabs' tours: what the tab shows → the NPCs_LD dialog the help window's ▶ starts. Keys are tab names
          * (home, guild, waystones, activities, mail…; {@code guild} is for players without a guild) or tab/sub-tab:
          * {@code guild/members|recruiting|quests|level|bank} for guild members, {@code activities/duels}. Nothing
-         * listed = no ▶.
+         * listed = no ▶. Tours a newer Eden adds join an existing file on load; {@code ""} turns one off.
          */
-        public java.util.Map<String, String> tab_tours = new java.util.LinkedHashMap<>(java.util.Map.ofEntries(
-                java.util.Map.entry("guild", "config:hub/guild"),
-                java.util.Map.entry("guild/members", "config:hub/guild_members"),
-                java.util.Map.entry("guild/recruiting", "config:hub/guild_recruiting"),
-                java.util.Map.entry("guild/quests", "config:hub/guild_quests"),
-                java.util.Map.entry("guild/level", "config:hub/guild_level"),
-                java.util.Map.entry("guild/bank", "config:hub/guild_bank"),
-                java.util.Map.entry("waystones", "config:hub/waystones"),
-                java.util.Map.entry("activities", "config:hub/activities"),
-                java.util.Map.entry("activities/duels", "config:hub/duels"),
-                java.util.Map.entry("mail", "config:hub/mail"),
-                java.util.Map.entry("kits", "config:hub/kits")));
+        public java.util.Map<String, String> tab_tours = defaultTours();
+
+        /** The default tours, in tab order. */
+        private static java.util.Map<String, String> defaultTours() {
+            java.util.Map<String, String> tours = new java.util.LinkedHashMap<>();
+            tours.put("guild", "config:hub/guild");
+            tours.put("guild/members", "config:hub/guild_members");
+            tours.put("guild/recruiting", "config:hub/guild_recruiting");
+            tours.put("guild/quests", "config:hub/guild_quests");
+            tours.put("guild/level", "config:hub/guild_level");
+            tours.put("guild/bank", "config:hub/guild_bank");
+            tours.put("waystones", "config:hub/waystones");
+            tours.put("activities", "config:hub/activities");
+            tours.put("activities/duels", "config:hub/duels");
+            tours.put("mail", "config:hub/mail");
+            tours.put("kits", "config:hub/kits");
+            return tours;
+        }
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
                 "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
                 "minecraft:blast_furnace", "minecraft:brewing_stand"));
@@ -406,6 +412,8 @@ public class EdenConfig {
             if (always_visible == null) always_visible = new ArrayList<>();
             if (private_blocks == null) private_blocks = new ArrayList<>();
             if (tab_tours == null) tab_tours = new java.util.LinkedHashMap<>();
+            // A file written by an older Eden lacks the tours added since (the Kits tour, 1.1.6).
+            defaultTours().forEach(tab_tours::putIfAbsent);
         }
     }
 

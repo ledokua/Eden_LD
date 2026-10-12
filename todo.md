@@ -28,6 +28,10 @@ needs a README pass too.
         not shared) — `dummmmmmy:target_dummy` added to `always_visible` (Prism + live, /reload); Eden 1.1.3: shared
         entities can be hit by any phase (dev-checked: a shared villager hittable, an unphased zombie not). Copied to
         the pack, Prism and live 2026-10-11 15:09 (1.1.2 to the backups); applies at the next restart.
+  - [x] Missing lang keys in the tutorial (owner, 2026-10-11): Realm Keys is server-only, and its unlock title
+        (`message.realm_keys.path_opened`, shown when `commands_on_finish` unlocks the realms) and command replies were
+        raw keys — Eden 1.1.7 carries its 47 message strings (en + uk, from its jar). Copied to the pack (not
+        committed), Prism and live 2026-10-12 00:53 (1.1.6 to the backups); applies at the next restart.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
         `Window.titleButton`, owner approved) starts the tab's NPCs_LD dialog (`tutorial.tab_tours`, default
@@ -48,9 +52,13 @@ needs a README pass too.
   - [ ] **Kits tab** (owner, 2026-10-11; `docs/PLAN-kits.md`): its own hub tab (after Dailies) for Kits_LD's kits —
         cards with status and countdown, Preview (inventory-shaped), Claim (busy-locked), a badge for ready kits;
         `/kits` opens it for Eden clients. Eden 1.1.6 built and dev-checked 2026-10-11 (see the plan's Checked).
-        Not deployed. Live has Kits_LD 0.2.0 but **no kits yet** (the tab and the tutorial step show "No kits for you
+        Copied to the pack (not committed), Prism and live 2026-10-11 19:11 (1.1.5 to the backups); applies at
+        the next restart. Live has Kits_LD 0.2.0 but **no kits yet** (the tab and the tutorial step show "No kits for you
         yet" until there are). `tab_tours`: Prism's and live `tutorial.json` have none, so 1.1.6's defaults (with
-        `kits`) apply — nothing to add.
+        `kits`) apply — nothing to add. **Wrong** (MCP eden, 2026-10-12): live's file had a list written by 1.1.5 (no
+        `kits`), and a list in the file was taken whole — no ▶ on Kits there. Eden 1.1.8: missing default tours join
+        the file on load (`""` turns one off). Copied to the pack (not committed), Prism and live
+        2026-10-12 16:45 (1.1.7 to the backups; live checked with cmp); applies at the next restart.
     - [x] Tour and tutorial step (owner said yes; NPCs_LD session, tested 2026-10-11 with 1.1.6 and the test kits):
           tour `config:hub/kits` (list → first card → Preview → Claim → tab badge); step `config:tutorial/kits`
           (hub button → Kits tab → first kit → Claim) opened by the guide's `tutorial_cleanup` with `open_dialog` after

@@ -206,7 +206,8 @@ NPCs_LD walk-through of it — pinned lines that highlight its parts one by one 
 dialog waiting for something, like the guide, is set aside and comes back after). Tours go by what's on screen:
 Guild for players without a guild, each guild sub-tab for members (`guild/members`, `guild/recruiting`,
 `guild/quests`, `guild/level`, `guild/bank`), Waystones, Activities, Duels (`activities/duels`), Mail and Kits; ▶ follows
-the sub-tab as it changes, and shows only for tours whose dialog NPCs_LD has. The parts have stable names for dialogs
+the sub-tab as it changes, and shows only for tours whose dialog NPCs_LD has. Tours a newer Eden adds join an
+existing `tutorial.json` when it loads; set one to `""` to turn it off. The parts have stable names for dialogs
 (`eden_ld:hub/guild/…`, `…/duels/…`, `…/waystones/…`, `…/activities/…`, `…/mail/…`, `…/kits/…`, listed in `HubSpotlights` and in
 NPCs_LD's editor picker).
 
@@ -1436,6 +1437,10 @@ Other mods can register flight rules and read cached Minestar profiles — see [
 - **Duels_LD** (1.4.0+) — optional; the Duels tab (see Eden Hub → Duels). Duels uses Eden's parties
   for 2v2.
 - **Kits_LD** (0.2.0+) — optional; the Kits tab and `/kits` (see Eden Hub → Kits).
+- **Realm Keys** (1.0.0) — server-only in the pack, so players' games don't have its texts: Eden's lang files carry
+  its messages (`command.realm_keys.*`, `message.realm_keys.*`, `dimension.realm_keys.*`, English and Ukrainian, from
+  its own files), so its "Path Opened!" title when the tutorial unlocks a dimension, and its command replies, show as
+  text instead of keys. Refresh them if a new Realm Keys version adds messages.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — works alongside Eden's chat; right-click on an emoji or sticker stars / saves
   it instead of opening ChatPatches' menu. Its right-click menu is drawn above the chat lines (on

@@ -38,6 +38,10 @@ public final class HubTours {
         }
         return EdenLD.CONFIG.tutorial.tab_tours.entrySet().stream()
                 .filter(entry -> {
+                    // "" turns a default tour off.
+                    if (entry.getValue() == null || entry.getValue().isBlank()) {
+                        return false;
+                    }
                     ResourceLocation id = ResourceLocation.tryParse(entry.getValue());
                     return id != null && NpcsCompat.exists(id);
                 })
