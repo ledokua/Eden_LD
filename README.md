@@ -994,9 +994,20 @@ warning while it's installed, since it would re-format every message).
 | **Guild** | your guild (needs one) | `[Guild]` | ✘ |
 
 - **Click a channel tag** in chat (`[Local]`, `[Party]`…) to switch straight to that channel.
-- **Switching**: a badge left of the chat input shows your channel — **click it** or press
-  **Ctrl+Tab** (Shift+Ctrl+Tab: back) to switch; channels you can't use are skipped. The choice
-  is remembered. Without the Eden client: `/ch <global|local|party|guild>`.
+- **Channel pips** left of the chat input ([docs/PLAN-chat-activity.md](docs/PLAN-chat-activity.md)): one per
+  channel you can use (Party and Guild while you're in one); the one you type into shows its name, the others a
+  letter. **Click** one to switch — also to a channel switched off in Settings → Chat (its lines show while it's
+  selected); **Ctrl+Tab** (Shift+Ctrl+Tab: back) cycles, skipping switched-off channels. The choice is remembered.
+  Without the Eden client: `/ch <global|local|party|guild>`.
+- **What you missed**: a dot on a pip means lines there you haven't seen yet (seen = shown in the open chat);
+  **@N** counts mentions of you. A line that mentions you gets a stripe and a tint in your notification color
+  (Settings → Notifications), "You were mentioned" on hover, and stays on screen 30 s instead of 10.
+  **↓ Mentions** above the input jumps to the oldest one you haven't seen (switching channel when needed); clicking
+  a pip with @N does the same for that channel.
+- **Per channel** (right-click a pip, Discord style): **Mute** for 5 or 15 minutes, 1 or 24 hours, or until you turn
+  it back on (no dot, no "all messages" sound; mentions still count); **Notifications**: All messages (a soft sound
+  for every line), Only @mentions (default: the ping and @N), Nothing; **Mark as read**; **Chat settings** opens the
+  hub on Settings → Chat, which has the same per channel. Kept on the server with the other hub settings.
 - **One message elsewhere**: start it with `!g`, `!l`, `!p` or `!gd` (global, local, party,
   guild) — e.g. `!p on my way`. The badge previews where it goes.
 - `/p`, `/g`, `/l <message>` and the hub's party/guild chat panels post to the same channels.

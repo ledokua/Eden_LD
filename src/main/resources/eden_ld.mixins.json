@@ -44,6 +44,7 @@
   "client": [
     "AbstractContainerScreenAccessor",
     "AudioChannelMixin",
+    "ChatComponentAccessor",
     "ChatComponentMixin",
     "ChatPatchesMenuMixin",
     "ChatScreenMixin",

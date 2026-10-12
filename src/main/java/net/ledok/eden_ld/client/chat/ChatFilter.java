@@ -62,13 +62,18 @@ public final class ChatFilter {
         };
     }
 
-    /** Hidden by its own switch, or — with "only the selected channel" — not the one typed into. */
+    /**
+     * Hidden by its own switch (unless it's the channel typed into — picked on its pip on purpose), or — with "only
+     * the selected channel" — not the one typed into.
+     */
     private static boolean channelHidden(HubPayloads.SettingsData settings, int bit, ChatChannels.Channel channel,
                                          boolean own) {
-        if (!own && (settings.chatHidden() & (1 << bit)) != 0) {
+        ChatChannels.Channel selected = ClientChatChannel.current();
+        // The Discord switch (bit 4) isn't Global's own: it keeps Discord lines hidden.
+        boolean picked = selected == channel && bit == channel.ordinal();
+        if (!own && (settings.chatHidden() & (1 << bit)) != 0 && !picked) {
             return true;
         }
-        ChatChannels.Channel selected = ClientChatChannel.current();
         return settings.chatFocus() && selected != null && selected != channel;
     }
 

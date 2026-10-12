@@ -17,6 +17,7 @@ import java.util.Locale;
 public final class ChatMarker {
 
     private static final String PREFIX = "eden_ld:line:";
+    private static final String MENTION = "eden_ld:mention:";
     private static final String TEAM = ":team";
     /** How deep {@link #find} looks: a chat line nests the marker in its sender part, a few levels down. */
     private static final int MAX_DEPTH = 6;
@@ -48,6 +49,41 @@ public final class ChatMarker {
     public static MutableComponent marker(Kind kind, boolean team, @Nullable java.util.UUID sender) {
         return Component.literal("").withStyle(Style.EMPTY.withInsertion(PREFIX + kind.id() + (team ? TEAM : "")
                 + (sender != null ? "@" + sender : "")));
+    }
+
+    /**
+     * The invisible piece after an "@name" mention, naming who was mentioned: that player's client highlights the
+     * line and counts it on the channel's pip. Empty, so shift-click inserts nothing.
+     */
+    public static MutableComponent mention(java.util.UUID mentioned) {
+        return Component.literal("").withStyle(Style.EMPTY.withInsertion(MENTION + mentioned));
+    }
+
+    /** Whether the line mentions this player (a {@link #mention} piece anywhere in it). */
+    public static boolean mentions(Component line, java.util.UUID player) {
+        return mentions(line, MENTION + player, 0);
+    }
+
+    private static boolean mentions(Component component, String insertion, int depth) {
+        if (depth > MAX_DEPTH + 2) {
+            return false;
+        }
+        if (insertion.equals(component.getStyle().getInsertion()) && component.getString().isEmpty()) {
+            return true;
+        }
+        if (component.getContents() instanceof TranslatableContents translatable) {
+            for (Object arg : translatable.getArgs()) {
+                if (arg instanceof Component part && mentions(part, insertion, depth + 1)) {
+                    return true;
+                }
+            }
+        }
+        for (Component sibling : component.getSiblings()) {
+            if (mentions(sibling, insertion, depth + 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The line with its marker in front. */

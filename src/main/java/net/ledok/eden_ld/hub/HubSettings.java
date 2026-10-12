@@ -40,6 +40,21 @@ public final class HubSettings {
     public static final int DEFAULT_MENTION_VOLUME = 90;
     private static final java.util.List<String> HIDE_KEYS = java.util.List.of(
             CHAT_HIDE_GLOBAL, CHAT_HIDE_LOCAL, CHAT_HIDE_PARTY, CHAT_HIDE_GUILD, CHAT_HIDE_DISCORD);
+    /**
+     * Each chat channel's notifications ({@link ChannelNotify} ordinal), 2 bits per channel in
+     * {@code ChatChannels.Channel} order: what plays a sound and counts on the channel's pip.
+     */
+    public static final String CHAT_NOTIFY = "chat_notify";
+    /**
+     * A muted chat channel: no dot on its pip, no "all messages" sound (mentions still count). Stored as the end in
+     * epoch minutes, {@link #MUTED_FOR_GOOD} until turned back on, 0 not muted; the client sends the length instead
+     * (minutes, -1 for good, 0 to unmute).
+     */
+    public static final java.util.List<String> CHAT_MUTE = java.util.List.of(
+            "chat_mute_global", "chat_mute_local", "chat_mute_party", "chat_mute_guild");
+    public static final int MUTED_FOR_GOOD = -1;
+    /** The longest timed mute the client may ask for (24 hours). */
+    private static final int MAX_MUTE_MINUTES = 24 * 60;
     /** How hub tabs show news: badges, a glow, or both ({@link NotifyStyle} ordinal). */
     public static final String NOTIFY_STYLE = "notify_style";
     /** The badge / glow color: 0 = the theme's own, 1..{@link #NOTIFY_COLORS} a fixed color. */
@@ -94,6 +109,23 @@ public final class HubSettings {
         public static NotifyStyle of(int value) {
             NotifyStyle[] values = values();
             return value >= 0 && value < values.length ? values[value] : BADGE;
+        }
+    }
+
+    /** A chat channel's notifications (Discord's three). Ordinal is the wire value; ONLY_MENTIONS is the default. */
+    public enum ChannelNotify {
+        ONLY_MENTIONS,
+        ALL_MESSAGES,
+        NOTHING;
+
+        public static ChannelNotify of(int value) {
+            ChannelNotify[] values = values();
+            return value >= 0 && value < values.length ? values[value] : ONLY_MENTIONS;
+        }
+
+        /** This channel's level in the packed setting. */
+        public static ChannelNotify of(int packed, int channel) {
+            return of(packed >>> (channel * 2) & 3);
         }
     }
 
@@ -296,8 +328,40 @@ public final class HubSettings {
         return root.getCompound(TAG);
     }
 
+    /** A channel's notifications for this player. */
+    public static ChannelNotify channelNotify(MinecraftServer server, UUID player, int channel) {
+        return ChannelNotify.of(intSetting(server, player, CHAT_NOTIFY), channel);
+    }
+
+    /** When each channel's mute ends (epoch minutes; {@link #MUTED_FOR_GOOD}; 0 not muted), in channel order. */
+    public static java.util.List<Integer> chatMutes(MinecraftServer server, UUID player) {
+        CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
+        return CHAT_MUTE.stream().map(settings::getInt).toList();
+    }
+
     /** Applies a change from the Settings tab; false for unknown keys or values. */
     public static boolean set(MinecraftServer server, UUID player, String key, int value) {
+        if (CHAT_NOTIFY.equals(key)) {
+            // Every channel's 2 bits, each a known level.
+            for (int channel = 0; channel < CHAT_MUTE.size(); channel++) {
+                if ((value >>> (channel * 2) & 3) >= ChannelNotify.values().length) {
+                    return false;
+                }
+            }
+            if (value >>> (CHAT_MUTE.size() * 2) != 0) {
+                return false;
+            }
+            settings(server, player).putInt(key, value);
+            return true;
+        }
+        if (CHAT_MUTE.contains(key)) {
+            if (value < MUTED_FOR_GOOD || value > MAX_MUTE_MINUTES) {
+                return false;
+            }
+            int now = (int) (System.currentTimeMillis() / 60_000L);
+            settings(server, player).putInt(key, value <= 0 ? value : now + value);
+            return true;
+        }
         if (MENTION_VOLUME.equals(key)) {
             if (value < 0 || value > 100) {
                 return false;

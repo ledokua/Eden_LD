@@ -94,6 +94,7 @@ public class EdenLDClient implements ClientModInitializer {
             ClientCombatTag.reset();
             net.ledok.eden_ld.client.hub.PlayerNames.reset();
             net.ledok.eden_ld.client.chat.ClientChatChannel.reset();
+            net.ledok.eden_ld.client.chat.ChatActivity.reset();
             net.ledok.eden_ld.client.chat.ClientTabList.clear();
             net.ledok.eden_ld.client.chat.EmojiFont.reset();
             net.ledok.eden_ld.client.hub.RemoteImages.clear();
@@ -324,8 +325,13 @@ public class EdenLDClient implements ClientModInitializer {
             }
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.MentionPing.TYPE,
-                (payload, context) -> net.ledok.eden_ld.client.chat.MentionSound.play());
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.MentionPing.TYPE, (payload, context) -> {
+            // The channel's notifications decide (the server already skips Nothing; this follows a change at once).
+            if (net.ledok.eden_ld.client.chat.ChatActivity.notify(net.ledok.eden_ld.chat.ChatChannels.Channel.of(
+                    payload.channel())) != net.ledok.eden_ld.hub.HubSettings.ChannelNotify.NOTHING) {
+                net.ledok.eden_ld.client.chat.MentionSound.play();
+            }
+        });
 
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.GuildQuestsData.TYPE, (payload, context) -> {
             HubState.guildQuests = payload;

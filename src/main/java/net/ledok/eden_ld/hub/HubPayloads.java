@@ -2359,7 +2359,7 @@ public final class HubPayloads {
                                int chatDeaths, int chatAdvancements, int chatHidden, boolean chatFocus,
                                int mentionVolume, int profileVisibleTo, int notifyStyle, int notifyColor,
                                int notifyOff, int seenTabs, int hubLanguage, List<LookOffer> themeOffers,
-                               boolean themeIconsOff)
+                               boolean themeIconsOff, int chatNotify, List<Integer> chatMutes)
             implements CustomPacketPayload {
         public static final Type<SettingsData> TYPE = new Type<>(id("settings_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, SettingsData> CODEC = StreamCodec.of(
@@ -2383,12 +2383,14 @@ public final class HubPayloads {
                     buf.writeVarInt(p.hubLanguage);
                     writeList(buf, p.themeOffers, LookOffer::write);
                     buf.writeBoolean(p.themeIconsOff);
+                    buf.writeVarInt(p.chatNotify);
+                    writeList(buf, p.chatMutes, (b, minutes) -> b.writeInt(minutes));
                 },
                 buf -> new SettingsData(buf.readVarInt(), buf.readBoolean(), buf.readUtf(), readStrings(buf),
                         buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                         buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                         buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readList(buf, LookOffer::read),
-                        buf.readBoolean()));
+                        buf.readBoolean(), buf.readVarInt(), readList(buf, b -> b.readInt())));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -2396,11 +2398,14 @@ public final class HubPayloads {
         }
     }
 
-    /** S2C: someone @mentioned the player — the client plays the ping at the player's own volume. */
-    public record MentionPing() implements CustomPacketPayload {
-        public static final MentionPing INSTANCE = new MentionPing();
+    /**
+     * S2C: someone @mentioned the player in a chat channel ({@code ChatChannels.Channel} ordinal) — the client plays
+     * the ping at the player's own volume, unless that channel's notifications are Nothing.
+     */
+    public record MentionPing(int channel) implements CustomPacketPayload {
         public static final Type<MentionPing> TYPE = new Type<>(id("mention_ping"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, MentionPing> CODEC = StreamCodec.unit(INSTANCE);
+        public static final StreamCodec<RegistryFriendlyByteBuf, MentionPing> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarInt(p.channel), buf -> new MentionPing(buf.readVarInt()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

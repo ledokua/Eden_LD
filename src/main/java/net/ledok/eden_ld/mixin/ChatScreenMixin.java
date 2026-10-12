@@ -2,6 +2,7 @@ package net.ledok.eden_ld.mixin;
 
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.chat.emoji.EmojiRegistry;
+import net.ledok.eden_ld.client.chat.ChannelMenu;
 import net.ledok.eden_ld.client.chat.ClientChatChannel;
 import net.ledok.eden_ld.client.chat.EmojiFont;
 import net.ledok.eden_ld.client.chat.EmojiTabs;
@@ -26,9 +27,11 @@ import java.util.List;
 /**
  * Eden's additions to the chat screen:
  * <ul>
- *   <li>a channel badge left of the input — where the message goes (a typed "!l " prefix
- *   previews its channel); Ctrl+Tab (Shift: back) or a click switches; "!x message" is sent
- *   once to that channel with the prefix stripped client side;</li>
+ *   <li>channel pips left of the input (docs/PLAN-chat-activity.md) — one per channel the player can use, the one
+ *   the message goes to with its name (a typed "!l " prefix previews its channel), a dot for lines not seen yet,
+ *   @N for mentions; a click switches (also to a channel switched off in Settings), Ctrl+Tab (Shift: back) cycles
+ *   the others, a right-click opens the channel's menu (mute, notifications); "!x message" is sent once to that
+ *   channel with the prefix stripped client side; "↓ Mentions" jumps to the oldest unseen mention;</li>
  *   <li>for players with {@code eden_ld.emoji_picker}, an emoji button right of the input that
  *   opens tabs — favorites, the server's (Minestar) emojis, Discord's categories; a click inserts the emoji,
  *   a right-click (also on emojis in chat, guests included) stars or unstars it;</li>
@@ -50,9 +53,11 @@ public abstract class ChatScreenMixin extends Screen {
     @Shadow
     protected EditBox input;
 
-    /** Badge width (0 = no badge on this server). */
+    /** The room the channel pips take left of the input (0 = none on this server). */
     @Unique
     private int eden_ld$badge;
+    @Unique
+    private static final int PIP_GAP = 1;
     @Unique
     private boolean eden_ld$emojiButton;
     @Unique
@@ -77,11 +82,7 @@ public abstract class ChatScreenMixin extends Screen {
         if (ClientChatChannel.current() == null) {
             return;
         }
-        int widest = 0;
-        for (Channel channel : Channel.values()) {
-            widest = Math.max(widest, font.width(ClientChatChannel.badgeLabel(channel)));
-        }
-        eden_ld$badge = widest + 8;
+        eden_ld$badge = eden_ld$pipsWidth();
         input.setX(input.getX() + eden_ld$badge);
         input.setWidth(input.getWidth() - eden_ld$badge - (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0));
         if (eden_ld$emojiButton) {
@@ -100,10 +101,76 @@ public abstract class ChatScreenMixin extends Screen {
 
     // ---------------------------------------------------------------- geometry
 
+    /** The channels with a pip: those the player can use (Party and Guild only while in one). */
     @Unique
-    private boolean eden_ld$overBadge(double mouseX, double mouseY) {
-        return eden_ld$badge > 0 && mouseX >= 2 && mouseX < 2 + eden_ld$badge
-                && mouseY >= height - 14 && mouseY < height - 2;
+    private static List<Channel> eden_ld$pipChannels() {
+        List<Channel> channels = new java.util.ArrayList<>();
+        for (Channel channel : Channel.values()) {
+            if (ClientChatChannel.open(channel)) {
+                channels.add(channel);
+            }
+        }
+        return channels;
+    }
+
+    /** A pip's label: the channel's name on the one the message goes to, else its letter. */
+    @Unique
+    private static Component eden_ld$pipLabel(Channel channel, boolean active) {
+        return active ? ClientChatChannel.badgeLabel(channel)
+                : Component.translatable("chat.eden_ld.pip." + channel.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** Room for the pips with any one of them showing its name, so the input never moves as the channel changes. */
+    @Unique
+    private int eden_ld$pipsWidth() {
+        int letters = 0;
+        int longestName = 0;
+        for (Channel channel : eden_ld$pipChannels()) {
+            int letter = font.width(eden_ld$pipLabel(channel, false)) + 6;
+            letters += letter + PIP_GAP;
+            longestName = Math.max(longestName, font.width(eden_ld$pipLabel(channel, true)) + 6 - letter);
+        }
+        return letters + longestName + 2;
+    }
+
+    /** Each pip's channel and left edge, then its right edge (x0, x1 pairs, in pip order). */
+    @Unique
+    private List<int[]> eden_ld$pipBounds(Channel active) {
+        List<int[]> bounds = new java.util.ArrayList<>();
+        int x = 2;
+        for (Channel channel : eden_ld$pipChannels()) {
+            int w = font.width(eden_ld$pipLabel(channel, channel == active)) + 6;
+            bounds.add(new int[]{channel.ordinal(), x, x + w});
+            x += w + PIP_GAP;
+        }
+        return bounds;
+    }
+
+    /** The channel whose pip is under the mouse, or null. */
+    @Unique
+    private Channel eden_ld$pipAt(double mouseX, double mouseY) {
+        Channel active = ClientChatChannel.effective(input.getValue());
+        if (eden_ld$badge == 0 || active == null || mouseY < height - 14 || mouseY >= height - 2) {
+            return null;
+        }
+        for (int[] pip : eden_ld$pipBounds(active)) {
+            if (mouseX >= pip[1] && mouseX < pip[2]) {
+                return Channel.of(pip[0]);
+            }
+        }
+        return null;
+    }
+
+    /** "↓ Mentions: N" right above the input's right end, while there are mentions not seen yet. */
+    @Unique
+    private int[] eden_ld$pill() {
+        int count = net.ledok.eden_ld.client.chat.ChatActivity.mentionsTotal();
+        if (eden_ld$badge == 0 || count == 0) {
+            return null;
+        }
+        int w = font.width(Component.translatable("chat.eden_ld.mentions.jump", count)) + 8;
+        int x1 = width - 2;
+        return new int[]{x1 - w, height - 27, x1, height - 16};
     }
 
     @Unique
@@ -321,7 +388,7 @@ public abstract class ChatScreenMixin extends Screen {
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
         net.ledok.eden_ld.client.chat.GifViewer.render(graphics, font, width, height, mouseX, mouseY);
         if (eden_ld$badge > 0) {
-            eden_ld$drawBadge(graphics, mouseX, mouseY);
+            eden_ld$drawPips(graphics, mouseX, mouseY);
         }
         if (eden_ld$emojiButton) {
             eden_ld$drawEmojiButton(graphics, mouseX, mouseY);
@@ -329,31 +396,100 @@ public abstract class ChatScreenMixin extends Screen {
         if (eden_ld$pickerOpen && eden_ld$emojiButton) {
             eden_ld$drawPicker(graphics, mouseX, mouseY);
         }
+        ChannelMenu.render(graphics, font, mouseX, mouseY, width, height);
         graphics.pose().popPose();
     }
 
     @Unique
-    private void eden_ld$drawBadge(GuiGraphics graphics, int mouseX, int mouseY) {
-        Channel channel = ClientChatChannel.effective(input.getValue());
-        if (channel == null) {
+    private void eden_ld$drawPips(GuiGraphics graphics, int mouseX, int mouseY) {
+        Channel active = ClientChatChannel.effective(input.getValue());
+        if (active == null) {
             return;
         }
-        int x0 = 2;
-        int y0 = height - 14;
-        int x1 = x0 + eden_ld$badge - 2;
-        int y1 = height - 2;
-        boolean command = input.getValue().startsWith("/");
-        int color = command ? 0xFF808080 : ClientChatChannel.color(channel);
-        graphics.fill(x0, y0, x1, y1, 0xC0000000);
-        graphics.fill(x0, y1 - 1, x1, y1, color);
-        Component label = ClientChatChannel.badgeLabel(channel);
-        graphics.drawString(font, label, x0 + (x1 - x0 - font.width(label)) / 2, y0 + 2, color, false);
-        if (eden_ld$overBadge(mouseX, mouseY)) {
-            graphics.renderComponentTooltip(font, List.of(
-                    Component.translatable("chat.eden_ld.badge.tooltip", ClientChatChannel.badgeLabel(channel)),
-                    Component.translatable("chat.eden_ld.badge.hint").withStyle(ChatFormatting.GRAY)),
-                    mouseX, mouseY);
+        // Party or guild joined or left while the chat is open: make room again.
+        int room = eden_ld$pipsWidth();
+        if (room != eden_ld$badge) {
+            input.setX(input.getX() + room - eden_ld$badge);
+            input.setWidth(input.getWidth() - room + eden_ld$badge);
+            eden_ld$badge = room;
         }
+        boolean command = input.getValue().startsWith("/");
+        int y0 = height - 14;
+        int y1 = height - 2;
+        Channel hovered = ChannelMenu.isOpen() ? null : eden_ld$pipAt(mouseX, mouseY);
+        int accent = net.ledok.eden_ld.client.hub.HubNotifications.color();
+        for (int[] pip : eden_ld$pipBounds(active)) {
+            Channel channel = Channel.of(pip[0]);
+            int x0 = pip[1];
+            int x1 = pip[2];
+            boolean on = channel == active;
+            boolean switchedOff = net.ledok.eden_ld.client.chat.ChatFilter.channelSwitchedOff(channel);
+            boolean muted = net.ledok.eden_ld.client.chat.ChatActivity.muted(channel);
+            int color = command && on ? 0xFF808080 : ClientChatChannel.color(channel);
+            graphics.fill(x0, y0, x1, y1, channel == hovered ? 0xE0383838 : on ? 0xE0202020 : 0xC0000000);
+            if (on) {
+                graphics.fill(x0, y1 - 1, x1, y1, color);
+            }
+            // The others dimmed; switched off or muted dimmer still.
+            int text = on ? color : (switchedOff || muted ? 0x70000000 : 0xB0000000) | color & 0xFFFFFF;
+            Component label = eden_ld$pipLabel(channel, on);
+            graphics.drawString(font, label, x0 + 3, y0 + 2, text, false);
+            if (net.ledok.eden_ld.client.chat.ChatActivity.unseen(channel)) {
+                graphics.fill(x1 - 3, y0 + 1, x1 - 1, y0 + 3, 0xFFFFFFFF);
+            }
+            int mentions = net.ledok.eden_ld.client.chat.ChatActivity.mentions(channel);
+            if (mentions > 0) {
+                String count = "@" + (mentions > 9 ? "9+" : mentions);
+                int w = font.width(count) + 3;
+                int bx1 = x1 + 2;
+                int by0 = y0 - 7;
+                graphics.pose().pushPose();
+                graphics.pose().translate(0, 0, 10);
+                graphics.fill(bx1 - w, by0, bx1, by0 + 9, 0xFF000000 | accent);
+                graphics.drawString(font, count, bx1 - w + 2, by0 + 1, 0xFFFFFFFF, false);
+                graphics.pose().popPose();
+            }
+        }
+        int[] pill = eden_ld$pill();
+        if (pill != null) {
+            boolean over = !ChannelMenu.isOpen() && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3];
+            graphics.fill(pill[0], pill[1], pill[2], pill[3], over ? 0xFF000000 | accent : 0xD0000000 | accent & 0xFFFFFF);
+            graphics.drawString(font, Component.translatable("chat.eden_ld.mentions.jump",
+                    net.ledok.eden_ld.client.chat.ChatActivity.mentionsTotal()), pill[0] + 4, pill[1] + 2, 0xFFFFFFFF, false);
+            if (over) {
+                graphics.renderTooltip(font, Component.translatable("chat.eden_ld.mentions.jump.hint"), mouseX, mouseY);
+            }
+        }
+        if (hovered != null) {
+            graphics.renderComponentTooltip(font, eden_ld$pipTooltip(hovered, active), mouseX, mouseY);
+        }
+    }
+
+    @Unique
+    private static List<Component> eden_ld$pipTooltip(Channel channel, Channel active) {
+        List<Component> lines = new java.util.ArrayList<>();
+        lines.add(Component.translatable("chat.eden_ld.channel." + channel.name().toLowerCase(java.util.Locale.ROOT))
+                .withColor(ClientChatChannel.color(channel) & 0xFFFFFF));
+        if (channel == active) {
+            lines.add(Component.translatable("chat.eden_ld.pip.typing").withStyle(ChatFormatting.GRAY));
+        }
+        int mentions = net.ledok.eden_ld.client.chat.ChatActivity.mentions(channel);
+        if (mentions > 0) {
+            lines.add(Component.translatable("chat.eden_ld.pip.mentions", mentions).withStyle(ChatFormatting.GRAY));
+        } else if (net.ledok.eden_ld.client.chat.ChatActivity.unseen(channel)) {
+            lines.add(Component.translatable("chat.eden_ld.pip.unseen").withStyle(ChatFormatting.GRAY));
+        }
+        Component muted = ChannelMenu.mutedLine(channel);
+        if (muted != null) {
+            lines.add(muted.copy().withStyle(ChatFormatting.GRAY));
+        }
+        lines.add(Component.translatable("chat.eden_ld.pip.notify",
+                ChannelMenu.notifyLabel(net.ledok.eden_ld.client.chat.ChatActivity.notify(channel))).withStyle(ChatFormatting.GRAY));
+        if (net.ledok.eden_ld.client.chat.ChatFilter.channelSwitchedOff(channel)) {
+            lines.add(Component.translatable("chat.eden_ld.pip.switched_off").withStyle(ChatFormatting.GRAY));
+        }
+        lines.add(Component.translatable("chat.eden_ld.pip.hint").withStyle(ChatFormatting.DARK_GRAY));
+        return lines;
     }
 
     @Unique
@@ -480,6 +616,11 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void eden_ld$keys(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && ChannelMenu.isOpen()) {
+            ChannelMenu.close();
+            cir.setReturnValue(true);
+            return;
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && net.ledok.eden_ld.client.chat.GifViewer.isOpen()) {
             net.ledok.eden_ld.client.chat.GifViewer.close();
             cir.setReturnValue(true);
@@ -517,6 +658,34 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void eden_ld$clicks(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+        if (ChannelMenu.isOpen()) {
+            ChannelMenu.click(mouseX, mouseY);
+            cir.setReturnValue(true);
+            return;
+        }
+        Channel pip = eden_ld$pipAt(mouseX, mouseY);
+        if (pip != null && (button == 0 || button == 1)) {
+            if (button == 1) {
+                Channel active = ClientChatChannel.effective(input.getValue());
+                for (int[] bounds : eden_ld$pipBounds(active)) {
+                    if (bounds[0] == pip.ordinal()) {
+                        ChannelMenu.open(pip, bounds[1], height - 14);
+                    }
+                }
+            } else {
+                // Its channel — even one switched off in Settings (Ctrl+Tab skips those) — and its oldest unseen mention.
+                ClientChatChannel.select(pip);
+                net.ledok.eden_ld.client.chat.ChatActivity.jumpToMention(pip);
+            }
+            cir.setReturnValue(true);
+            return;
+        }
+        int[] pill = eden_ld$pill();
+        if (pill != null && button == 0 && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3]) {
+            net.ledok.eden_ld.client.chat.ChatActivity.jumpToMention(null);
+            cir.setReturnValue(true);
+            return;
+        }
         if (net.ledok.eden_ld.client.chat.GifViewer.click(this, mouseX, mouseY)) {
             cir.setReturnValue(true);
             return;
@@ -551,10 +720,7 @@ public abstract class ChatScreenMixin extends Screen {
         if (button != 0) {
             return;
         }
-        if (eden_ld$overBadge(mouseX, mouseY)) {
-            ClientChatChannel.cycle(Screen.hasShiftDown());
-            cir.setReturnValue(true);
-        } else if (eden_ld$overEmojiButton(mouseX, mouseY)) {
+        if (eden_ld$overEmojiButton(mouseX, mouseY)) {
             if (eden_ld$pickerOpen) {
                 eden_ld$closePicker();
             } else {
@@ -590,6 +756,7 @@ public abstract class ChatScreenMixin extends Screen {
     @Inject(method = "removed", at = @At("HEAD"))
     private void eden_ld$closeViewer(CallbackInfo ci) {
         net.ledok.eden_ld.client.chat.GifViewer.close();
+        ChannelMenu.close();
     }
 
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)

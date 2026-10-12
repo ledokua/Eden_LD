@@ -68,6 +68,14 @@ needs a README pass too.
           the 1.1.6 deploy.
     - [x] `tab_kits` icon: a copy of the old Duels icon (owner, 2026-10-11).
 
+- [ ] **Chat activity** (owner, 2026-10-12; `docs/PLAN-chat-activity.md`): channel pips instead of the badge (dot =
+      unseen, @N = mentions), mention lines highlighted and lingering, "↓ Mentions", right-click menu (mute 5m-24h /
+      until on, notifications All / Only @mentions / Nothing, Mark as read, Chat settings), per-channel rows in
+      Settings → Chat; a click picks a switched-off channel, Ctrl+Tab skips it. Eden 1.1.9 built and dev-checked
+      2026-10-12 with two clients (see the plan's Checked). Not deployed.
+  - [ ] Next (owner, 2026-10-12): Eden's own chat panel instead of modifying Minecraft's — plan in
+        `docs/PLAN-custom-chat.md`. ChatPatches won't be needed (owner).
+
 - [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
       registers ids in VectorLib 0.6.0's Spotlight catalog for the NPCs_LD tutorial — `eden_ld:hub/tabs`,
       `eden_ld:hub/tab/<tab>`, `eden_ld:hub/page`, `eden_ld:hub/page/<open tab>`, the ?/maximize/close buttons,

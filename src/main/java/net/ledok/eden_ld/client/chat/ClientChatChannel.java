@@ -28,7 +28,7 @@ public final class ClientChatChannel {
         Channel before = channel;
         channel = Channel.of(state.channel());
         if (before != channel) {
-            refreshFocus();
+            refreshFocus(before);
         }
         party = state.party();
         guild = state.guild();
@@ -42,6 +42,7 @@ public final class ClientChatChannel {
 
     public static void reset() {
         channel = null;
+        switchedOffBefore = -1;
     }
 
     @Nullable
@@ -79,23 +80,46 @@ public final class ClientChatChannel {
         if (all[index] == from) {
             return;
         }
-        channel = all[index];
-        refreshFocus();
-        ClientPlayNetworking.send(new HubPayloads.ChatChannelSelect(index));
+        select(all[index]);
     }
 
-    /** Settings changed: a channel the player just hid stops being the one they write in. */
+    /**
+     * Switches to a channel the player can use — a click on its pip may pick one switched off in Settings → Chat
+     * (its lines show while it's selected); shown at once, confirmed by the server.
+     */
+    public static void select(Channel target) {
+        Channel from = current();
+        if (from == null || !open(target) || target == from) {
+            return;
+        }
+        channel = target;
+        refreshFocus(from);
+        ClientPlayNetworking.send(new HubPayloads.ChatChannelSelect(target.ordinal()));
+    }
+
+    /** The channels switched off in Settings → Chat at the last settings update (bits; -1 none yet this session). */
+    private static int switchedOffBefore = -1;
+
+    /** Settings changed: a channel the player just switched off stops being the one they write in. */
     public static void onSettings() {
+        HubPayloads.SettingsData settings = net.ledok.eden_ld.client.hub.HubState.settingsData;
+        int switchedOff = settings == null ? 0 : settings.chatHidden();
+        int justOff = switchedOffBefore < 0 ? 0 : switchedOff & ~switchedOffBefore;
+        switchedOffBefore = switchedOff;
         Channel now = current();
-        if (now != null && !selectable(now)) {
+        if (now != null && (justOff & 1 << now.ordinal()) != 0) {
             cycle(false);
         }
     }
 
-    /** With "only the selected channel" on, switching channel switches what the chat shows. */
-    private static void refreshFocus() {
+    /**
+     * The chat shows what the channel choice allows: with "only the selected channel" on, switching switches the
+     * view; a switched-off channel's lines show while it is the selected one.
+     */
+    private static void refreshFocus(@Nullable Channel from) {
         HubPayloads.SettingsData settings = net.ledok.eden_ld.client.hub.HubState.settingsData;
-        if (settings != null && settings.chatFocus()) {
+        if (settings != null && (settings.chatFocus() || from != null && ChatFilter.channelSwitchedOff(from)
+                || channel != null && ChatFilter.channelSwitchedOff(channel))) {
             ChatFilter.refresh();
         }
     }

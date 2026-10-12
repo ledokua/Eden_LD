@@ -36,7 +36,16 @@ public final class MentionSound {
         play(volume());
     }
 
+    /** A new line in a channel set to "All messages": the ping, softer and lower. */
+    public static void playSoft() {
+        play(volume() / 2, 0.9f);
+    }
+
     public static void play(int percent) {
+        play(percent, 1.4f);
+    }
+
+    private static void play(int percent, float pitch) {
         Minecraft minecraft = Minecraft.getInstance();
         float master = minecraft.options.getSoundSourceVolume(SoundSource.MASTER);
         if (percent <= 0 || master <= 0) {
@@ -44,7 +53,7 @@ public final class MentionSound {
         }
         starting = percent / 100f / master;
         try {
-            minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.4f, 1f));
+            minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, pitch, 1f));
         } finally {
             starting = -1;
         }

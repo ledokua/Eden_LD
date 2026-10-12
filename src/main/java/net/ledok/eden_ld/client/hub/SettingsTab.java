@@ -68,6 +68,11 @@ final class SettingsTab {
                 .searchable(true)
                 .remember("eden_ld/settings");
         view.sizing(Sizing.fill(), Sizing.expand());
+        if (HubState.openSettingsSection != null) {
+            // Asked for a section (the chat channel menu's "Chat settings").
+            view.section(HubState.openSettingsSection);
+            HubState.openSettingsSection = null;
+        }
         content.item(view);
     }
 
@@ -115,6 +120,30 @@ final class SettingsTab {
             boolean hidden = (data.chatHidden() & (1 << i)) != 0;
             settings.add(Option.toggle(tr("channel." + names[i]), !hidden, on -> send(key, on ? 0 : 1))
                     .text(tr("channel.toggle")).hint(tr("channel." + names[i] + ".hint")).defaultValue(true));
+        }
+        // Per channel, as on its pip's right-click menu: notifications, and a mute while one runs.
+        settings.heading(tr("section.channel_notify"));
+        for (net.ledok.eden_ld.chat.ChatChannels.Channel channel : net.ledok.eden_ld.chat.ChatChannels.Channel.values()) {
+            String name = lower(channel);
+            int shift = channel.ordinal() * 2;
+            settings.add(Option.choice(Component.translatable("chat.eden_ld.channel." + name),
+                            List.of(HubSettings.ChannelNotify.ALL_MESSAGES, HubSettings.ChannelNotify.ONLY_MENTIONS,
+                                    HubSettings.ChannelNotify.NOTHING),
+                            HubSettings.ChannelNotify.of(data.chatNotify(), channel.ordinal()),
+                            net.ledok.eden_ld.client.chat.ChannelMenu::notifyLabel,
+                            level -> send(HubSettings.CHAT_NOTIFY,
+                                    data.chatNotify() & ~(3 << shift) | level.ordinal() << shift))
+                    // The explanation once, under the first channel.
+                    .hint(channel.ordinal() == 0 ? tr("channel_notify.hint") : null)
+                    .defaultValue(HubSettings.ChannelNotify.ONLY_MENTIONS)
+                    .keywords("notifications", "mute", "ping", "mention"));
+            Component muted = net.ledok.eden_ld.client.chat.ChannelMenu.mutedLine(channel);
+            if (muted != null) {
+                String key = HubSettings.CHAT_MUTE.get(channel.ordinal());
+                settings.add(Option.action(tr("channel_muted", Component.translatable("chat.eden_ld.channel." + name)),
+                                tr("unmute"), () -> send(key, 0))
+                        .hint(muted).keywords("mute", "unmute"));
+            }
         }
     }
 

@@ -292,6 +292,8 @@ public final class ChatStyle {
                 out.append(text.substring(last, matcher.start()));
                 out.append(Component.literal("@" + target.getGameProfile().getName())
                         .withStyle(style -> style.withColor(mentionColor)));
+                // Who it is, for their client (the highlight and the channel's @ count).
+                out.append(ChatMarker.mention(target.getUUID()));
                 if (!mentioned.contains(target)) {
                     mentioned.add(target);
                 }

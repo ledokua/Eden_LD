@@ -701,7 +701,9 @@ public final class HubServer {
                 HubSettings.intSetting(server, player.getUUID(), HubSettings.HUB_LANGUAGE),
                 net.ledok.eden_ld.hub.profile.LookRules.get(server, net.ledok.eden_ld.hub.profile.LookRules.Kind.THEME)
                         .offersFor(HubSettings.availableThemes(server, player.getUUID())),
-                HubSettings.themeIconsOff(server, player.getUUID())));
+                HubSettings.themeIconsOff(server, player.getUUID()),
+                HubSettings.intSetting(server, player.getUUID(), HubSettings.CHAT_NOTIFY),
+                HubSettings.chatMutes(server, player.getUUID())));
     }
 
     private static void changeSetting(ServerPlayer player, HubPayloads.SettingChange change) {

@@ -326,12 +326,14 @@ public final class ChatChannels {
             for (ServerPlayer mentioned : content.mentioned()) {
                 int volume = HubSettings.mentionVolume(server, mentioned.getUUID());
                 if (!recipients.contains(mentioned) || mentioned == sender || volume <= 0
-                        || net.ledok.eden_ld.hub.IgnoreList.ignores(server, mentioned.getUUID(), sender.getUUID())) {
+                        || net.ledok.eden_ld.hub.IgnoreList.ignores(server, mentioned.getUUID(), sender.getUUID())
+                        || HubSettings.channelNotify(server, mentioned.getUUID(), channel.ordinal())
+                                == HubSettings.ChannelNotify.NOTHING) {
                     continue;
                 }
                 if (ServerPlayNetworking.canSend(mentioned, HubPayloads.MentionPing.TYPE)) {
                     // Eden's client plays it at the player's own volume, apart from the game's sliders.
-                    ServerPlayNetworking.send(mentioned, HubPayloads.MentionPing.INSTANCE);
+                    ServerPlayNetworking.send(mentioned, new HubPayloads.MentionPing(channel.ordinal()));
                 } else {
                     mentioned.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, volume / 100f, 1.4f);
                 }

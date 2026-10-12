@@ -29,6 +29,9 @@ public final class HubState {
     /** Kits_LD's kits for this player (null: the server has no Kits_LD, so no Kits tab) and when they came. */
     public static HubPayloads.KitsData kitsData;
     public static long kitsReceivedAt;
+    /** A Settings section to open the next time the Settings tab builds (the chat channel menu's "Chat settings"). */
+    @org.jetbrains.annotations.Nullable
+    public static String openSettingsSection;
     public static HubPayloads.WaystonesData waystonesData;
     /** When {@link #waystonesData} arrived; its timers count down from here. */
     public static long waystonesReceivedAt;
