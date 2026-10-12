@@ -56,9 +56,13 @@ Checked in dev 2026-10-12 (two clients): the HUD lines with Bob's head (and the 
 it), the mention stripe and tint; the open chat (heads, tint, hover "Click to switch to Global" on a tag, the
 scroll bar); scrolling up with new lines arriving holds still (fixed: server lines didn't count); the rejoin's
 Global history replay; "↓ Mentions" scrolled to a mention in the history; a Local mention while viewing only
-Global — @1 on L, its pip switched to Local with the line highlighted. Not checked yet: emojis (animated),
-stickers, the GIF viewer, item hovers, a deleted message, chat delay's queue line, vanilla chat settings
-(scale, width, line spacing, opacity), a hidden chat.
+Global — @1 on L, its pip switched to Local with the line highlighted. Then: `:item:` (hover shows the sword's
+tooltip), a server emoji (KEKW) and a standard one (😂), a spoiler (hover reveals it), [GIF] (the viewer plays it),
+[Sticker] (the viewer opens), the emoji's hover name (what the right-click favorite reads); vanilla settings
+(scale 0.7, width 0.5, line spacing 0.4, opacity 0.6, background 0.8) — the panel and heads follow them; chat delay
+2 s — "[+2 pending lines]" under the newest line. Not checkable in dev: an animated emoji (none in dev's
+emoji.json; same font path as the static ones), a message deleted by the server (no command sends one), and the
+hidden chat setting wasn't tried (the panel draws nothing, like vanilla).
 
 ## Phases
 
