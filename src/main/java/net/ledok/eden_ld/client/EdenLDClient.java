@@ -94,7 +94,6 @@ public class EdenLDClient implements ClientModInitializer {
             ClientCombatTag.reset();
             net.ledok.eden_ld.client.hub.PlayerNames.reset();
             net.ledok.eden_ld.client.chat.ClientChatChannel.reset();
-            net.ledok.eden_ld.client.chat.ChatActivity.reset();
             net.ledok.eden_ld.client.chat.ClientTabList.clear();
             net.ledok.eden_ld.client.chat.EmojiFont.reset();
             net.ledok.eden_ld.client.hub.RemoteImages.clear();

@@ -37,6 +37,29 @@ Each next feature (reply, reactions, per-channel scrollback, inline images) woul
 - **Message actions** on hover or right-click: copy text, reply (quotes the line, mentions the author), open the
   author's profile in the hub, ignore, and for staff the BanHammer actions (mute, warn) from the Moderation window.
 
+## Phase 1 as built (branch `custom-chat`, Eden 1.2.0-chat.1)
+
+- `client/chat/panel/ChatStore` — every message since joining (1000; vanilla keeps 100), each a `ChatEntry` with its
+  marker read once (channel, sender, kind), whether it mentions the player, whether the open chat has shown it, and
+  its lines wrapped for the current width (cached).
+- `client/chat/panel/ChatPanel` — draws instead of vanilla's window on Eden servers, with vanilla's text renderer
+  (styles, hovers, clicks and Eden's emoji fonts work as before) and vanilla's chat settings and geometry: the
+  channel rules filter entries (no re-layout), a head before each player's message (Chat Heads' job until now), the
+  mention stripe and tint, the 30 s linger, the queue line, the scroll bar, a scroll that holds still while new
+  lines arrive. Vanilla's chat screen asks it for the style or tag under the mouse and to scroll.
+- `ChatComponentMixin` — the store takes a copy of each message (and follows deletions and clears); render,
+  scrolling and the style/tag questions go to the panel. The 1.1.9 hacks (a mention tag on vanilla's messages,
+  tracking vanilla's line objects) are gone; `ChatActivity` counts off the store.
+- The input line, pips, menu and settings are unchanged. VectorLib comes in for menus and message actions later.
+
+Checked in dev 2026-10-12 (two clients): the HUD lines with Bob's head (and the wrapped link line indented under
+it), the mention stripe and tint; the open chat (heads, tint, hover "Click to switch to Global" on a tag, the
+scroll bar); scrolling up with new lines arriving holds still (fixed: server lines didn't count); the rejoin's
+Global history replay; "↓ Mentions" scrolled to a mention in the history; a Local mention while viewing only
+Global — @1 on L, its pip switched to Local with the line highlighted. Not checked yet: emojis (animated),
+stickers, the GIF viewer, item hovers, a deleted message, chat delay's queue line, vanilla chat settings
+(scale, width, line spacing, opacity), a hidden chat.
+
 ## Phases
 
 1. **Parity** (~2–3 days): the store, the panel in the open chat and the HUD (fading lines, the 30 s mention linger),

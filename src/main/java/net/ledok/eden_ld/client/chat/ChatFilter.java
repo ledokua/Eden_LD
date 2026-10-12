@@ -19,9 +19,13 @@ public final class ChatFilter {
     private ChatFilter() {
     }
 
-    /** Whether the chat window leaves this line out now (ChatComponentMixin). */
+    /** Whether the chat leaves this line out now. */
     public static boolean hidden(GuiMessage message) {
-        ChatMarker.Mark mark = ChatMarker.find(message.content());
+        return hidden(ChatMarker.find(message.content()));
+    }
+
+    /** Whether the chat leaves a line with this marker out now (the panel keeps each line's marker). */
+    public static boolean hidden(@org.jetbrains.annotations.Nullable ChatMarker.Mark mark) {
         if (mark == null) {
             return false;
         }
@@ -77,11 +81,8 @@ public final class ChatFilter {
         return settings.chatFocus() && selected != null && selected != channel;
     }
 
-    /** Re-lays out the chat window with the current rules (hidden lines come back, or go). */
+    /** The rules changed: the chat shows the lines they allow now (hidden lines come back, or go). */
     public static void refresh() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.gui != null) {
-            minecraft.gui.getChat().rescaleChat();
-        }
+        net.ledok.eden_ld.client.chat.panel.ChatPanel.invalidate();
     }
 }

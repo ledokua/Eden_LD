@@ -1,97 +1,82 @@
 package net.ledok.eden_ld.mixin;
 
-import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.llamalad7.mixinextras.sugar.Local;
 import net.ledok.eden_ld.client.chat.ChatActivity;
-import net.ledok.eden_ld.client.chat.ChatFilter;
+import net.ledok.eden_ld.client.chat.panel.ChatPanel;
+import net.ledok.eden_ld.client.chat.panel.ChatStore;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ChatComponent;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.List;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Lines of kinds the player hid (Settings → Chat) stay in the chat's history but aren't shown;
- * {@link ChatFilter#refresh} lays the window out again when the rules change. A line mentioning the player gets
- * {@link ChatActivity}'s tag (the stripe in the notification color), a tint, and a longer stay on the HUD; lines the
- * open chat draws count as seen (the channel pips' dots and @ counts).
+ * Eden's chat window ({@code docs/PLAN-custom-chat.md}): vanilla's chat still takes every message (its log, the
+ * narrator, other mods), and Eden's store takes a copy. On Eden servers {@link ChatPanel} draws instead of vanilla's
+ * window and answers what the chat screen asks it — the style under the mouse, the tag under it, scrolling.
  */
 @Mixin(ChatComponent.class)
 public abstract class ChatComponentMixin {
 
-    @Inject(method = "addMessageToDisplayQueue", at = @At("HEAD"), cancellable = true)
-    private void eden_ld$hideFiltered(GuiMessage message, CallbackInfo ci) {
-        if (ChatFilter.hidden(message)) {
-            ci.cancel();
-        }
-    }
-
-    @ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
-            at = @At("HEAD"), argsOnly = true)
-    private GuiMessageTag eden_ld$mentionTag(GuiMessageTag tag, @Local(argsOnly = true) Component content) {
-        GuiMessageTag mention = ChatActivity.mentionTag(content);
-        return mention != null ? mention : tag;
-    }
-
     @Inject(method = "addMessageToQueue", at = @At("HEAD"))
-    private void eden_ld$countUnseen(GuiMessage message, CallbackInfo ci) {
+    private void eden_ld$store(GuiMessage message, CallbackInfo ci) {
         ChatActivity.added(message);
     }
 
     @Inject(method = "clearMessages", at = @At("HEAD"))
-    private void eden_ld$forgetUnseen(boolean clearSentMsgHistory, CallbackInfo ci) {
-        ChatActivity.reset();
+    private void eden_ld$clearStore(boolean clearSentMsgHistory, CallbackInfo ci) {
+        ChatStore.clear();
+        ChatPanel.resetScroll();
     }
 
-    @WrapOperation(method = "addMessageToDisplayQueue",
-            at = @At(value = "INVOKE", target = "Ljava/util/List;add(ILjava/lang/Object;)V"))
-    private void eden_ld$rememberLine(List<Object> lines, int index, Object line, Operation<Void> original,
-                                      @Local(argsOnly = true) GuiMessage message) {
-        original.call(lines, index, line);
-        if (line instanceof GuiMessage.Line made) {
-            ChatActivity.line(made, message);
+    /** The server deleted a message: vanilla puts a marker in its place, and so does the store. */
+    @Inject(method = "createDeletedMarker", at = @At("RETURN"))
+    private void eden_ld$deleted(GuiMessage message, CallbackInfoReturnable<GuiMessage> cir) {
+        ChatStore.replace(message, cir.getReturnValue());
+    }
+
+    @Inject(method = "rescaleChat", at = @At("HEAD"))
+    private void eden_ld$relayout(CallbackInfo ci) {
+        ChatPanel.invalidate();
+    }
+
+    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    private void eden_ld$render(GuiGraphics graphics, int tickCount, int mouseX, int mouseY, boolean focused,
+                                CallbackInfo ci) {
+        if (ChatPanel.active()) {
+            ChatPanel.render(graphics, tickCount, focused);
+            ci.cancel();
         }
     }
 
-    /** A mention stays on the HUD longer: its lines count as younger while drawn. */
-    @WrapOperation(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/GuiMessage$Line;addedTime()I"))
-    private int eden_ld$mentionLingers(GuiMessage.Line line, Operation<Integer> original) {
-        int added = original.call(line);
-        return ChatActivity.isMention(line.tag()) ? added + ChatActivity.MENTION_EXTRA_TICKS : added;
-    }
-
-    /** Each drawn line's background: seen (in the open chat), and tinted when it mentions the player. */
-    @WrapOperation(method = "render", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/gui/GuiGraphics;fill(IIIII)V", ordinal = 0))
-    private void eden_ld$mentionTint(GuiGraphics graphics, int x0, int y0, int x1, int y1, int color,
-                                     Operation<Void> original, @Local GuiMessage.Line line,
-                                     @Local(argsOnly = true, ordinal = 0) int tickCount,
-                                     @Local(argsOnly = true) boolean focused) {
-        original.call(graphics, x0, y0, x1, y1, color);
-        if (focused) {
-            ChatActivity.drawn(line);
-        }
-        if (ChatActivity.isMention(line.tag())) {
-            double fade = focused ? 1.0 : timeFactor(tickCount - line.addedTime() - ChatActivity.MENTION_EXTRA_TICKS);
-            int alpha = (int) (0x50 * fade);
-            if (alpha > 3) {
-                graphics.fill(x0, y0, x1, y1, alpha << 24 | line.tag().indicatorColor() & 0xFFFFFF);
-            }
+    @Inject(method = "scrollChat", at = @At("HEAD"), cancellable = true)
+    private void eden_ld$scroll(int lines, CallbackInfo ci) {
+        if (ChatPanel.active()) {
+            ChatPanel.scroll(lines);
+            ci.cancel();
         }
     }
 
-    /** Vanilla's fade-out of HUD lines (ChatComponent.getTimeFactor). */
-    @org.spongepowered.asm.mixin.Unique
-    private static double timeFactor(int age) {
-        double factor = Math.min(1.0, Math.max(0.0, (1.0 - age / 200.0) * 10.0));
-        return factor * factor;
+    @Inject(method = "resetChatScroll", at = @At("HEAD"))
+    private void eden_ld$resetScroll(CallbackInfo ci) {
+        ChatPanel.resetScroll();
+    }
+
+    @Inject(method = "getClickedComponentStyleAt", at = @At("HEAD"), cancellable = true)
+    private void eden_ld$styleAt(double mouseX, double mouseY, CallbackInfoReturnable<Style> cir) {
+        if (ChatPanel.active()) {
+            cir.setReturnValue(ChatPanel.styleAt(mouseX, mouseY));
+        }
+    }
+
+    @Inject(method = "getMessageTagAt", at = @At("HEAD"), cancellable = true)
+    private void eden_ld$tagAt(double mouseX, double mouseY, CallbackInfoReturnable<GuiMessageTag> cir) {
+        if (ChatPanel.active()) {
+            cir.setReturnValue(ChatPanel.tagAt(mouseX, mouseY));
+        }
     }
 }
