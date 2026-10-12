@@ -984,6 +984,25 @@ Planned (not yet built): shared mob-kill XP with a small group bonus for partyma
 Eden formats and routes all player chat — it **replaces Styled Chat** (remove it; Eden logs a
 warning while it's installed, since it would re-format every message).
 
+**Eden's chat window** ([docs/PLAN-custom-chat.md](docs/PLAN-custom-chat.md)): on Eden servers the client draws the
+chat itself instead of Minecraft's window — in the same place and size, following the game's chat settings (scale,
+width, height, line spacing, opacity, text background, chat delay, hidden chat). Typing stays Minecraft's own input
+(command suggestions, ↑/↓ history, signed chat), and every message still reaches Minecraft's chat too (the log, the
+narrator, other mods). What it adds:
+- **1000 messages** of history (Minecraft keeps 100), and switching channel view is instant.
+- **Heads**: each player's face before their message.
+- **Spam protection**: the very same line again from the same sender, right after it, adds a gray **×N** to the last
+  one instead of a new line (it comes back on screen and counts as new).
+- **Scrolling holds still** while you read older lines and new ones arrive.
+- **Hover a message** in the open chat: its lines light up, and its line shows when it came ("22:41"; with the date
+  for older days), then **↩ Reply** (someone else's message), **⧉ Copy** and **⋯** (the menu).
+- **Right-click a message** (an emoji or sticker keeps its favorite toggle): **Reply** (switches to its channel and
+  types "@Name "), **Copy text** (the message without the sender part; server emojis back as `:name:`, [GIF] and
+  [Sticker] links as their addresses, spoilers as their text), **Open profile** (the hub), **Ignore** / Stop
+  ignoring, and for staff who may punish, **Moderate** (the Moderation window on that player's page). The server's
+  lines and your own only copy.
+- Other servers keep Minecraft's chat as it is.
+
 **Channels** (Project Zomboid style): every message goes to one of
 
 | Channel | Who reads it | Tag | Discord |
@@ -998,7 +1017,9 @@ warning while it's installed, since it would re-format every message).
   channel you can use (Party and Guild while you're in one); the one you type into shows its name, the others a
   letter. **Click** one to switch — also to a channel switched off in Settings → Chat (its lines show while it's
   selected); **Ctrl+Tab** (Shift+Ctrl+Tab: back) cycles, skipping switched-off channels. The choice is remembered.
-  Without the Eden client: `/ch <global|local|party|guild>`.
+  The input starts right after the pips. Without the Eden client: `/ch <global|local|party|guild>`.
+- **System** (the **S** pip after the channels): only system lines — the server's messages, deaths and advancements
+  (by their own settings). Your messages still go to the channel you type into; a channel pip or Ctrl+Tab goes back.
 - **What you missed**: a dot on a pip means lines there you haven't seen yet (seen = shown in the open chat);
   **@N** counts mentions of you. A line that mentions you gets a stripe and a tint in your notification color
   (Settings → Notifications), "You were mentioned" on hover, and stays on screen 30 s instead of 10.
@@ -1009,7 +1030,7 @@ warning while it's installed, since it would re-format every message).
   for every line), Only @mentions (default: the ping and @N), Nothing; **Mark as read**; **Chat settings** opens the
   hub on Settings → Chat, which has the same per channel. Kept on the server with the other hub settings.
 - **One message elsewhere**: start it with `!g`, `!l`, `!p` or `!gd` (global, local, party,
-  guild) — e.g. `!p on my way`. The badge previews where it goes.
+  guild) — e.g. `!p on my way`. That channel's pip lights up while you type it.
 - `/p`, `/g`, `/l <message>` and the hub's party/guild chat panels post to the same channels.
   Party and guild messages typed in normal chat also land in the hub panels' history.
 - Local chat tells you when no one was close enough to hear.
@@ -1408,7 +1429,7 @@ is the player's name.
 | `/emojis bonus add <players> <emojis\|stickers> <amount> [duration]` | `eden_ld.admin.emojis`, console | Extra favorite / saved-sticker slots, permanent or for a time (`30d`, `12h`); grants stack. |
 | `/emojis bonus clear <players> [emojis\|stickers]` | `eden_ld.admin.emojis`, console | Removes bonus grants. |
 | `/emojis bonus list <players>` | `eden_ld.admin.emojis`, console | Lists active grants and time left. |
-| `/ch <global\|local\|party\|guild>` | any player | Switches your chat channel (the chat badge does the same). |
+| `/ch <global\|local\|party\|guild>` | any player | Switches your chat channel (a click on its pip in chat does the same). |
 | `/guild-admin list` | `eden_ld.admin.guilds` | Lists every guild: tag, name, size, leader. |
 | `/guild-admin disband <tag>` | `eden_ld.admin.guilds` | Disbands a guild by tag (works with every member offline). |
 | `/guild-admin xp <tag> add\|set <amount>` | `eden_ld.admin.guilds` | Adds or sets a guild's XP (levels follow; bonuses and messages as for a real level-up). |
@@ -1453,9 +1474,11 @@ Other mods can register flight rules and read cached Minestar profiles — see [
   its own files), so its "Path Opened!" title when the tutorial unlocks a dimension, and its command replies, show as
   text instead of keys. Refresh them if a new Realm Keys version adds messages.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
-- **ChatPatches** — works alongside Eden's chat; right-click on an emoji or sticker stars / saves
-  it instead of opening ChatPatches' menu. Its right-click menu is drawn above the chat lines (on
-  1.21.1 ChatPatches draws it under them; Eden lifts it).
+- **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
+  pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it, and its menu is
+  lifted above the chat lines.
+- **Chat Heads** — Eden's chat window draws heads itself, so Chat Heads' heads don't show on Eden servers (it can
+  leave the pack; elsewhere it works as usual).
 - **Mods and resource packs with their own font glyphs** (Economy_LD's coin, icon fonts) — emojis
   use characters from Unicode's plane-15 private use area and never replace a glyph a font
   defines itself.
