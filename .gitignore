@@ -27,3 +27,6 @@ logs/
 # Local jars: sibling mods, VectorLib from syncLibs, third-party dev dependencies (not redistributed here)
 libs/
 devlibs/
+
+# Claude Code (local settings and session files)
+.claude/
