@@ -82,7 +82,9 @@ needs a README pass too.
       into `master` and the branch deleted 2026-10-13; README updated.
   - [ ] Still open extras (owner to pick): search, inline GIF/sticker previews, reactions, the hub's party/guild chat
         on the same panel.
-  - [ ] Chat Heads can leave the pack (Eden draws heads); ChatPatches is gone already. Owner's call.
+  - [x] Chat Heads out (owner, 2026-10-13; Eden draws heads): removed from the pack (pack `702e560`, pushed), Prism
+        Client and Server (`removed-mods-2026-10-13`) and live (`backup/removed-mods-2026-10-13`, gone since the
+        2026-10-13 02:06 restart). ChatPatches was gone already.
   - [ ] Next master build: drop the "-chat" tag (suggested 1.2.1).
 
 - [x] **Hub spotlight ids** (2026-10-10, done by the NPCs_LD + VectorLib session, owner approved): `HubSpotlights`
