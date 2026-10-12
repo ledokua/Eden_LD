@@ -20,6 +20,7 @@ public final class ClientChatChannel {
     private static boolean party;
     private static boolean guild;
     private static boolean emojiPicker;
+    private static boolean moderate;
 
     private ClientChatChannel() {
     }
@@ -33,6 +34,12 @@ public final class ClientChatChannel {
         party = state.party();
         guild = state.guild();
         emojiPicker = state.emojiPicker();
+        moderate = state.moderate();
+    }
+
+    /** Staff who may punish: the chat's message menu offers "Moderate" (from the server, on join). */
+    public static boolean moderate() {
+        return current() != null && moderate;
     }
 
     /** The emoji picker button: permission from the server (standard emojis are always there to pick). */

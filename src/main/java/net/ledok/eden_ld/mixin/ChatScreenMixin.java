@@ -398,6 +398,14 @@ public abstract class ChatScreenMixin extends Screen {
             eden_ld$drawPicker(graphics, mouseX, mouseY);
         }
         ChannelMenu.render(graphics, font, mouseX, mouseY, width, height);
+        net.ledok.eden_ld.client.chat.MessageMenu.render(graphics, font, mouseX, mouseY, width, height);
+        net.ledok.eden_ld.client.chat.panel.ChatPanel.Tool tool = ChannelMenu.isOpen()
+                || net.ledok.eden_ld.client.chat.MessageMenu.isOpen() ? null
+                : net.ledok.eden_ld.client.chat.panel.ChatPanel.toolAt(mouseX, mouseY);
+        if (tool != null) {
+            graphics.renderTooltip(font, Component.translatable("chat.eden_ld.action."
+                    + tool.name().toLowerCase(java.util.Locale.ROOT)), mouseX, mouseY);
+        }
         graphics.pose().popPose();
     }
 
@@ -619,8 +627,9 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void eden_ld$keys(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE && ChannelMenu.isOpen()) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && (ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen())) {
             ChannelMenu.close();
+            net.ledok.eden_ld.client.chat.MessageMenu.close();
             cir.setReturnValue(true);
             return;
         }
@@ -666,6 +675,11 @@ public abstract class ChatScreenMixin extends Screen {
             cir.setReturnValue(true);
             return;
         }
+        if (net.ledok.eden_ld.client.chat.MessageMenu.isOpen()) {
+            net.ledok.eden_ld.client.chat.MessageMenu.click(mouseX, mouseY);
+            cir.setReturnValue(true);
+            return;
+        }
         Channel pip = eden_ld$pipAt(mouseX, mouseY);
         if (pip != null && (button == 0 || button == 1)) {
             if (button == 1) {
@@ -685,6 +699,20 @@ public abstract class ChatScreenMixin extends Screen {
         int[] pill = eden_ld$pill();
         if (pill != null && button == 0 && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3]) {
             net.ledok.eden_ld.client.chat.ChatActivity.jumpToMention(null);
+            cir.setReturnValue(true);
+            return;
+        }
+        // The hovered message's toolbar: reply, copy, the full menu.
+        net.ledok.eden_ld.client.chat.panel.ChatPanel.Tool tool = button == 0
+                ? net.ledok.eden_ld.client.chat.panel.ChatPanel.toolAt(mouseX, mouseY) : null;
+        if (tool != null) {
+            net.ledok.eden_ld.client.chat.panel.ChatEntry entry =
+                    net.ledok.eden_ld.client.chat.panel.ChatPanel.toolEntryAt(mouseX, mouseY);
+            switch (tool) {
+                case REPLY -> net.ledok.eden_ld.client.chat.MessageActions.reply(entry);
+                case COPY -> net.ledok.eden_ld.client.chat.MessageActions.copy(entry);
+                case MORE -> net.ledok.eden_ld.client.chat.MessageMenu.open(entry, (int) mouseX, (int) mouseY);
+            }
             cir.setReturnValue(true);
             return;
         }
@@ -715,6 +743,14 @@ public abstract class ChatScreenMixin extends Screen {
             }
             if (entry != null) {
                 eden_ld$toggleFavorite(entry);
+                cir.setReturnValue(true);
+                return;
+            }
+            // Anywhere else on a message: its menu (reply, copy, profile, ignore, moderate).
+            net.ledok.eden_ld.client.chat.panel.ChatEntry message = eden_ld$pickerOpen && eden_ld$overPanel(mouseX, mouseY)
+                    ? null : net.ledok.eden_ld.client.chat.panel.ChatPanel.entryAt(mouseX, mouseY);
+            if (message != null) {
+                net.ledok.eden_ld.client.chat.MessageMenu.open(message, (int) mouseX, (int) mouseY);
                 cir.setReturnValue(true);
             }
             return;
@@ -759,6 +795,7 @@ public abstract class ChatScreenMixin extends Screen {
     private void eden_ld$closeViewer(CallbackInfo ci) {
         net.ledok.eden_ld.client.chat.GifViewer.close();
         ChannelMenu.close();
+        net.ledok.eden_ld.client.chat.MessageMenu.close();
     }
 
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)

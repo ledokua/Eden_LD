@@ -1439,5 +1439,13 @@
   "gui.eden_ld.hub.settings.section.channel_notify": "Сповіщення каналів",
   "gui.eden_ld.hub.settings.channel_notify.hint": "Усі повідомлення: тихий звук на кожен новий рядок і сигнал згадки. Лише @згадки: сигнал і лічильник @ на кнопці каналу. Нічого: ні того, ні іншого. Те саме — і вимкнення каналу — через ПКМ на кнопці каналу в чаті.",
   "gui.eden_ld.hub.settings.channel_muted": "%s вимкнено",
-  "gui.eden_ld.hub.settings.unmute": "Увімкнути"
+  "gui.eden_ld.hub.settings.unmute": "Увімкнути",
+  "chat.eden_ld.action.reply": "Відповісти",
+  "chat.eden_ld.action.copy": "Копіювати текст",
+  "chat.eden_ld.action.more": "Більше",
+  "chat.eden_ld.action.profile": "Відкрити профіль",
+  "chat.eden_ld.action.moderate": "Модерувати",
+  "chat.eden_ld.action.title": "Повідомлення",
+  "chat.eden_ld.action.title_from": "Повідомлення від %s",
+  "chat.eden_ld.action.copied": "Скопійовано в буфер обміну"
 }

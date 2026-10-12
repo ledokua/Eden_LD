@@ -48,7 +48,7 @@ public abstract class ChatComponentMixin {
     private void eden_ld$render(GuiGraphics graphics, int tickCount, int mouseX, int mouseY, boolean focused,
                                 CallbackInfo ci) {
         if (ChatPanel.active()) {
-            ChatPanel.render(graphics, tickCount, focused);
+            ChatPanel.render(graphics, tickCount, mouseX, mouseY, focused);
             ci.cancel();
         }
     }

@@ -64,6 +64,26 @@ tooltip), a server emoji (KEKW) and a standard one (😂), a spoiler (hover reve
 emoji.json; same font path as the static ones), a message deleted by the server (no command sends one), and the
 hidden chat setting wasn't tried (the panel draws nothing, like vanilla).
 
+## Phase 2 as built (Eden 1.2.0-chat.2; owner: message actions in the first version)
+
+- **Hover toolbar** in the open chat: the hovered message's lines light up, and its line gets ↩ Reply (someone
+  else's message), ⧉ Copy and ⋯ (the menu) at the right end, with tooltips.
+- **Right-click a message** (an emoji or sticker keeps its favorite toggle): `MessageMenu` — Reply, Copy text, Open
+  profile, Ignore / Stop ignoring, and for staff who may punish, Moderate. The server's lines and the player's own
+  only copy.
+- **Reply** switches to the message's channel and types "@Name " (the writer's name from the tab list, else from their
+  name in the line). **Copy** takes the text after the sender part — server emojis back as `:name:`, [GIF] and
+  [Sticker] links back as their addresses, spoilers as their text — and says so above the hotbar. **Open profile**
+  opens the hub on that player's profile; **Moderate** opens the Moderation window on their page (once the window's
+  info is in). The "may moderate" flag comes with the chat channel state on join (not only once the hub opened).
+- **Spam protection** (owner, like ChatPatches): the very same line again (same sender, same text) right after it
+  counts on the last one — one line ending in a gray "×N", back on the HUD and unseen again.
+
+Checked in dev 2026-10-12: "spam spam" three times → one line "×3"; the toolbar on hover; Copy put
+"copy me :KEKW: https://media.giphy.com/…/giphy.gif hidden" on the clipboard; Reply typed "@Bob "; the menu's rows;
+Ignore hid Bob's lines (and /unignore brought them back); Open profile showed Bob's profile; Moderate (right after
+joining) opened Bob's page with the Punish tab.
+
 ## Phases
 
 1. **Parity** (~2–3 days): the store, the panel in the open chat and the HUD (fading lines, the 30 s mention linger),
@@ -72,8 +92,7 @@ hidden chat setting wasn't tried (the panel draws nothing, like vanilla).
    opacity, scale, width, height and line spacing, or our own in the hub). Then 1.1.9's pips, menu and settings move
    onto it. Hub party/guild chat panels keep theirs for now.
 2. **Message actions** (~1 day): copy, reply, profile, ignore, staff actions.
-3. **Extras**, each ~0.5–1 day, picked by the owner: timestamps (hover or always), private messages (`/msg`) as their
-   own channel with unseen counts, a System tab (server messages, deaths, advancements), search, inline GIF and
+3. **Extras**, each ~0.5–1 day, picked by the owner: timestamps (hover or always), a System tab (server messages, deaths, advancements), search, inline GIF and
    sticker previews, reactions (server-stored and synced), the hub's party/guild panels on the same renderer.
 4. **Cleanup**: drop the vanilla-window mixins this replaces, the ChatPatches compatibility, and (with the owner)
    Chat Heads from the pack once the panel draws heads.
@@ -84,7 +103,8 @@ hidden chat setting wasn't tried (the panel draws nothing, like vanilla).
 2. **Look**: dark and see-through like vanilla's chat (its opacity settings).
 3. **Place and size**: fixed bottom-left like vanilla, sized by its chat settings.
 4. **Channels**: the pips as in 1.1.9 (dots, @N, the right-click menu).
-5. Still open: which extras (phase 3), and whether message actions (phase 2) come with the first version.
+5. Message actions (phase 2) come with the first version. No private-message channel — `/tell NAME` covers it.
+   Still open: which other extras (phase 3).
 
 ## Risks
 

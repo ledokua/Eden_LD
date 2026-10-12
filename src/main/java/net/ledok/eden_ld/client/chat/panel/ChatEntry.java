@@ -28,6 +28,8 @@ public final class ChatEntry {
     final boolean mention;
     /** The open chat has drawn it (or it never needed seeing: own, ignored, muted). */
     boolean seen;
+    /** How many times it came in a row (spam protection: one line, "×N"). */
+    int count = 1;
 
     private List<FormattedCharSequence> lines = List.of();
     private int wrappedWidth = -1;
@@ -59,6 +61,15 @@ public final class ChatEntry {
         return mention;
     }
 
+    public int count() {
+        return count;
+    }
+
+    /** The line's own player (null for the server's lines and other mods'). */
+    public boolean own() {
+        return own;
+    }
+
     public boolean seen() {
         return seen;
     }
@@ -68,13 +79,27 @@ public final class ChatEntry {
         seen = true;
     }
 
-    /** The message's lines at this width (wrapped again only when the width changes). */
+    /** The message's lines at this width (wrapped again only when the width or the count changes). */
     List<FormattedCharSequence> lines(Font font, int width) {
         if (width != wrappedWidth) {
-            lines = ComponentRenderUtils.wrapComponents(message.content(), Math.max(1, width), font);
+            net.minecraft.network.chat.Component text = count < 2 ? message.content()
+                    : net.minecraft.network.chat.Component.empty().append(message.content())
+                            .append(net.minecraft.network.chat.Component.literal(" ×" + count)
+                                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+            lines = ComponentRenderUtils.wrapComponents(text, Math.max(1, width), font);
             wrappedWidth = width;
         }
         return lines;
+    }
+
+    /** The same message again: one more on the count, and it's new again (the HUD shows it, unseen). */
+    void repeat(GuiMessage again) {
+        message = again;
+        count++;
+        wrappedWidth = -1;
+        if (!own) {
+            seen = false;
+        }
     }
 
     /** Vanilla replaced the message (a deletion by the server): new text, wrapped again. */

@@ -160,7 +160,8 @@ public final class ChatChannels {
         if (!player.hasDisconnected() && ServerPlayNetworking.canSend(player, HubPayloads.ChatChannelState.TYPE)) {
             ServerPlayNetworking.send(player, new HubPayloads.ChatChannelState(selected(player).ordinal(),
                     available(player, Channel.PARTY), available(player, Channel.GUILD),
-                    LuckPermsCompat.hasPermission(player, PERMISSION_EMOJI_PICKER)));
+                    LuckPermsCompat.hasPermission(player, PERMISSION_EMOJI_PICKER),
+                    (net.ledok.eden_ld.command.EdenPermissions.staff(player) & HubPayloads.HomeData.STAFF_PUNISH) != 0));
         }
     }
 

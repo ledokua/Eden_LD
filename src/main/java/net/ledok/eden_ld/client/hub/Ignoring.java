@@ -11,7 +11,7 @@ import java.util.UUID;
  * the mark on an ignored player's name, and where lists put them — after everyone else online, before
  * the offline.
  */
-final class Ignoring {
+public final class Ignoring {
 
     /** Before an ignored player's name in lists. */
     static final String MARK = "⊘ ";
@@ -20,11 +20,11 @@ final class Ignoring {
     }
 
     /** "Ignore" or "Stop ignoring" for {@code uuid}. */
-    static Component menuLabel(UUID uuid) {
+    public static Component menuLabel(UUID uuid) {
         return Component.translatable(HubState.ignores(uuid) ? "gui.eden_ld.hub.ignore.stop" : "gui.eden_ld.hub.ignore.start");
     }
 
-    static void toggle(UUID uuid) {
+    public static void toggle(UUID uuid) {
         ClientPlayNetworking.send(new HubPayloads.IgnoreAction(uuid, !HubState.ignores(uuid)));
     }
 

@@ -106,6 +106,10 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
 
     @Nullable
     private HubPayloads.ModInfo info;
+    /** A player to open once the server's info is in (which tabs this staff member has decides their page). */
+    @Nullable
+    private java.util.UUID pendingPlayer;
+    private String pendingName = "";
     private Draft draft;
     private String editing = "en_us";
     private boolean dirty;
@@ -146,6 +150,16 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         main.sizing(Sizing.expand(), Sizing.fill());
         canvas().add(root);
         rebuild();
+    }
+
+    /** A player's page in the Players section (the chat's message menu: "Moderate"). */
+    public static void openPlayerFrom(Screen parent, java.util.UUID player, String name) {
+        ClientPlayNetworking.send(HubPayloads.ModOpen.INSTANCE);
+        ModerationScreen screen = new ModerationScreen(parent);
+        screen.section = Section.PLAYERS;
+        screen.pendingPlayer = player;
+        screen.pendingName = name;
+        Minecraft.getInstance().setScreen(screen);
     }
 
     /** From the hub's Moderation tab. */
@@ -254,6 +268,13 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         if (first || screen.draft == null || screen.draft.id == screen.sentDraft) {
             screen.draft = info.drafts().isEmpty() ? Draft.fresh(info) : Draft.of(info.drafts().get(0));
             screen.editing = screen.draft.defaultLanguage;
+        }
+        if (first && screen.pendingPlayer != null && screen.allowed(Section.PLAYERS)) {
+            // Opened on a player (the chat's "Moderate"): their page, now that their tabs are known.
+            java.util.UUID player = screen.pendingPlayer;
+            screen.pendingPlayer = null;
+            screen.openPlayer(player, screen.pendingName);
+            return;
         }
         if (first && !screen.allowed(screen.section)) {
             for (Section section : Section.values()) {

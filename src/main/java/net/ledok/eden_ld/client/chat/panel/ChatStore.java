@@ -41,9 +41,22 @@ public final class ChatStore {
         version++;
     }
 
+    /** What became of a message: a new entry, or one more on the last one's count ({@code repeat}). */
+    public record Added(ChatEntry entry, boolean repeat) {
+    }
+
     /** A message vanilla's chat just took in. */
-    public static ChatEntry add(GuiMessage message, boolean mention) {
+    public static Added add(GuiMessage message, boolean mention) {
         ChatMarker.Mark mark = ChatMarker.find(message.content());
+        // Spam protection: the very same line again (same sender, same text) counts on the last one.
+        if (!ENTRIES.isEmpty()) {
+            ChatEntry last = ENTRIES.get(ENTRIES.size() - 1);
+            if (sameSender(last.mark, mark) && last.message.content().getString().equals(message.content().getString())) {
+                last.repeat(message);
+                version++;
+                return new Added(last, true);
+            }
+        }
         UUID me = Minecraft.getInstance().player == null ? null : Minecraft.getInstance().player.getUUID();
         boolean own = mark != null && me != null && me.equals(mark.sender());
         ChatEntry entry = new ChatEntry(message, mark, channelOf(mark), own, mention && !own);
@@ -54,7 +67,14 @@ public final class ChatStore {
             ENTRIES.remove(0);
         }
         version++;
-        return entry;
+        return new Added(entry, false);
+    }
+
+    private static boolean sameSender(@Nullable ChatMarker.Mark a, @Nullable ChatMarker.Mark b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.kind() == b.kind() && java.util.Objects.equals(a.sender(), b.sender());
     }
 
     /** Vanilla swapped a message for another (the server deleted it): the copy follows. */

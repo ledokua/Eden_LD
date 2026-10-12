@@ -1439,5 +1439,13 @@
   "gui.eden_ld.hub.settings.section.channel_notify": "Channel notifications",
   "gui.eden_ld.hub.settings.channel_notify.hint": "All messages: a soft sound for every new line there, plus the ping. Only @mentions: the ping and the @ count on the channel's button. Nothing: neither. Right-click a channel's button in chat for the same, and to mute it.",
   "gui.eden_ld.hub.settings.channel_muted": "%s is muted",
-  "gui.eden_ld.hub.settings.unmute": "Unmute"
+  "gui.eden_ld.hub.settings.unmute": "Unmute",
+  "chat.eden_ld.action.reply": "Reply",
+  "chat.eden_ld.action.copy": "Copy text",
+  "chat.eden_ld.action.more": "More",
+  "chat.eden_ld.action.profile": "Open profile",
+  "chat.eden_ld.action.moderate": "Moderate",
+  "chat.eden_ld.action.title": "Message",
+  "chat.eden_ld.action.title_from": "%s's message",
+  "chat.eden_ld.action.copied": "Copied to the clipboard"
 }

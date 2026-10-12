@@ -46,6 +46,7 @@
     "AudioChannelMixin",
     "ChatComponentMixin",
     "ChatPatchesMenuMixin",
+    "ChatScreenAccessor",
     "ChatScreenMixin",
     "CommandSuggestionsMixin",
     "EmiReloadManagerAccessor",

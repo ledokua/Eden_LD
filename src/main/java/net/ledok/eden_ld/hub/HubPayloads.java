@@ -2461,7 +2461,8 @@ public final class HubPayloads {
      * S2C: the player's channel, whether PARTY / GUILD are open to them, and whether they get the
      * chat screen's emoji picker button (permission {@code eden_ld.emoji_picker}).
      */
-    public record ChatChannelState(int channel, boolean party, boolean guild, boolean emojiPicker)
+    /** {@code moderate}: staff who may punish (the chat's message menu offers "Moderate"). */
+    public record ChatChannelState(int channel, boolean party, boolean guild, boolean emojiPicker, boolean moderate)
             implements CustomPacketPayload {
         public static final Type<ChatChannelState> TYPE = new Type<>(id("chat_channel_state"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ChatChannelState> CODEC = StreamCodec.of(
@@ -2470,8 +2471,10 @@ public final class HubPayloads {
                     buf.writeBoolean(p.party);
                     buf.writeBoolean(p.guild);
                     buf.writeBoolean(p.emojiPicker);
+                    buf.writeBoolean(p.moderate);
                 },
-                buf -> new ChatChannelState(buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean()));
+                buf -> new ChatChannelState(buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
+                        buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

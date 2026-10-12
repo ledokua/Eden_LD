@@ -82,6 +82,15 @@ public class HubScreen extends CanvasScreen {
         Minecraft.getInstance().setScreen(new HubScreen(backToInventory));
     }
 
+    /** Opens on a player's profile (the chat's message menu); the player's own for themselves. */
+    public static void openProfileOf(java.util.UUID target) {
+        Minecraft mc = Minecraft.getInstance();
+        HubState.profileTarget = mc.player != null && target.equals(mc.player.getUUID()) ? null : target;
+        forgetOtherProfile();
+        HubState.lastTab = HubTab.PROFILE;
+        open();
+    }
+
     /** Opens on a tab by name ("profile" = the player's own profile); "" = the last one used. */
     public static void open(String tab) {
         selectTab(tab);

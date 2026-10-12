@@ -46,6 +46,16 @@ public final class ChatPanel {
     private record Row(ChatEntry entry, FormattedCharSequence text, boolean first, int indent) {
     }
 
+    /** The hover toolbar's buttons (phase 2): reply, copy, the full menu. */
+    public enum Tool { REPLY, COPY, MORE }
+
+    /** A toolbar button as drawn last frame, in chat units (after the panel's scale and its 4-unit shift). */
+    private record ToolButton(Tool tool, ChatEntry entry, int x0, int y0, int x1, int y1) {
+    }
+
+    private static final int TOOL = 11;
+    private static final List<ToolButton> TOOLBAR = new ArrayList<>();
+
     /** The lines the rules show, newest first. */
     private static List<Row> rows = List.of();
     private static boolean dirty = true;
@@ -122,7 +132,8 @@ public final class ChatPanel {
 
     // ---------------------------------------------------------------- drawing
 
-    public static void render(GuiGraphics graphics, int tickCount, boolean focused) {
+    public static void render(GuiGraphics graphics, int tickCount, int mouseX, int mouseY, boolean focused) {
+        TOOLBAR.clear();
         Minecraft minecraft = minecraft();
         if (minecraft.options.chatVisibility().get() == ChatVisiblity.HIDDEN) {
             return;
@@ -140,6 +151,9 @@ public final class ChatPanel {
         int perPage = chat.getLinesPerPage();
         int accent = HubNotifications.color() & 0xFFFFFF;
         Font font = minecraft.font;
+        // The message under the mouse in the open chat: its lines lit, its toolbar on the hovered line.
+        boolean menus = net.ledok.eden_ld.client.chat.ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen();
+        Row hovered = focused && !menus ? rowAt(mouseX, mouseY) : null;
 
         graphics.pose().pushPose();
         graphics.pose().scale((float) scale, (float) scale, 1.0F);
@@ -170,11 +184,17 @@ public final class ChatPanel {
             } else if (entry.message.tag() != null) {
                 graphics.fill(-4, bottom - lineHeight, -2, bottom, entry.message.tag().indicatorColor() | alpha << 24);
             }
+            if (hovered != null && hovered.entry() == entry) {
+                graphics.fill(-4, bottom - lineHeight, width + 8, bottom, 0x18FFFFFF);
+            }
             graphics.pose().translate(0.0F, 0.0F, 50.0F);
             if (row.first() && row.indent() > 0) {
                 drawHead(graphics, entry.sender(), textY, alpha);
             }
             graphics.drawString(font, row.text(), row.indent(), textY, 0xFFFFFF | alpha << 24);
+            if (row == hovered) {
+                drawToolbar(graphics, font, entry, width + 8, bottom - lineHeight, bottom, mouseX, mouseY);
+            }
             graphics.pose().popPose();
             if (focused) {
                 entry.seen = true;
@@ -207,6 +227,69 @@ public final class ChatPanel {
             }
         }
         graphics.pose().popPose();
+    }
+
+    /** ↩ ⧉ ⋯ at the right end of the hovered line (Reply only on someone else's message). */
+    private static void drawToolbar(GuiGraphics graphics, Font font, ChatEntry entry, int right, int top, int bottom,
+                                    int mouseX, int mouseY) {
+        List<Tool> tools = new ArrayList<>();
+        if (net.ledok.eden_ld.client.chat.MessageActions.fromOther(entry)) {
+            tools.add(Tool.REPLY);
+        }
+        tools.add(Tool.COPY);
+        tools.add(Tool.MORE);
+        double localX = mouseX / chat().getScale() - 4.0;
+        double localY = mouseY / chat().getScale();
+        int x = right - tools.size() * TOOL;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, 20.0F);
+        for (Tool tool : tools) {
+            boolean over = localX >= x && localX < x + TOOL && localY >= top && localY < bottom;
+            graphics.fill(x, top, x + TOOL, bottom, over ? 0xF0505050 : 0xE0262626);
+            String symbol = switch (tool) {
+                case REPLY -> "↩";
+                case COPY -> "⧉";
+                case MORE -> "⋯";
+            };
+            graphics.drawString(font, symbol, x + (TOOL - font.width(symbol)) / 2 + 1, top + (bottom - top - 8) / 2,
+                    over ? 0xFFFFFFFF : 0xFFC0C0C0, false);
+            TOOLBAR.add(new ToolButton(tool, entry, x, top, x + TOOL, bottom));
+            x += TOOL;
+        }
+        graphics.pose().popPose();
+    }
+
+    /** The toolbar button under the mouse (screen coordinates), or null. */
+    @Nullable
+    public static Tool toolAt(double mouseX, double mouseY) {
+        ToolButton button = toolButtonAt(mouseX, mouseY);
+        return button == null ? null : button.tool();
+    }
+
+    /** The message the toolbar under the mouse belongs to. */
+    @Nullable
+    public static ChatEntry toolEntryAt(double mouseX, double mouseY) {
+        ToolButton button = toolButtonAt(mouseX, mouseY);
+        return button == null ? null : button.entry();
+    }
+
+    @Nullable
+    private static ToolButton toolButtonAt(double mouseX, double mouseY) {
+        double localX = mouseX / chat().getScale() - 4.0;
+        double localY = mouseY / chat().getScale();
+        for (ToolButton button : TOOLBAR) {
+            if (localX >= button.x0() && localX < button.x1() && localY >= button.y0() && localY < button.y1()) {
+                return button;
+            }
+        }
+        return null;
+    }
+
+    /** The message under the mouse in the open chat (right-click: its menu). */
+    @Nullable
+    public static ChatEntry entryAt(double mouseX, double mouseY) {
+        Row row = rowAt(mouseX, mouseY);
+        return row == null ? null : row.entry();
     }
 
     /** The writer's face before their message (their skin while they're on the server, else the default one). */

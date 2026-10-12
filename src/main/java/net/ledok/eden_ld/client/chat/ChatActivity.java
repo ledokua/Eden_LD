@@ -55,9 +55,12 @@ public final class ChatActivity {
     public static void added(GuiMessage message) {
         Minecraft minecraft = Minecraft.getInstance();
         boolean mention = minecraft.player != null && ChatMarker.mentions(message.content(), minecraft.player.getUUID());
-        ChatEntry entry = ChatStore.add(message, mention);
-        // Any line (server lines too): a scrolled-up chat holds still.
-        ChatPanel.added(entry);
+        ChatStore.Added added = ChatStore.add(message, mention);
+        ChatEntry entry = added.entry();
+        // Any new line (server lines too): a scrolled-up chat holds still. A repeat stays where it was.
+        if (!added.repeat()) {
+            ChatPanel.added(entry);
+        }
         Channel channel = entry.channel();
         if (entry.seen() || channel == null) {
             return;
