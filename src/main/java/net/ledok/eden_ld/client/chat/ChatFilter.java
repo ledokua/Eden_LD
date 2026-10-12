@@ -29,6 +29,11 @@ public final class ChatFilter {
         if (mark == null) {
             return false;
         }
+        // The System view: deaths and advancements (by their own settings below) besides unmarked lines, no chat.
+        if (ClientChatChannel.systemView() && mark.kind() != ChatMarker.Kind.DEATH
+                && mark.kind() != ChatMarker.Kind.ADVANCEMENT) {
+            return true;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         // The player's own lines ignore the hide switches — but "only the selected channel"
         // shows only that channel, theirs included.

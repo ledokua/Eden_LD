@@ -21,6 +21,8 @@ public final class ClientChatChannel {
     private static boolean guild;
     private static boolean emojiPicker;
     private static boolean moderate;
+    /** The System pip: the chat shows only system lines (the server's, deaths, advancements); typing is unchanged. */
+    private static boolean systemView;
 
     private ClientChatChannel() {
     }
@@ -37,6 +39,19 @@ public final class ClientChatChannel {
         moderate = state.moderate();
     }
 
+    /** The System view: only system lines show. */
+    public static boolean systemView() {
+        return systemView;
+    }
+
+    /** The System pip: show only system lines (a channel pip or Ctrl+Tab goes back). */
+    public static void showSystem() {
+        if (!systemView && current() != null) {
+            systemView = true;
+            ChatFilter.refresh();
+        }
+    }
+
     /** Staff who may punish: the chat's message menu offers "Moderate" (from the server, on join). */
     public static boolean moderate() {
         return current() != null && moderate;
@@ -49,6 +64,7 @@ public final class ClientChatChannel {
 
     public static void reset() {
         channel = null;
+        systemView = false;
         switchedOffBefore = -1;
     }
 
@@ -96,6 +112,11 @@ public final class ClientChatChannel {
      */
     public static void select(Channel target) {
         Channel from = current();
+        if (systemView && open(target)) {
+            // Back from the System view to the channels (also to the one typed into).
+            systemView = false;
+            ChatFilter.refresh();
+        }
         if (from == null || !open(target) || target == from) {
             return;
         }

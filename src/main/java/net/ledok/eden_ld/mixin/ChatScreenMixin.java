@@ -131,7 +131,32 @@ public abstract class ChatScreenMixin extends Screen {
         for (Channel channel : eden_ld$pipChannels()) {
             width += font.width(eden_ld$pipLabel(channel, channel == current)) + 6 + PIP_GAP;
         }
+        width += font.width(eden_ld$systemLabel(ClientChatChannel.systemView())) + 6 + PIP_GAP;
         return width + 1;
+    }
+
+    /** The System pip's label: its name while the System view is on, else its letter. */
+    @Unique
+    private static Component eden_ld$systemLabel(boolean on) {
+        return Component.translatable(on ? "chat.eden_ld.badge.system" : "chat.eden_ld.pip.system");
+    }
+
+    /** The System pip, after the channels' (x0, x1). */
+    @Unique
+    private int[] eden_ld$systemPip() {
+        Channel current = ClientChatChannel.current();
+        List<int[]> channels = eden_ld$pipBounds(current);
+        int x0 = channels.isEmpty() ? 2 : channels.get(channels.size() - 1)[2] + PIP_GAP;
+        return new int[]{x0, x0 + font.width(eden_ld$systemLabel(ClientChatChannel.systemView())) + 6};
+    }
+
+    @Unique
+    private boolean eden_ld$overSystemPip(double mouseX, double mouseY) {
+        if (eden_ld$badge == 0 || ClientChatChannel.current() == null || mouseY < height - 14 || mouseY >= height - 2) {
+            return false;
+        }
+        int[] pip = eden_ld$systemPip();
+        return mouseX >= pip[0] && mouseX < pip[1];
     }
 
     /** Each pip's channel and left edge, then its right edge (x0, x1 pairs, in pip order). */
@@ -433,7 +458,8 @@ public abstract class ChatScreenMixin extends Screen {
             Channel channel = Channel.of(pip[0]);
             int x0 = pip[1];
             int x1 = pip[2];
-            boolean on = channel == target;
+            // The System view lights its own pip; the channels keep the typed-into one's name.
+            boolean on = !ClientChatChannel.systemView() && channel == target;
             boolean switchedOff = net.ledok.eden_ld.client.chat.ChatFilter.channelSwitchedOff(channel);
             boolean muted = net.ledok.eden_ld.client.chat.ChatActivity.muted(channel);
             int color = command && on ? 0xFF808080 : ClientChatChannel.color(channel);
@@ -460,6 +486,21 @@ public abstract class ChatScreenMixin extends Screen {
                 graphics.drawString(font, count, bx1 - w + 2, by0 + 1, 0xFFFFFFFF, false);
                 graphics.pose().popPose();
             }
+        }
+        int[] system = eden_ld$systemPip();
+        boolean systemOn = ClientChatChannel.systemView();
+        boolean systemHovered = !ChannelMenu.isOpen() && eden_ld$overSystemPip(mouseX, mouseY);
+        graphics.fill(system[0], y0, system[1], y1, systemHovered ? 0xE0383838 : systemOn ? 0xE0202020 : 0xC0000000);
+        if (systemOn) {
+            graphics.fill(system[0], y1 - 1, system[1], y1, 0xFFAAAAAA);
+        }
+        graphics.drawString(font, eden_ld$systemLabel(systemOn), system[0] + 3, y0 + 2, systemOn ? 0xFFAAAAAA : 0xB0AAAAAA, false);
+        if (!systemOn && net.ledok.eden_ld.client.chat.ChatActivity.unseenSystem()) {
+            graphics.fill(system[1] - 3, y0 + 1, system[1] - 1, y0 + 3, 0xFFFFFFFF);
+        }
+        if (systemHovered) {
+            graphics.renderComponentTooltip(font, List.of(Component.translatable("chat.eden_ld.pip.system.name"),
+                    Component.translatable("chat.eden_ld.pip.system.hint").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
         }
         int[] pill = eden_ld$pill();
         if (pill != null) {
@@ -677,6 +718,13 @@ public abstract class ChatScreenMixin extends Screen {
         }
         if (net.ledok.eden_ld.client.chat.MessageMenu.isOpen()) {
             net.ledok.eden_ld.client.chat.MessageMenu.click(mouseX, mouseY);
+            cir.setReturnValue(true);
+            return;
+        }
+        if (eden_ld$overSystemPip(mouseX, mouseY) && (button == 0 || button == 1)) {
+            if (button == 0) {
+                ClientChatChannel.showSystem();
+            }
             cir.setReturnValue(true);
             return;
         }

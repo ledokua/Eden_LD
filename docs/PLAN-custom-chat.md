@@ -84,6 +84,17 @@ Checked in dev 2026-10-12: "spam spam" three times → one line "×3"; the toolb
 Ignore hid Bob's lines (and /unignore brought them back); Open profile showed Bob's profile; Moderate (right after
 joining) opened Bob's page with the Punish tab.
 
+## Phase 3 picks as built (Eden 1.2.0-chat.3; owner: timestamps on hover, the System tab)
+
+- **Timestamps on hover**: the hovered message's time ("22:41" today, "11.10 22:41" before) left of its toolbar.
+  Each entry keeps when it came on this computer's clock (a repeat updates it).
+- **System tab**: a pip after the channels ("S", "System" while on). It shows only system lines — the server's
+  messages, deaths and advancements (by their own settings) — while typing still goes to the channel typed into
+  (that pip keeps its name). A channel pip or Ctrl+Tab goes back. Its dot: system lines not seen yet.
+
+Checked in dev 2026-10-12: the time on hovering Player768's own line; the System view showing only the two /say
+notices; Global's pip back to the normal view.
+
 ## Phases
 
 1. **Parity** (~2–3 days): the store, the panel in the open chat and the HUD (fading lines, the 30 s mention linger),
@@ -104,7 +115,8 @@ joining) opened Bob's page with the Punish tab.
 3. **Place and size**: fixed bottom-left like vanilla, sized by its chat settings.
 4. **Channels**: the pips as in 1.1.9 (dots, @N, the right-click menu).
 5. Message actions (phase 2) come with the first version. No private-message channel — `/tell NAME` covers it.
-   Still open: which other extras (phase 3).
+   Extras picked: timestamps on hover and the System tab (built). Still open: search, inline previews, reactions,
+   the hub's party/guild panels.
 
 ## Risks
 

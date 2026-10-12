@@ -30,6 +30,8 @@ public final class ChatEntry {
     boolean seen;
     /** How many times it came in a row (spam protection: one line, "×N"). */
     int count = 1;
+    /** When it came (the last time, for a repeat), on this computer's clock: the hover shows it. */
+    long time = System.currentTimeMillis();
 
     private List<FormattedCharSequence> lines = List.of();
     private int wrappedWidth = -1;
@@ -65,6 +67,10 @@ public final class ChatEntry {
         return count;
     }
 
+    public long time() {
+        return time;
+    }
+
     /** The line's own player (null for the server's lines and other mods'). */
     public boolean own() {
         return own;
@@ -96,6 +102,7 @@ public final class ChatEntry {
     void repeat(GuiMessage again) {
         message = again;
         count++;
+        time = System.currentTimeMillis();
         wrappedWidth = -1;
         if (!own) {
             seen = false;

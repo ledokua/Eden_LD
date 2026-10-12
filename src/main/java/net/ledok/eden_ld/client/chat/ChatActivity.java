@@ -94,6 +94,16 @@ public final class ChatActivity {
         return false;
     }
 
+    /** The System pip's dot: system lines (the server's, deaths, advancements) not seen yet. */
+    public static boolean unseenSystem() {
+        for (ChatEntry entry : ChatStore.entries()) {
+            if (entry.channel() == null && !entry.seen()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The @N badge: mentions there not seen yet (none when its notifications are Nothing). */
     public static int mentions(Channel channel) {
         if (notify(channel) == ChannelNotify.NOTHING) {

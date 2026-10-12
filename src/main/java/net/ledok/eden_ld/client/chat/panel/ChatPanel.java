@@ -65,6 +65,7 @@ public final class ChatPanel {
     private static Object builtSettings;
     @Nullable
     private static Channel builtChannel;
+    private static boolean builtSystem;
     /** Lines scrolled up from the newest. */
     private static int scroll;
     private static boolean newSinceScroll;
@@ -103,8 +104,9 @@ public final class ChatPanel {
         int width = textWidth();
         Object settings = HubState.settingsData;
         Channel channel = ClientChatChannel.current();
+        boolean system = ClientChatChannel.systemView();
         if (dirty || builtVersion != ChatStore.version() || builtWidth != width || builtSettings != settings
-                || builtChannel != channel) {
+                || builtChannel != channel || builtSystem != system) {
             Font font = minecraft().font;
             List<Row> built = new ArrayList<>();
             List<ChatEntry> entries = ChatStore.entries();
@@ -125,6 +127,7 @@ public final class ChatPanel {
             builtWidth = width;
             builtSettings = settings;
             builtChannel = channel;
+            builtSystem = system;
             scroll = Math.max(0, Math.min(scroll, rows.size() - chat().getLinesPerPage()));
         }
         return rows;
@@ -243,6 +246,11 @@ public final class ChatPanel {
         int x = right - tools.size() * TOOL;
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 20.0F);
+        // When it came, left of the buttons.
+        String time = time(entry.time());
+        int timeWidth = font.width(time) + 6;
+        graphics.fill(x - timeWidth, top, x, bottom, 0xE0262626);
+        graphics.drawString(font, time, x - timeWidth + 3, top + (bottom - top - 8) / 2, 0xFFA0A0A0, false);
         for (Tool tool : tools) {
             boolean over = localX >= x && localX < x + TOOL && localY >= top && localY < bottom;
             graphics.fill(x, top, x + TOOL, bottom, over ? 0xF0505050 : 0xE0262626);
@@ -257,6 +265,13 @@ public final class ChatPanel {
             x += TOOL;
         }
         graphics.pose().popPose();
+    }
+
+    /** "14:35" today, "11.10 14:35" before. */
+    private static String time(long millis) {
+        java.time.ZonedDateTime when = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault());
+        String pattern = when.toLocalDate().equals(java.time.LocalDate.now()) ? "HH:mm" : "dd.MM HH:mm";
+        return when.format(java.time.format.DateTimeFormatter.ofPattern(pattern));
     }
 
     /** The toolbar button under the mouse (screen coordinates), or null. */

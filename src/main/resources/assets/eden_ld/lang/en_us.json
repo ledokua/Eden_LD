@@ -1447,5 +1447,9 @@
   "chat.eden_ld.action.moderate": "Moderate",
   "chat.eden_ld.action.title": "Message",
   "chat.eden_ld.action.title_from": "%s's message",
-  "chat.eden_ld.action.copied": "Copied to the clipboard"
+  "chat.eden_ld.action.copied": "Copied to the clipboard",
+  "chat.eden_ld.pip.system": "S",
+  "chat.eden_ld.badge.system": "System",
+  "chat.eden_ld.pip.system.name": "System messages",
+  "chat.eden_ld.pip.system.hint": "The server's messages, deaths and advancements only. Your messages still go to your channel; click a channel to go back."
 }
