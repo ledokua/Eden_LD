@@ -72,7 +72,9 @@ needs a README pass too.
       unseen, @N = mentions), mention lines highlighted and lingering, "↓ Mentions", right-click menu (mute 5m-24h /
       until on, notifications All / Only @mentions / Nothing, Mark as read, Chat settings), per-channel rows in
       Settings → Chat; a click picks a switched-off channel, Ctrl+Tab skips it. Eden 1.1.9 built and dev-checked
-      2026-10-12 with two clients (see the plan's Checked). Not deployed.
+      2026-10-12 with two clients (see the plan's Checked). Copied to the pack (not committed), Prism and live
+      2026-10-12 20:56 (1.1.8 to the backups; live checked with cmp); applies at the next restart — server and pack
+      together (the settings and mention-ping packets changed).
   - [ ] Next (owner, 2026-10-12): Eden's own chat panel instead of modifying Minecraft's — plan in
         `docs/PLAN-custom-chat.md`. ChatPatches won't be needed (owner).
 
