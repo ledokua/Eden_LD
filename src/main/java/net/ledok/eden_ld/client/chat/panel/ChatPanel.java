@@ -336,7 +336,8 @@ public final class ChatPanel {
         }
         double chatX = mouseX / chat.getScale() - 4.0;
         double chatY = (minecraft().getWindow().getGuiScaledHeight() - mouseY - 40.0) / (chat.getScale() * lineHeight());
-        if (chatX < -4.0 || chatX > textWidth()) {
+        // The whole background counts (its right end holds the hover toolbar), not only the text.
+        if (chatX < -4.0 || chatX >= Mth.ceil(chat.getWidth() / chat.getScale()) + 8) {
             return null;
         }
         List<Row> rows = rows();

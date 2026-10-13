@@ -401,6 +401,12 @@ public class EdenConfig {
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",
                 "minecraft:trapped_chest", "minecraft:barrel", "minecraft:furnace", "minecraft:smoker",
                 "minecraft:blast_furnace", "minecraft:brewing_stand"));
+        /**
+         * Blocks tutorial players can't use (right-click): block ids, or #tags. By default (owner): signs of every
+         * kind, chiseled bookshelves and trapdoors.
+         */
+        public List<String> locked_blocks = new ArrayList<>(List.of("#minecraft:all_signs",
+                "minecraft:chiseled_bookshelf", "#minecraft:trapdoors"));
 
         void fillMissing() {
             if (dimension == null) dimension = "yggdrasil:tutorial_dim";
@@ -411,6 +417,7 @@ public class EdenConfig {
             if (commands_on_finish == null) commands_on_finish = new ArrayList<>();
             if (always_visible == null) always_visible = new ArrayList<>();
             if (private_blocks == null) private_blocks = new ArrayList<>();
+            if (locked_blocks == null) locked_blocks = new ArrayList<>();
             if (tab_tours == null) tab_tours = new java.util.LinkedHashMap<>();
             // A file written by an older Eden lacks the tours added since (the Kits tour, 1.1.6).
             defaultTours().forEach(tab_tours::putIfAbsent);

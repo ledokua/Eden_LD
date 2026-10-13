@@ -57,6 +57,7 @@ public final class Tutorial {
             TutorialPhases.loggedOut(handler.getPlayer());
         });
         net.ledok.eden_ld.tutorial.phase.Phases.initialize();
+        TutorialLockedBlocks.initialize();
         // No dying in the tutorial: back to its spawn, healed.
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (entity instanceof ServerPlayer player && isActive(player)) {

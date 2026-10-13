@@ -167,6 +167,9 @@ replaces the old tutorial-mod-for-yggdrasil; the NPCs_LD guide dialog runs its s
 - **Private containers**: the blocks in `private_blocks` (default: the alchemy table, chests, barrels, furnaces,
   smokers, blast furnaces, brewing stands) give each player their own copy — their own items, smelting or brewing
   and lit state; the world's block stays untouched. Keep waystones, shops and the binding table off this list.
+- **Blocks they can't use**: `locked_blocks` (block ids or `#tags`; default: `#minecraft:all_signs`,
+  `minecraft:chiseled_bookshelf`, `#minecraft:trapdoors`) — a right-click is refused with a line above the hotbar,
+  and the block is sent again so a trapdoor their game already swung open closes.
 - **Locked while in it** (the busy state `eden_ld:tutorial`, so dungeon runs and duels lock the same things): the
   hub's waystone teleports, guilds and parties, claiming mail, daily rewards and rerolls, the guild bank, Wardrobe
   purchases, website purchases, `/pay`, `/withdraw` and kits (`commands.busy_blocked`), dungeons and the duel queue.
@@ -1382,7 +1385,8 @@ changed into the new files, then delete it). Below, each top-level key is the fi
                   "waystones": "config:hub/waystones", "activities": "config:hub/activities",
                   "activities/duels": "config:hub/duels", "mail": "config:hub/mail", "kits": "config:hub/kits"},
     "private_blocks": ["potions_ld:alchemy_table", "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
-                       "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"]
+                       "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"],
+    "locked_blocks": ["#minecraft:all_signs", "minecraft:chiseled_bookshelf", "#minecraft:trapdoors"]
   }
 }
 ```
