@@ -51,6 +51,15 @@ needs a README pass too.
           follows the open sub-tab and only shows when NPCs_LD has the dialog; highlight ids for the guild sub-views
           and Duels. Dev-checked (no ▶ on Chat, ▶ on Bank, a test Bank tour lit the vault). Dialogs: NPCs_LD session;
           all six run in Eden dev 2026-10-11 (every step framed on the right widget, clean end); on live with 1.1.5.
+    - [ ] Tours on the other tabs (owner via NPCs_LD session, 2026-10-13): Home, Profile, Wardrobe, Friends, Party,
+          Dailies, Settings — default `tab_tours` entries and their highlight ids (`home/card|actions|news`,
+          `profile/level|track|playtime` (+`rewards`), `wardrobe/filters|grid|first` (+`categories`),
+          `friends/list|search|here|requests` (a folded side panel's bar stands in), `party/invite|members|chat`,
+          `dailies/reset|list|reroll|bonus`, `settings/sections|list` — the list through a Spotlight locator, it's
+          inside VectorLib's SettingsView). Eden 1.2.2, dev-tested 2026-10-13 with the NPCs_LD dialogs: every line lit
+          on its part (Party with and without a party, ▶ on Settings); `profile/track` and Friends need the Minestar
+          platform (not in dev). Committed 41a582b; deployed 2026-10-13 12:07 by the NPCs_LD session (Prism, pack
+          725e758, live; 1.2.1 to the backups), on live from the next restart.
     - [x] Moderation: the player page's admin tabs keep their scroll (Unlocks no longer jumps to the top); the
           Ukrainian sidebar label "Світ" (the page title stays "Налаштування світу").
     - [x] Stale LC balance (owner: withdrawing from the guild bank left Home/Wardrobe on the old amount): every LC
