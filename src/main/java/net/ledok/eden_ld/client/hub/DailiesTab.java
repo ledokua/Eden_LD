@@ -42,6 +42,8 @@ final class DailiesTab {
     private static final float REWARD_ICON = 16;
 
     private static Label resetLabel;
+    /** The first ↻ of a build has the tours' id. */
+    private static boolean rerollNamed;
     private static boolean refreshRequested;
 
     private DailiesTab() {
@@ -60,6 +62,7 @@ final class DailiesTab {
         width = HubScreen.innerWidth();
         cardWidth = width - LANE;
         resetLabel = null;
+        rerollNamed = false;
         refreshRequested = false;
         if (data == null || data.quests().isEmpty()) {
             if (data == null) {
@@ -84,6 +87,7 @@ final class DailiesTab {
         resetLabel = Label.of(resetWidth, Component.empty());
         resetLabel.color(EdenParchment.INK_DIM);
         resetLabel.align(net.ledok.vectorlib.client.canvas.TextNode.Align.RIGHT);
+        resetLabel.id(HubSpotlights.DAILIES_RESET);
         header.item(resetLabel);
         content.item(header);
         updateReset();
@@ -94,10 +98,13 @@ final class DailiesTab {
             list.item(card(quest, data));
         }
         ScrollPanel panel = HubScroll.panel("dailies", width, 100, list);
+        panel.id(HubSpotlights.DAILIES_LIST);
         panel.sizing(Sizing.fill(), Sizing.expand());
         content.item(panel);
 
-        content.item(bonusRow(data));
+        Flex bonus = bonusRow(data);
+        bonus.id(HubSpotlights.DAILIES_BONUS);
+        content.item(bonus);
     }
 
     /** Every client tick while open: the reset countdown; at zero, ask for the new day. */
@@ -197,6 +204,10 @@ final class DailiesTab {
         boolean free = data.freeRerollsLeft() > 0 || data.nextRerollCost() <= 0;
         boolean affordable = free || data.economy() && data.balance() >= data.nextRerollCost();
         reroll.enabled(affordable);
+        if (!rerollNamed) {
+            reroll.id(HubSpotlights.DAILIES_REROLL);
+            rerollNamed = true;
+        }
         reroll.tooltip(free ? tr("reroll_free", data.freeRerollsLeft())
                 : !data.economy() ? tr("reroll_none")
                 : affordable ? tr("reroll_cost", data.nextRerollCost())

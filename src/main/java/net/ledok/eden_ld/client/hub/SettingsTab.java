@@ -63,7 +63,10 @@ final class SettingsTab {
         visual(screen, settings.section("visual", tr("tab.visual")), data);
 
         SettingsView view = new SettingsView(settings, HubScreen.innerWidth())
-                .tabs(bar -> EdenParchment.styleTabs(bar, 50))
+                .tabs(bar -> {
+                    EdenParchment.styleTabs(bar, 50);
+                    bar.id(HubSpotlights.SETTINGS_SECTIONS);
+                })
                 .rowBackground(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE))
                 .searchable(true)
                 .remember("eden_ld/settings");
@@ -74,6 +77,36 @@ final class SettingsTab {
             HubState.openSettingsSection = null;
         }
         content.item(view);
+        shownView = new java.lang.ref.WeakReference<>(view);
+    }
+
+    /** The Settings page's view, for the tours' locator. */
+    private static java.lang.ref.WeakReference<SettingsView> shownView = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * {@link HubSpotlights#SETTINGS_LIST}: the open section's options are a panel {@link SettingsView} builds inside
+     * itself (no id of its own), the last thing in it — under the tabs, the search and the line. Client init.
+     */
+    static void registerLocator() {
+        net.ledok.vectorlib.client.presentation.Spotlight.registerLocator((screen, id) -> {
+            if (!id.equals(HubSpotlights.SETTINGS_LIST) || !(screen instanceof HubScreen hub)) {
+                return null;
+            }
+            SettingsView view = shownView.get();
+            if (view == null || view.canvas() != hub.canvas() || !view.isVisible() || view.children().isEmpty()) {
+                return null;
+            }
+            var list = view.children().get(view.children().size() - 1);
+            var bounds = list.bounds();
+            if (bounds == null) {
+                return null;
+            }
+            float[] from = list.localToRoot(bounds.x(), bounds.y());
+            float[] to = list.localToRoot(bounds.right(), bounds.bottom());
+            float[] a = hub.canvasToScreen(from[0], from[1]);
+            float[] b = hub.canvasToScreen(to[0], to[1]);
+            return new net.ledok.vectorlib.client.canvas.Rect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+        });
     }
 
     // ---------------------------------------------------------------- sections

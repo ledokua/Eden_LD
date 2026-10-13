@@ -82,17 +82,21 @@ final class WardrobeTab {
         }
         Flex header = Flex.row().gap(3).alignItems(Align.CENTER);
         header.sizing(Sizing.fill(), Sizing.content());
-        header.item(EdenParchment.tabs(List.of(Category.values()),
+        var categories = EdenParchment.tabs(List.of(Category.values()),
                 candidate -> tr("category." + candidate.name().toLowerCase(Locale.ROOT)), category, candidate -> {
                     category = candidate;
                     screen.onWardrobeData();
-                }, 50, "wardrobe/category"));
+                }, 50, "wardrobe/category");
+        categories.id(HubSpotlights.WARDROBE_CATEGORIES);
+        header.item(categories);
         header.spacer();
-        header.item(EdenParchment.tabs(List.of(Filter.values()),
+        var filters = EdenParchment.tabs(List.of(Filter.values()),
                 candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)), filter, candidate -> {
                     filter = candidate;
                     screen.onWardrobeData();
-                }, 36, "wardrobe/filter"));
+                }, 36, "wardrobe/filter");
+        filters.id(HubSpotlights.WARDROBE_FILTERS);
+        header.item(filters);
         content.item(header);
 
         List<WardrobeItem> shown = new ArrayList<>();
@@ -117,9 +121,14 @@ final class WardrobeTab {
         }
         Grid grid = Grid.of(columns).gap(GAP, GAP).cell(cardWidth, CARD_H);
         for (WardrobeItem item : shown) {
-            grid.item(new Card(screen, data, item));
+            Card card = new Card(screen, data, item);
+            if (item == shown.get(0)) {
+                card.id(HubSpotlights.WARDROBE_FIRST);
+            }
+            grid.item(card);
         }
         ScrollPanel panel = HubScroll.panel("wardrobe/" + category, HubScreen.innerWidth(), 100, grid);
+        panel.id(HubSpotlights.WARDROBE_GRID);
         panel.sizing(Sizing.fill(), Sizing.expand());
         content.item(panel);
     }

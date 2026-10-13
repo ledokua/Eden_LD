@@ -9,8 +9,7 @@ import java.util.Locale;
  * Names for the Hub's parts, so tutorials (NPCs_LD dialog lines, VectorLib {@link Spotlight}) can point at them and
  * wait for them: the tab row, every tab, the page area and each tab's page (present only while that tab is open), the
  * help button and window (and its ▶ tour button), maximize and close, the balance on the Home page, the Hub button in
- * the inventory, and parts inside the Guild, Waystones, Activities and Mail tabs for their tours. Ids are stable —
- * dialogs store them.
+ * the inventory, and parts inside the tabs for their tours. Ids are stable — dialogs store them.
  */
 public final class HubSpotlights {
     private HubSpotlights() {}
@@ -121,6 +120,40 @@ public final class HubSpotlights {
     public static final String KITS_PREVIEW = PREFIX + "kits/preview";
     /** The open Preview dialog. */
     public static final String KITS_PREVIEW_WINDOW = PREFIX + "kits/preview_window";
+    // Home: the player's card (level, balance, dailies), the "needs you now" cards ("all caught up" without any), news.
+    public static final String HOME_CARD = PREFIX + "home/card";
+    public static final String HOME_ACTIONS = PREFIX + "home/actions";
+    public static final String HOME_NEWS = PREFIX + "home/news";
+    // Profile (Minestar profiles; level and track need the platform, the track only on the player's own page).
+    public static final String PROFILE_PLAYTIME = PREFIX + "profile/playtime";
+    public static final String PROFILE_LEVEL = PREFIX + "profile/level";
+    public static final String PROFILE_REWARDS = PREFIX + "profile/rewards";
+    /** What the level gives, what's next and the track of perk levels. */
+    public static final String PROFILE_TRACK = PREFIX + "profile/track";
+    // Wardrobe: Backgrounds · Themes, All · Owned · Shop, the looks, the first look.
+    public static final String WARDROBE_CATEGORIES = PREFIX + "wardrobe/categories";
+    public static final String WARDROBE_FILTERS = PREFIX + "wardrobe/filters";
+    public static final String WARDROBE_GRID = PREFIX + "wardrobe/grid";
+    public static final String WARDROBE_FIRST = PREFIX + "wardrobe/first";
+    // Friends: the side panels' bars stand in for them while folded.
+    public static final String FRIENDS_LIST = PREFIX + "friends/list";
+    public static final String FRIENDS_SEARCH = PREFIX + "friends/search";
+    /** "On this server" (left), or the bar that opens it. */
+    public static final String FRIENDS_HERE = PREFIX + "friends/here";
+    /** The requests panel (right), or the bar that opens it. */
+    public static final String FRIENDS_REQUESTS = PREFIX + "friends/requests";
+    // Party: inviting (the button without a party, the invites panel in one); members and chat only in a party.
+    public static final String PARTY_INVITE = PREFIX + "party/invite";
+    public static final String PARTY_MEMBERS = PREFIX + "party/members";
+    public static final String PARTY_CHAT = PREFIX + "party/chat";
+    // Dailies: the renew time in the header, the quests, the first ↻, the day's bonus.
+    public static final String DAILIES_RESET = PREFIX + "dailies/reset";
+    public static final String DAILIES_LIST = PREFIX + "dailies/list";
+    public static final String DAILIES_REROLL = PREFIX + "dailies/reroll";
+    public static final String DAILIES_BONUS = PREFIX + "dailies/bonus";
+    // Settings: Privacy · Chat · Notifications · Visual, and the open section's options (found by a locator).
+    public static final String SETTINGS_SECTIONS = PREFIX + "settings/sections";
+    public static final String SETTINGS_LIST = PREFIX + "settings/list";
 
     /** The tab's bookmark in the tab row. */
     public static String tab(HubTab tab) {
@@ -183,10 +216,22 @@ public final class HubSpotlights {
                 {DUELS_VIEWS, "Duels: Matches / Top"}, {DUELS_LIST, "Duels: list"},
                 {KITS_LIST, "Kits: list"}, {KITS_FIRST, "Kits: first kit"},
                 {KITS_CLAIM, "Kits: first Claim that can be pressed"}, {KITS_PREVIEW, "Kits: first Preview"},
-                {KITS_PREVIEW_WINDOW, "Kits: Preview window"}};
+                {KITS_PREVIEW_WINDOW, "Kits: Preview window"}, {HOME_CARD, "Home: player card"},
+                {HOME_ACTIONS, "Home: cards that need you"}, {HOME_NEWS, "Home: news"},
+                {PROFILE_PLAYTIME, "Profile: playtime"}, {PROFILE_LEVEL, "Profile: level"},
+                {PROFILE_REWARDS, "Profile: rewards"}, {PROFILE_TRACK, "Profile: level perks track (own page)"},
+                {WARDROBE_CATEGORIES, "Wardrobe: categories"}, {WARDROBE_FILTERS, "Wardrobe: All / Owned / Shop"},
+                {WARDROBE_GRID, "Wardrobe: looks"}, {WARDROBE_FIRST, "Wardrobe: first look"},
+                {FRIENDS_LIST, "Friends: friends list"}, {FRIENDS_SEARCH, "Friends: friends search"},
+                {FRIENDS_HERE, "Friends: on this server (or its bar)"}, {FRIENDS_REQUESTS, "Friends: requests (or their bar)"},
+                {PARTY_INVITE, "Party: inviting"}, {PARTY_MEMBERS, "Party: members"}, {PARTY_CHAT, "Party: chat"},
+                {DAILIES_RESET, "Dailies: renew time"}, {DAILIES_LIST, "Dailies: quests"},
+                {DAILIES_REROLL, "Dailies: first reroll"}, {DAILIES_BONUS, "Dailies: bonus"},
+                {SETTINGS_SECTIONS, "Settings: sections"}, {SETTINGS_LIST, "Settings: options"}};
         for (String[] part : parts) {
             Spotlight.register(part[0], Component.literal("Hub: " + part[1]));
         }
+        SettingsTab.registerLocator();
     }
 
     private static String label(HubTab tab) {

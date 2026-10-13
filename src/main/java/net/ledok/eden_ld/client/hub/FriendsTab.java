@@ -102,18 +102,29 @@ final class FriendsTab {
         // Column + bar pairs: fill the height so the lists and bars run top to bottom.
         Flex left = Flex.row();
         left.sizing(Sizing.content(), Sizing.fill());
+        // A folded side panel's bar stands in for it in the tours.
+        Button playersBar = playersBar(data);
         if (playersOpen) {
-            left.item(playersColumn(screen, data));
+            Flex players = playersColumn(screen, data);
+            players.id(HubSpotlights.FRIENDS_HERE);
+            left.item(players);
+        } else {
+            playersBar.id(HubSpotlights.FRIENDS_HERE);
         }
-        left.item(playersBar(data));
+        left.item(playersBar);
         columns.item(left);
         Flex center = Flex.row();
         center.sizing(Sizing.content(), Sizing.fill());
         center.item(friendsColumn(screen, data, friendsWidth, friendColumns));
-        center.item(requestsBar(data, open));
+        Button requestsBar = requestsBar(data, open);
+        center.item(requestsBar);
         columns.item(center);
         if (open) {
-            columns.item(requestsColumn(data));
+            Flex requests = requestsColumn(data);
+            requests.id(HubSpotlights.FRIENDS_REQUESTS);
+            columns.item(requests);
+        } else {
+            requestsBar.id(HubSpotlights.FRIENDS_REQUESTS);
         }
         content.item(columns);
     }
@@ -219,6 +230,7 @@ final class FriendsTab {
         });
         search.sizing(Sizing.fixed(width), Sizing.fixed(16));
         search.hint(tr("search_friends").getString());
+        search.id(HubSpotlights.FRIENDS_SEARCH);
         friendSearchField = search;
         column.item(search);
 
@@ -227,6 +239,7 @@ final class FriendsTab {
         }
 
         ScrollPanel panel = HubScroll.panel("friends/friends", width + LANE, 100, list);
+        panel.id(HubSpotlights.FRIENDS_LIST);
         panel.sizing(Sizing.fixed(width + LANE), Sizing.expand());
         column.item(panel);
         fillFriends(screen, list, data, width, gridColumns);

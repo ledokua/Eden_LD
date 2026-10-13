@@ -254,6 +254,7 @@ final class ProfileTab {
         row.sizing(Sizing.fill(), Sizing.content());
 
         Flex time = card();
+        time.id(HubSpotlights.PROFILE_PLAYTIME);
         time.sizing(Sizing.expand(), Sizing.content());
         time.item(caption(tr("total_time")));
         Flex big = Flex.row().gap(4).alignItems(Align.END);
@@ -271,6 +272,7 @@ final class ProfileTab {
         row.item(time);
 
         Flex level = card();
+        level.id(HubSpotlights.PROFILE_LEVEL);
         level.sizing(Sizing.expand(), Sizing.content());
         level.item(caption(tr("activity")));
         if (!data.platform()) {
@@ -292,6 +294,7 @@ final class ProfileTab {
 
     private static Flex rewardsCard(HubPayloads.ProfileData data) {
         Flex card = card();
+        card.id(HubSpotlights.PROFILE_REWARDS);
         card.sizing(Sizing.fill(), Sizing.content());
         card.item(caption(tr("rewards", data.rewards().size())));
         if (!data.platform()) {
@@ -316,6 +319,7 @@ final class ProfileTab {
                 .toList();
         int level = data.level();
         Flex card = card();
+        card.id(HubSpotlights.PROFILE_TRACK);
         card.sizing(Sizing.fill(), Sizing.content());
         card.item(caption(tr("perks")));
         Map<LevelPerks.Kind, Integer> totals = LevelPerks.totals(rules, level);

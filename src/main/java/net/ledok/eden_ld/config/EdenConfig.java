@@ -385,6 +385,12 @@ public class EdenConfig {
         /** The default tours, in tab order. */
         private static java.util.Map<String, String> defaultTours() {
             java.util.Map<String, String> tours = new java.util.LinkedHashMap<>();
+            tours.put("home", "config:hub/home");
+            tours.put("mail", "config:hub/mail");
+            tours.put("profile", "config:hub/profile");
+            tours.put("wardrobe", "config:hub/wardrobe");
+            tours.put("friends", "config:hub/friends");
+            tours.put("party", "config:hub/party");
             tours.put("guild", "config:hub/guild");
             tours.put("guild/members", "config:hub/guild_members");
             tours.put("guild/recruiting", "config:hub/guild_recruiting");
@@ -394,8 +400,9 @@ public class EdenConfig {
             tours.put("waystones", "config:hub/waystones");
             tours.put("activities", "config:hub/activities");
             tours.put("activities/duels", "config:hub/duels");
-            tours.put("mail", "config:hub/mail");
+            tours.put("dailies", "config:hub/dailies");
             tours.put("kits", "config:hub/kits");
+            tours.put("settings", "config:hub/settings");
             return tours;
         }
         public List<String> private_blocks = new ArrayList<>(List.of("potions_ld:alchemy_table", "minecraft:chest",

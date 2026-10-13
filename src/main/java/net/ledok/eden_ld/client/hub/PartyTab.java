@@ -95,6 +95,7 @@ final class PartyTab {
 
         Button inviteButton = new Button(120, 16, tr("invite_menu"),
                 () -> openInviteMenu(screen, data));
+        inviteButton.id(HubSpotlights.PARTY_INVITE);
         inviteButton.enabled(!data.busy() && !data.inviteCandidates().isEmpty());
         if (data.busy()) {
             inviteButton.tooltip(tr("busy"));
@@ -185,6 +186,7 @@ final class PartyTab {
         Flex members = Flex.column().gap(1).padding(Insets.of(4, 4, 4, 4));
         members.sizing(Sizing.fill(), Sizing.expand());
         members.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
+        members.id(HubSpotlights.PARTY_MEMBERS);
         members.item(EdenParchment.text(
                 tr("members", data.members().size(), data.maxSize()), EdenParchment.INK_MID));
         // By rank as the server sends them; within a rank, ignored members after the others online.
@@ -329,7 +331,12 @@ final class PartyTab {
         ScrollPanel chatPanel = new ScrollPanel(width, 100, chat);
         chatPanel.sizing(Sizing.fill(), Sizing.expand());
         chatPanel.scrollTo(Float.MAX_VALUE);
-        column.item(chatPanel);
+        // The log and the field together: what the tour points at.
+        Flex talk = Flex.column().gap(4);
+        talk.sizing(Sizing.fill(), Sizing.expand());
+        talk.id(HubSpotlights.PARTY_CHAT);
+        talk.item(chatPanel);
+        column.item(talk);
 
         Flex compose = Flex.row().gap(4).alignItems(Align.CENTER);
         compose.sizing(Sizing.fill(), Sizing.content());
@@ -357,7 +364,7 @@ final class PartyTab {
             compose.item(HubEmojiPicker.button(PICKER, PartyTab::refresh));
         }
         compose.item(EdenParchment.fitButton(tr("send"), 34, 16, sendChat));
-        column.item(compose);
+        talk.item(compose);
         chatInput = input;
         ChatMentions.target(input, () -> HubState.partyData == null ? java.util.List.of()
                 : HubState.partyData.members().stream().map(PartyMember::name)
@@ -382,6 +389,7 @@ final class PartyTab {
         Flex invites = Flex.column().gap(2).padding(Insets.of(4, 4, 4, 4));
         invites.sizing(Sizing.fill(), Sizing.expand());
         invites.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
+        invites.id(HubSpotlights.PARTY_INVITE);
         // Always there, so inviting is discoverable; greyed out (with the reason) when it can't be used.
         Button inviteButton = new Button(96, 14, tr("invite_menu"),
                 () -> openInviteMenu(screen, data));

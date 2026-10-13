@@ -655,11 +655,17 @@ public class HubScreen extends CanvasScreen {
             return;
         }
 
-        content.item(playerStrip(data));
+        Flex card = playerStrip(data);
+        card.id(HubSpotlights.HOME_CARD);
+        content.item(card);
         content.item(EdenParchment.spacer(2));
-        content.item(attention(data));
+        Flex actions = attention(data);
+        actions.id(HubSpotlights.HOME_ACTIONS);
+        content.item(actions);
         content.item(EdenParchment.spacer(2));
-        content.item(news(data));
+        Flex news = news(data);
+        news.id(HubSpotlights.HOME_NEWS);
+        content.item(news);
     }
 
     /**
