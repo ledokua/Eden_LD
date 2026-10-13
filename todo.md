@@ -32,7 +32,15 @@ needs a README pass too.
         (`message.realm_keys.path_opened`, shown when `commands_on_finish` unlocks the realms) and command replies were
         raw keys — Eden 1.1.7 carries its 47 message strings (en + uk, from its jar). Copied to the pack (not
         committed), Prism and live 2026-10-12 00:53 (1.1.6 to the backups); applies at the next restart.
+  - [x] Locked blocks (owner, 2026-10-13): `tutorial.locked_blocks` — signs, chiseled bookshelves, trapdoors by
+        default; a right-click is refused, the block resent. Eden 1.2.1, dev-tested 2026-10-13: trapdoor stays shut, sign
+        editor doesn't open, books neither go into nor come out of a filled shelf, actionbar message; after finishing
+        the trapdoor opens again. Same build: the chat's hover area reaches the background's right edge (owner: moving
+        right of ⋯ dropped the toolbar) — tested, ⋯ lights and opens up to its right end. Copied to Prism and live
+        2026-10-13 11:01 (chat.3 to the backups), pack a274277 (MCP eden's commit); running on live since the 12:02
+        restart, live `tutorial.json` got the default list. Breaking isn't covered (right-click only).
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
+        Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
         `Window.titleButton`, owner approved) starts the tab's NPCs_LD dialog (`tutorial.tab_tours`, default
         `config:hub/<tab>` for Guild, Waystones, Activities, Mail; `HubTours`, `NpcsCompat`); highlight ids for those
