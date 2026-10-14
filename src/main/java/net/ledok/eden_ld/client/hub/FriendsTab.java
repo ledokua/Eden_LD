@@ -59,6 +59,9 @@ final class FriendsTab {
     private static Boolean requestsOpen;
     private static int seenIncoming;
     private static boolean playersOpen = true;
+    /** The side panels slide in and out (kept across rebuilds). */
+    private static final HubDrawer PLAYERS = new HubDrawer("eden_ld/friends/players", true);
+    private static final HubDrawer REQUESTS = new HubDrawer("eden_ld/friends/requests", false);
 
     private FriendsTab() {
     }
@@ -89,11 +92,19 @@ final class FriendsTab {
         }
         seenIncoming = incoming;
         boolean open = requestsOpen != null ? requestsOpen : incoming > 0;
+        // A panel sliding shut still takes its room until it's in (the tab is built again then).
+        Runnable rebuild = () -> {
+            if (HubState.lastTab == HubTab.FRIENDS) {
+                screen.onFriendsData();
+            }
+        };
+        boolean players = PLAYERS.present(screen, playersOpen, rebuild);
+        boolean requests = REQUESTS.present(screen, open, rebuild);
 
         // [players] bar friends bar [requests]: hidden side panels (and a wider hub) buy more friend columns.
         float friendsWidth = HubScreen.innerWidth() - BAR_WIDTH * 2 - GAP - LANE
-                - (playersOpen ? PLAYERS_WIDTH + LANE : 0)
-                - (open ? REQUESTS_WIDTH + GAP : 0);
+                - (players ? PLAYERS_WIDTH + LANE : 0)
+                - (requests ? REQUESTS_WIDTH + GAP : 0);
         int friendColumns = Math.max(1, Math.min(FRIEND_COLUMNS_MAX,
                 (int) ((friendsWidth + FRIEND_COLUMN_GAP) / (FRIEND_CARD_MIN + FRIEND_COLUMN_GAP))));
 
@@ -104,28 +115,36 @@ final class FriendsTab {
         left.sizing(Sizing.content(), Sizing.fill());
         // A folded side panel's bar stands in for it in the tours.
         Button playersBar = playersBar(data);
-        if (playersOpen) {
-            Flex players = playersColumn(screen, data);
-            players.id(HubSpotlights.FRIENDS_HERE);
-            left.item(players);
-        } else {
+        if (players) {
+            Flex panel = playersColumn(screen, data);
+            if (playersOpen) {
+                panel.id(HubSpotlights.FRIENDS_HERE);
+            }
+            left.item(PLAYERS.wrap(panel, PLAYERS_WIDTH + LANE, 0));
+        }
+        if (!playersOpen) {
             playersBar.id(HubSpotlights.FRIENDS_HERE);
         }
         left.item(playersBar);
         columns.item(left);
+        // The friends take what the side panels leave, so they move with a sliding panel (and only lay out again
+        // once it's in).
         Flex center = Flex.row();
-        center.sizing(Sizing.content(), Sizing.fill());
+        center.sizing(Sizing.expand(), Sizing.fill());
         center.item(friendsColumn(screen, data, friendsWidth, friendColumns));
         Button requestsBar = requestsBar(data, open);
         center.item(requestsBar);
-        columns.item(center);
-        if (open) {
-            Flex requests = requestsColumn(data);
-            requests.id(HubSpotlights.FRIENDS_REQUESTS);
-            columns.item(requests);
-        } else {
+        if (requests) {
+            Flex panel = requestsColumn(data);
+            if (open) {
+                panel.id(HubSpotlights.FRIENDS_REQUESTS);
+            }
+            center.item(REQUESTS.wrap(panel, REQUESTS_WIDTH, GAP));
+        }
+        if (!open) {
             requestsBar.id(HubSpotlights.FRIENDS_REQUESTS);
         }
+        columns.item(center);
         content.item(columns);
     }
 
@@ -219,7 +238,7 @@ final class FriendsTab {
 
     private static Flex friendsColumn(HubScreen screen, FriendsData data, float width, int gridColumns) {
         Flex column = Flex.column().gap(3);
-        column.sizing(Sizing.fixed(width + LANE), Sizing.fill());
+        column.sizing(Sizing.expand(), Sizing.fill());
         column.item(EdenParchment.text(tr("friends", data.friends().size()), EdenParchment.INK_MID));
 
         boolean hadFocus = friendSearchField != null && friendSearchField.isFocused();

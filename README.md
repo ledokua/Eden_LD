@@ -722,7 +722,11 @@ the sections you may use:
   leader and members (online dot), and **Disband**.
 - **World settings** (`eden_ld.admin.world`): a column of pages — **GLOBAL**, then every dimension,
   each marked with how many things it changes and ⬜ when it has a border — each a settings page with a
-  search box. GLOBAL: the server-wide gamerules (as `/gamerule`; the Modded tab for the mods' rules).
+  search box. GLOBAL: the server-wide gamerules (as `/gamerule`) — **Global**, the six with one value for the
+  whole server that no dimension can change (keepInventory, doDaylightCycle, doWeatherCycle, reducedDebugInfo,
+  doImmediateRespawn, doLimitedCrafting); **Gamerules** and **Modded** (the mods' rules), the defaults a dimension
+  can set for itself — a rule some dimension does set says which, with their values ("Set differently in: Nether:
+  Off").
   A dimension: **General** (PvP, difficulty, flight), **Gamerules** (only those that can differ per
   dimension; the Overworld's page also has the Overworld-only ones, which set the server-wide value),
   **Modded** and **Border**. A reset arrow takes a value back to GLOBAL's (on GLOBAL, to Minecraft's
@@ -896,7 +900,8 @@ launcher.
   their profile, **right-click** has *Invite to party* (friends on this server), *Ignore* and
   *Remove friend*, and **hovering** shows a mini profile card (their profile picture, head, name,
   status). Friends you ignore who are online have their own *IGNORED* group, right before *OFFLINE*.
-  Both side panels collapse with slim bars; each hidden panel adds a column of friends (1 → 2 → 3).
+  Both side panels fold away with slim bars, sliding in and out (so do the Guild tab's create form and invites
+  without a guild); each hidden panel adds a column of friends (1 → 2 → 3).
   Search by name, and add `@pack` words to filter by modpack name or id — `@garden mas` finds
   friends named *…mas…* playing GardenMyth. Each friend shows head, name, and status — the dimension they're in (in game), *online*
   or *playing* a modpack elsewhere (launcher-reported), or *last seen … ago*. Removing a friend

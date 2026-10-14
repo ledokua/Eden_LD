@@ -60,6 +60,9 @@ final class GuildTab {
     /** No-guild side panels: the create form (open until toggled) and invites (null = open while any wait). */
     private static boolean createOpen = true;
     private static Boolean invitesOpen;
+    /** The no-guild side panels slide in and out (kept across rebuilds). */
+    private static final HubDrawer CREATE = new HubDrawer("eden_ld/guild/create", true);
+    private static final HubDrawer INVITES = new HubDrawer("eden_ld/guild/invites", false);
     private static int seenInvites;
     /** Narrowest directory card before the list drops back to one column. */
     private static final float DIRECTORY_CARD_MIN = 118;
@@ -182,27 +185,39 @@ final class GuildTab {
                 invitesOpen = null;
             }
             seenInvites = data.myInvites().size();
-            boolean invites = invitesOpen != null ? invitesOpen : !data.myInvites().isEmpty();
+            boolean invitesWanted = invitesOpen != null ? invitesOpen : !data.myInvites().isEmpty();
+            // A panel sliding shut still takes its room until it's in (the tab is built again then).
+            Runnable rebuild = () -> {
+                if (HubState.lastTab == HubTab.GUILD) {
+                    screen.onGuildData();
+                }
+            };
+            boolean create = CREATE.present(screen, createOpen, rebuild);
+            boolean invites = INVITES.present(screen, invitesWanted, rebuild);
             // [create] bar directory bar [invites], like the Friends tab: hidden side panels
             // widen the directory.
             float directoryWidth = HubScreen.innerWidth() - BAR_WIDTH * 2 - PAIR_GAP * 2 - GAP
-                    - (createOpen ? CREATE_WIDTH + PAIR_GAP : 0)
+                    - (create ? CREATE_WIDTH + PAIR_GAP : 0)
                     - (invites ? INVITES_WIDTH + GAP : 0);
-            Flex left = Flex.row().gap(PAIR_GAP);
+            // The gaps beside the side panels are inside their sliding boxes, so a shut panel leaves none.
+            Flex left = Flex.row();
             left.sizing(Sizing.content(), Sizing.fill());
-            if (createOpen) {
-                left.item(createColumn(screen, data));
+            if (create) {
+                left.item(CREATE.wrap(createColumn(screen, data), CREATE_WIDTH, PAIR_GAP));
             }
             left.item(createBar());
             columns.item(left);
-            Flex center = Flex.row().gap(PAIR_GAP);
-            center.sizing(Sizing.content(), Sizing.fill());
-            center.item(directoryColumn(screen, data, directoryWidth));
-            center.item(invitesBar(data, invites));
-            columns.item(center);
+            // The directory takes what the side panels leave, so it moves with a sliding panel.
+            Flex center = Flex.row();
+            center.sizing(Sizing.expand(), Sizing.fill());
+            Flex directory = directoryColumn(screen, data, directoryWidth);
+            directory.margins(Insets.of(0, PAIR_GAP, 0, 0));
+            center.item(directory);
+            center.item(invitesBar(data, invitesWanted));
             if (invites) {
-                columns.item(invitesColumn(data));
+                center.item(INVITES.wrap(invitesColumn(data), INVITES_WIDTH, GAP));
             }
+            columns.item(center);
         }
         content.item(columns);
     }
@@ -284,7 +299,7 @@ final class GuildTab {
     private static Flex directoryColumn(HubScreen screen, GuildData data, float width) {
         Flex column = Flex.column().gap(3);
         column.id(HubSpotlights.GUILD_DIRECTORY);
-        column.sizing(Sizing.fixed(width), Sizing.fill());
+        column.sizing(Sizing.expand(), Sizing.fill());
         float rowWidth = width - LANE;
 
         column.item(EdenParchment.text(tr("directory", data.directory().size()), EdenParchment.INK_MID));

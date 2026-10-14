@@ -30,7 +30,7 @@ button next to anything changed (its tooltip names what it goes back to).
 
 | Page | Tabs |
 | --- | --- |
-| **GLOBAL** | **Gamerules** — the server-wide values of 41 vanilla rules (below), grouped like Minecraft's own gamerule screen: Player, Mobs, Spawning, Drops, World updates, Chat, Misc. **Modded** — the server-wide values of the mod rules. Reset goes back to Minecraft's default. |
+| **GLOBAL** | **Global** (owner, 2026-10-13) — the 6 GLOBAL-only rules (below): what really is the whole server's. **Gamerules** — the server-wide values of the 35 rules a dimension can change (below), grouped like Minecraft's own gamerule screen: Player, Mobs, Spawning, Drops, World updates, Chat, Misc; a rule some dimension sets for itself names those dimensions and their values in its hint. **Modded** — the server-wide values of the mod rules, the same way. Reset goes back to Minecraft's default. |
 | **A dimension** | **General** — PvP (server's / on / off), difficulty (server's / Peaceful / Easy / Normal / Hard), flight (allowed / no rocket boosts / blocked — today's `flight.json` lists). **Gamerules** — the 35 rules that can differ per dimension. **Modded** — the mod rules. **Border**. Reset goes back to the GLOBAL value. |
 
 A dimension stores only what it changes; everything else follows GLOBAL, including later changes.

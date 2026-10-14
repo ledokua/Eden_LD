@@ -40,7 +40,9 @@ import static net.ledok.eden_ld.client.hub.ModerationScreen.text;
 /**
  * Moderation → World settings (docs/PLAN-world-rules.md): a column of pages — GLOBAL, then every
  * dimension, each marked with how many things it changes and whether it has a border — and the page as
- * a VectorLib settings page. GLOBAL edits the server-wide gamerules (as {@code /gamerule}); a dimension
+ * a VectorLib settings page. GLOBAL edits the server-wide gamerules (as {@code /gamerule}): the Global tab the
+ * rules with one value for the whole server, Gamerules and Modded the ones a dimension can set for itself (each
+ * naming the dimensions that do); a dimension
  * page its PvP, difficulty and flight, its own gamerules, the mods' rules and its border. A dimension
  * shows only what can differ per dimension; a reset arrow takes a value back to GLOBAL's (on GLOBAL, to
  * Minecraft's default). Every change goes to the server at once; the page comes back with the result.
@@ -188,23 +190,52 @@ final class WorldSection {
 
     private Settings globalPage() {
         Settings settings = new Settings();
+        // What really is the whole server's: one value, no dimension can change it.
+        settings.section("global", Component.translatable("gui.eden_ld.moderation.world.tab.global"));
+        addRules(settings, rule -> rule.getString("scope").equals("GLOBAL"), rule -> globalOption(rule, false));
+        // The rest is a default: a dimension's own value wins there (the hint names those dimensions).
         settings.section("gamerules", Component.translatable("gui.eden_ld.moderation.world.tab.gamerules"));
-        addRules(settings, rule -> !rule.getBoolean("modded") && !rule.getString("scope").equals("OVERWORLD"),
-                rule -> globalOption(rule));
+        addRules(settings, rule -> !rule.getBoolean("modded") && rule.getString("scope").equals("DIMENSION"),
+                rule -> globalOption(rule, true));
         if (rules().stream().anyMatch(rule -> rule.getBoolean("modded"))) {
             settings.section("modded", Component.translatable("gui.eden_ld.moderation.world.tab.modded"));
-            addRules(settings, rule -> rule.getBoolean("modded"), rule -> globalOption(rule));
+            addRules(settings, rule -> rule.getBoolean("modded"), rule -> globalOption(rule, true));
         }
         return settings;
     }
 
-    /** A rule's server-wide value; the reset arrow goes back to Minecraft's default. */
     private Option<?, ?> globalOption(CompoundTag rule) {
+        return globalOption(rule, false);
+    }
+
+    /**
+     * A rule's server-wide value; the reset arrow goes back to Minecraft's default. {@code overrides}: the hint also
+     * names the dimensions that set it themselves (the value here doesn't reach them).
+     */
+    private Option<?, ?> globalOption(CompoundTag rule, boolean overrides) {
         return ruleOption(rule, rule.getString("value"), rule.getString("default"),
                 value -> action("global_rule", null, args -> {
                     args.putString("rule", rule.getString("id"));
                     args.putString("value", value);
-                }), null);
+                }), null, overrides ? ownValues(rule) : null);
+    }
+
+    /** "Nether: Off, Spawn Dim: 3" — the dimensions with their own value of the rule; null when none has one. */
+    @Nullable
+    private Component ownValues(CompoundTag rule) {
+        String id = rule.getString("id");
+        MutableComponent list = null;
+        for (CompoundTag dimension : dimensions()) {
+            CompoundTag own = dimension.getCompound("rules");
+            if (!own.contains(id)) {
+                continue;
+            }
+            String value = own.getString(id);
+            MutableComponent entry = Component.empty().append(dimensionName(dimension.getString("id"))).append(": ")
+                    .append(rule.getString("type").equals("bool") ? onOff(Boolean.parseBoolean(value)) : Component.literal(value));
+            list = list == null ? entry : list.append(", ").append(entry);
+        }
+        return list == null ? null : Component.translatable("gui.eden_ld.moderation.world.own_values", list);
     }
 
     // ---------------------------------------------------------------- a dimension
@@ -280,7 +311,7 @@ final class WorldSection {
                 changed -> action("rule", dimension, args -> {
                     args.putString("rule", id);
                     args.putString("value", changed);
-                }), locked);
+                }), locked, null);
     }
 
     /**
@@ -421,7 +452,7 @@ final class WorldSection {
 
     /** A rule's control: a switch, a number box, or (a mod's own kind of value) a text field. */
     private Option<?, ?> ruleOption(CompoundTag rule, String value, String defaultValue, Consumer<String> send,
-                                           @Nullable Component locked) {
+                                           @Nullable Component locked, @Nullable Component note) {
         String id = rule.getString("id");
         Component name = I18n.exists("gamerule." + id) ? Component.translatable("gamerule." + id) : Component.literal(id);
         Option<?, ?> option = switch (rule.getString("type")) {
@@ -434,6 +465,9 @@ final class WorldSection {
         MutableComponent hint = Component.literal(id);
         if (I18n.exists("gamerule." + id + ".description")) {
             hint.append(" · ").append(Component.translatable("gamerule." + id + ".description"));
+        }
+        if (note != null) {
+            hint.append("\n").append(note.copy().withStyle(ChatFormatting.GOLD));
         }
         return locked(option.hint(hint).keywords(id), locked);
     }
