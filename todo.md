@@ -39,6 +39,15 @@ needs a README pass too.
         right of ⋯ dropped the toolbar) — tested, ⋯ lights and opens up to its right end. Copied to Prism and live
         2026-10-13 11:01 (chat.3 to the backups), pack a274277 (MCP eden's commit); running on live since the 12:02
         restart, live `tutorial.json` got the default list. Breaking isn't covered (right-click only).
+  - [ ] World settings → GLOBAL (owner, 2026-10-13): a **Global** tab first with the six rules that are one value
+        for the whole server; Gamerules/Modded keep the defaults a dimension can change, and a rule some dimension
+        sets names them in gold ("Set differently in: Nether: Off"). Side panels that slide (owner, 2026-10-14):
+        Friends (On this server, requests) and Guild without one (create form, invites), `HubDrawer` — the panel
+        clipped in a box whose width animates 160 ms, the rest moving with it; one more build once a panel is in.
+        Eden 1.2.3, dev-tested 2026-10-14 (Guild all four slides recorded at 60 fps; the Global tab; the gold line
+        after setting Nether doFireTick, reset after). Friends can't show in dev (Minestar): same code, check live.
+        Committed fd9bf7c; copied to Prism, live (1.2.2 to removed-mods-2026-10-14) and the pack (d4dc303, pushed)
+        2026-10-14 15:35; on live from the next restart.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
