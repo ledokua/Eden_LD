@@ -377,6 +377,7 @@ final class WaystonesTab {
 
         Button star = new Button(12, 12, Component.literal(waystone.favorite() ? "★" : "☆"),
                 () -> ClientPlayNetworking.send(new HubPayloads.WaystoneFavorite(waystone.id(), !waystone.favorite())));
+        HubIcons.button(star, waystone.favorite() ? "favorite_on" : "favorite_off");
         star.tooltip(tr(waystone.favorite() ? "unfavorite" : "favorite"));
         // The first row's star and Teleport carry the tour's names.
         boolean named = !firstRowNamed;

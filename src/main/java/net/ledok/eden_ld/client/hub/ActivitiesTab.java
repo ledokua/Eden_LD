@@ -271,8 +271,13 @@ final class ActivitiesTab {
             add(TextNode.of(entry.name()).at(5, 5).maxWidth((int) width - 10).ellipsis(true)
                     .color(light ? 0xFFFFFFFF : EdenParchment.INK).shadow(light));
             if (!below.isEmpty()) {
-                add(TextNode.of(Component.literal("⚠")).at(width - 5, 4).align(TextNode.Align.RIGHT)
-                        .color(0xFFF2C94C).shadow(true));
+                HubIcons.Icon warning = HubIcons.get("warning");
+                if (warning != null) {
+                    add(warning.node(8).at(width - 5 - 8, 4));
+                } else {
+                    add(TextNode.of(Component.literal("⚠")).at(width - 5, 4).align(TextNode.Align.RIGHT)
+                            .color(0xFFF2C94C).shadow(true));
+                }
             }
             if (!entry.unlocked()) {
                 // Two lines, so the level is never cut off.

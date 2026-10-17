@@ -1,6 +1,6 @@
 # Hub icons
 
-Every icon the hub needs, for the artist. Until a file exists the hub draws a placeholder (a
+Every icon the hub needs, for the artist (updated 2026-10-15). Until a file exists the hub draws a placeholder (a
 colored square or circle, or a text symbol), so icons can be added one at a time.
 
 **Format**: PNG with a transparent background, square, one file per icon. Any power-of-two size
@@ -10,11 +10,22 @@ is only about 24–36 screen pixels, so fine details (thin lines, small faces) v
 readability: bold shapes, a dark outline, few colors. Icons larger than they're drawn get smooth
 scaling (see Delivered).
 
-**Where**: `assets/eden_ld/textures/gui/icons/<name>.png`. Planned: a theme may override any icon
-with its own file in `textures/gui/themes/<theme>/icons/<name>.png` (for a dark theme, a stone
-theme, …).
+**Where**: `assets/eden_ld/textures/gui/icons/<name>.png`. A hub theme may bring its own version of any
+icon: `assets/eden_ld/textures/gui/themes/<theme>/icons/<name>.png` (themes today: `parchment`, `dark`,
+`stone_tablet`, `overgrown`) is used while that theme is on; a theme without the file keeps the standard
+icon, and players can turn theme icons off (Settings → Visual → Theme icons). No theme has its own icons yet.
 
 ## Delivered
+
+**2026-10-15 — 10 by Tend1tnuy (16 × 16 pixel art, Discord #dev-text):** `tab_wardrobe`, `tab_maximize`,
+`tab_restore` (drawn at 16, pixel-exact), and `favorite_on`, `favorite_off`, `rename`, `invite`, `open_external`,
+`tour`, `warning` (drawn at 8, so each has the blur `.mcmeta`). Wired in Eden 1.2.4: the three tab-bar icons, the
+waystone stars, `rename` on the Moderation mail draft's rename button (a waystone's rename is in its right-click
+menu now), `open_external` in the GIF viewer's title bar, `warning` on Activities cards. Not wired yet: `tour`
+(the help window's title-bar buttons take only text — needs a VectorLib change) and `invite` (no envelope button
+is left: party invites are on the cards' right-click menu and the *Invite* action).
+
+**2026-10-11 — `tab_kits`:** for now a copy of `tab_duels` (owner's pick), for the Kits tab.
 
 **2026-10-05 — the 16 × 16 set, redrawn:** cleaner outlines and flat colors for all 16 (the tab
 icons, `close_clear`, `check`), plus `tab_mail_unread` — a sealed envelope while unread mail waits;
@@ -45,7 +56,7 @@ the page title). An empty tab shows its icon at 32 × 32.
 | --- | --- | --- | --- |
 | `tab_home` | Home (also the inventory's hub button) | house | ✅ |
 | `tab_profile` | Profile | person bust / ID card | ✅ |
-| `tab_wardrobe` | Wardrobe (looks to wear, buy and gift) | wardrobe / clothes hanger | |
+| `tab_wardrobe` | Wardrobe (looks to wear, buy and gift) | wardrobe / clothes hanger | ✅ |
 | `tab_friends` | Friends | two people | ✅ |
 | `tab_party` | Party | three people / crossed swords | ✅ |
 | `tab_guild` | Guild | banner / shield | ✅ |
@@ -60,8 +71,8 @@ the page title). An empty tab shows its icon at 32 × 32.
 | `tab_moderation` | Moderation (staff only) | judge's gavel | ✅ |
 | `tab_settings` | Settings | gear | ✅ |
 | `tab_help` | the "?" button | question mark | ✅ |
-| `tab_maximize` | the button that makes the hub fill the window (a □ until drawn) | square / four outward arrows | |
-| `tab_restore` | the same button while maximized, back to the player's size (a ❐ until drawn) | two stacked squares / inward arrows | |
+| `tab_maximize` | the button that makes the hub fill the window (a □ until drawn) | square / four outward arrows | ✅ |
+| `tab_restore` | the same button while maximized, back to the player's size (a ❐ until drawn) | two stacked squares / inward arrows | ✅ |
 
 The tab bar ends with the close button, `close_clear` ✅ (a red X).
 
@@ -75,20 +86,24 @@ in chat.
 | `lc` | after every LC amount ("500" + coin): balance, prices, rewards, the guild bank, chat messages | ✅ |
 | `hourglass` | before countdowns and durations: playtime, quest resets, mail deletion, waystone cooldown | ✅ |
 
-## Buttons (8)
+## Buttons (12)
 
 Replace the text symbols on small buttons. Shown at **8 × 8** (inside 12–18 unit buttons).
 
 | Name | Replaces | Where |
 | --- | --- | --- |
-| `close` | ✖ | remove friend, cancel invite, kick, dialogs (delivered, not wired yet) |
+| `close` | ✖ | remove friend, cancel invite, kick, decline, dialogs (delivered, not wired yet) |
 | `check` | ✔ | "claimed" on dailies (quest cards and the All missions row) ✅ |
+| `accept` | ✔ | accept a friend request, a party invite, a guild invite (may be the same picture as `check`) |
 | `reroll` | ↻ | reroll a daily quest |
-| `favorite_on` | ★ | waystone in favorites |
-| `favorite_off` | ☆ | waystone not in favorites |
-| `rename` | ✎ | rename a waystone |
-| `invite` | the envelope button | invite to party (Friends cards) |
-| `open_external` | ↗ | open a GIF in the browser |
+| `favorite_on` | ★ | waystone in favorites ✅ |
+| `favorite_off` | ☆ | waystone not in favorites ✅ |
+| `rename` | ✎ | rename a mail draft in Moderation (waystones rename from their right-click menu) ✅ |
+| `invite` | the envelope button | invite to party — delivered, no button left to put it on (the cards' right-click menu) |
+| `open_external` | ↗ | open a GIF in the browser (the GIF viewer's title bar) ✅ |
+| `gear` | ⚙ | party settings and guild settings (leaders and officers) |
+| `tour` | ▶ | the help window's title bar: starts the open tab's tour — delivered, not wired (needs VectorLib) |
+| `warning` | ⚠ | an Activities card a party member's level is too low for (yellow) ✅ |
 
 ## Ranks (6)
 
@@ -117,22 +132,23 @@ Shown at **8 × 8** before names in member lists (replace ♛ ♚ ★ ·).
 
 The unread dot is drawn in the notification color, no file needed.
 
-## Moderation sections (10)
+## Moderation sections (11)
 
-Shown at **12 × 12** on the Moderation window's section buttons (staff only).
+Shown at **12 × 12** on the Moderation window's section buttons (staff only), in the window's order.
 
 | Name | Section |
 | --- | --- |
-| `mod_mail` | write mail (quill + envelope) |
-| `mod_sent` | mail log: sent mail and its read / claimed counts |
-| `mod_news` | Home news (newspaper / scroll) |
-| `mod_backgrounds` | profile background rules (picture frame) |
+| `mod_mail` | Mail: write mail (quill + envelope) |
+| `mod_sent` | Mail log: sent mail and its read / claimed counts |
+| `mod_news` | News: the Home tab's news (newspaper / scroll) |
+| `mod_customization` | Customization: profile backgrounds and hub themes, their locks and prices (picture frame / palette) |
 | `mod_activities` | Activities: which dungeons, raids and arenas the hub shows, their card art and levels (dungeon door with a cog) |
-| `mod_players` | player page: punish, unlocks, dailies, activities, emojis |
-| `mod_punish_log` | punishment log (book with a red mark) |
-| `mod_guilds` | guild admin (disband …) |
-| `mod_parties` | party admin |
-| `mod_server` | server tools: reload, command dump, op-only commands (wrench) |
+| `mod_players` | Players: the player page — punish, unlocks, dailies, activities, emojis |
+| `mod_punish_log` | Punishments: the punishment log (book with a red mark) |
+| `mod_guilds` | Guilds: guild admin (disband …) |
+| `mod_parties` | Parties: party admin |
+| `mod_world` | World settings: gamerules, PvP, difficulty, flight and borders per dimension (globe / portal) |
+| `mod_server` | Server: reload, command dump, op-only commands (wrench) |
 
 ## Guild sub-tabs (5, optional)
 
@@ -163,6 +179,17 @@ Shown at **8 × 8** before the sub-tab name; the text alone works too.
 | `settings_notifications` | Notifications (bell) |
 | `settings_visual` | Visual (brush / palette) |
 
+## Chat (3, optional)
+
+The chat window's hover toolbar, at the right end of the line under the mouse. Shown at **8 × 8**; the text
+symbols work too.
+
+| Name | Replaces | Button |
+| --- | --- | --- |
+| `chat_reply` | ↩ | Reply (someone else's message): `@name` into the chat field |
+| `chat_copy` | ⧉ | Copy the message's text |
+| `chat_more` | ⋯ | More: the message's menu (Reply, Copy text, Open profile, Moderate for staff) |
+
 ## Trinket slots (11, optional)
 
 Not hub icons: the empty-slot pictures of the inventory's trinket slots, set up by the
@@ -191,8 +218,9 @@ a missing file shows the purple-and-black texture).
 | `backtank` | Back (Create backtank) | hovering the chestplate | Trinkets' back |
 | `belt` | Belt (Tom's Storage wireless terminal) | hovering the leggings | Trinkets' belt |
 
-**Total**: 18 tabs + close + 2 text icons + 8 buttons + 6 ranks + 7 mail + 10 moderation + 1 guild
-quest = **53**, plus 9 optional (5 guild sub-tabs, 4 settings sub-tabs) and 11 optional trinket slots. **Delivered: 20** (15 of 18
-tabs — all but `tab_wardrobe`, `tab_maximize` and `tab_restore` — both close buttons, `check`, `lc`,
-`hourglass`). **Next most visible:** the Buttons (reroll,
-favorites, rename, invite…), then ranks.
+**Total**: 19 tabs + the tab bar's close + 2 text icons + 12 buttons + 6 ranks + 7 mail + 11 moderation + 1 guild
+quest = **59**, plus 12 optional (5 guild sub-tabs, 4 settings sub-tabs, 3 chat) and 11 optional trinket slots.
+**Delivered: 31** (all 19 tabs, both close buttons, `check`, `lc`, `hourglass`, and 8 buttons: `favorite_on`,
+`favorite_off`, `rename`, `invite`, `open_external`, `tour`, `warning`, plus `close`); `close`, `invite` and `tour`
+aren't on screen yet. **Next most visible:** the rest of the Buttons — `accept` (✔ on every request and invite),
+`reroll` (↻ on every daily quest), `gear` (⚙) — then the ranks.

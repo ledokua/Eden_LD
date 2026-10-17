@@ -642,6 +642,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         draftList.size(listWidth, 16);
         row.item(draftList);
         Button rename = icon("✎", this::renameDraft);
+        HubIcons.button(rename, "rename");
         rename.tooltip(Component.translatable("gui.eden_ld.moderation.rename_draft"));
         row.item(rename);
         Button fresh = icon("+", () -> {

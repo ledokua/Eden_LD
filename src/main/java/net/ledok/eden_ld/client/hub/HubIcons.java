@@ -53,6 +53,21 @@ public final class HubIcons {
                 ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "textures/gui/icons/" + name + ".png"))).orElse(null);
     }
 
+    /** A small button shows the icon instead of its text symbol, once the file exists (it stays text until then). */
+    static void button(net.ledok.vectorlib.client.canvas.widget.Button button, String name) {
+        Icon icon = get(name);
+        if (icon != null) {
+            button.icon((size, color) -> icon.node(size));
+        }
+    }
+
+    /** An icon's texture for code drawing outside the canvas (chat's GIF viewer), or null while it has no file. */
+    @Nullable
+    public static ResourceLocation texture(String name) {
+        Icon icon = get(name);
+        return icon == null ? null : icon.texture();
+    }
+
     /** The active theme's icons folder, or null while theme icons are off. */
     @Nullable
     private static ResourceLocation themedFolder() {

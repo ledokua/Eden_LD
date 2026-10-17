@@ -150,7 +150,16 @@ public final class GifViewer {
         int closeX = p[2] - 12;
         boolean overOpen = over(mouseX, mouseY, openX, p[1], closeX - 2, p[1] + TITLE);
         boolean overClose = over(mouseX, mouseY, closeX, p[1], p[2], p[1] + TITLE);
-        graphics.drawString(font, "↗", openX + 6, p[1] + 2, overOpen ? 0xFFFFFFFF : 0xFFA0A0A0, false);
+        net.minecraft.resources.ResourceLocation open = net.ledok.eden_ld.client.hub.HubIcons.texture("open_external");
+        if (open != null) {
+            // Dimmed until hovered, like the text symbol.
+            float shade = overOpen ? 1.0F : 0.7F;
+            graphics.setColor(shade, shade, shade, 1.0F);
+            graphics.blit(open, openX + 6, p[1] + 1, 8, 8, 0, 0, 16, 16, 16, 16);
+            graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        } else {
+            graphics.drawString(font, "↗", openX + 6, p[1] + 2, overOpen ? 0xFFFFFFFF : 0xFFA0A0A0, false);
+        }
         graphics.drawString(font, "✕", closeX + 2, p[1] + 2, overClose ? 0xFFFF6060 : 0xFFA0A0A0, false);
         int top = p[1] + TITLE;
         if (status == Status.READY && texture != null) {
