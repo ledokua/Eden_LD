@@ -189,11 +189,6 @@ public final class ClientChatChannel {
 
     /** Badge text color, matching the channel tags in chat. */
     public static int color(Channel channel) {
-        return switch (channel) {
-            case GLOBAL -> 0xFFFFFFFF;
-            case LOCAL -> 0xFFFFFF55;
-            case PARTY -> 0xFF55FF55;
-            case GUILD -> 0xFF55FFFF;
-        };
+        return net.ledok.eden_ld.client.chat.model.ChatTabSpec.color(channel);
     }
 }

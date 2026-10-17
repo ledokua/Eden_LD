@@ -2,20 +2,21 @@ package net.ledok.eden_ld.client.chat.panel;
 
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.chat.ChatMarker;
-import net.ledok.eden_ld.client.hub.HubState;
+import net.ledok.eden_ld.client.chat.model.ChatCounters;
 import net.minecraft.client.GuiMessage;
-import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * Every chat message since joining, oldest first — Eden's own copy of what vanilla's chat receives (vanilla keeps its
- * 100 for itself, the log and other mods). The panel draws from here; channel views are filters over the one list, so
- * switching channel never re-lays anything out. {@link #version} changes whenever the list does.
+ * 100 for itself, the log and other mods). The chat views draw from here; channel views are filters over the one list,
+ * so switching channel never re-lays anything out. {@link #version} changes whenever the list does,
+ * {@link #seenEpoch} whenever a line is seen (or new again).
  */
 public final class ChatStore {
 
@@ -24,6 +25,9 @@ public final class ChatStore {
 
     private static final List<ChatEntry> ENTRIES = new ArrayList<>();
     private static int version;
+    private static int seenEpoch;
+    @Nullable
+    private static ChatCounters counters;
 
     private ChatStore() {
     }
@@ -36,8 +40,37 @@ public final class ChatStore {
         return version;
     }
 
+    public static int seenEpoch() {
+        return seenEpoch;
+    }
+
+    static void seenChanged() {
+        seenEpoch++;
+    }
+
+    /** What isn't seen yet, per channel (counted again only after a change). */
+    public static ChatCounters counters() {
+        counters = ChatCounters.of(counters, ENTRIES, version, seenEpoch);
+        return counters;
+    }
+
     public static void clear() {
         ENTRIES.clear();
+        version++;
+    }
+
+    /** The messages as they are now, to put back after a reconfiguration ({@link #restore}). */
+    public record Snapshot(List<ChatEntry> entries) {
+    }
+
+    public static Snapshot snapshot() {
+        return new Snapshot(List.copyOf(ENTRIES));
+    }
+
+    /** The messages of a snapshot, in place of what's here (as vanilla puts its own back). */
+    public static void restore(Snapshot snapshot) {
+        ENTRIES.clear();
+        ENTRIES.addAll(snapshot.entries());
         version++;
     }
 
@@ -45,8 +78,11 @@ public final class ChatStore {
     public record Added(ChatEntry entry, boolean repeat) {
     }
 
-    /** A message vanilla's chat just took in. */
-    public static Added add(GuiMessage message, boolean mention) {
+    /**
+     * A message vanilla's chat just took in. {@code self}: the player (their own lines count as seen), {@code ignored}:
+     * whose lines there's nothing to see in.
+     */
+    public static Added add(GuiMessage message, boolean mention, @Nullable UUID self, Predicate<UUID> ignored) {
         ChatMarker.Mark mark = ChatMarker.find(message.content());
         // Spam protection: the very same line again (same sender, same text) counts on the last one.
         if (!ENTRIES.isEmpty()) {
@@ -57,11 +93,10 @@ public final class ChatStore {
                 return new Added(last, true);
             }
         }
-        UUID me = Minecraft.getInstance().player == null ? null : Minecraft.getInstance().player.getUUID();
-        boolean own = mark != null && me != null && me.equals(mark.sender());
+        boolean own = mark != null && self != null && self.equals(mark.sender());
         ChatEntry entry = new ChatEntry(message, mark, channelOf(mark), own, mention && !own);
         // Nothing to see in one's own lines or an ignored player's.
-        entry.seen = own || mark != null && HubState.ignores(mark.sender());
+        entry.seen(own || mark != null && mark.sender() != null && ignored.test(mark.sender()));
         ENTRIES.add(entry);
         if (ENTRIES.size() > LIMIT) {
             ENTRIES.remove(0);

@@ -108,6 +108,12 @@ notices; Global's pip back to the normal view.
 4. **Cleanup**: drop the vanilla-window mixins this replaces, the ChatPatches compatibility, and (with the owner)
    Chat Heads from the pack once the panel draws heads.
 
+## Superseded (owner, 2026-10-17)
+
+The chat becomes GardenMyth-like ([PLAN-chat-v2.md](PLAN-chat-v2.md)): decisions 1–5 below are reopened — a
+movable, themed chat with a tab strip instead of the pips, a private-message tab, and Eden's own look over vanilla's
+input. The store, markers, message actions and filters described here stay; they are the base the new chat builds on.
+
 ## Decisions (owner, 2026-10-12)
 
 1. **Input**: vanilla's input line stays.

@@ -141,6 +141,29 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
 - Pips, the mention pill, the System view, ×N and the queue-line click behave exactly as in 1.2.5.
 - Compare F3 profiler frame time with chat open before and after.
 
+**Built (2026-10-17, Eden 1.2.6).** As planned, with amendments 1–3 and 19, except:
+- `client/chat/model/` holds the plain code: `ChatTabSpec` (the filters — `shows(mark, rules)`; 1.2.5's
+  `ChatFilter.hidden` is now the pips' tab: System, the selected channel with "only the selected channel", else All),
+  `ChatRules` (self, ignore list, switches, typing channel — built by `ChatFilter.rules()`), `ChatCounters`,
+  `ChatViewport`, `WrapCache` (the two-slot wrap cache), `ChatLayout` (anchor + fractions + zoom, clamped),
+  `ChatWindow` (id + layout; tabs come with the tab strip in phase 5), `ToastQueue`.
+- `client/chat/panel/ChatView` (instances) + `ChatViews` (`main()`, owned by no screen, per amendment 1); `ChatPanel` is
+  the static front ChatComponentMixin calls.
+- **No lifetime `received` counts in ChatStore**: `ChatViewport.newCount` is counted by the view itself when a line it
+  shows arrives while scrolled up — exact under the filters and search. The scroll bar's red uses it.
+- **Counters** are keyed on `ChatStore.version()` + `seenEpoch` only; mutes and notification levels are applied when
+  read (ChatActivity), so a mute ending by the clock needs no key (amendment 2's intent).
+- Reconfiguration: `storeState` RETURN snapshots the store (keyed by vanilla's State object), `restoreState` TAIL puts
+  it back; nothing is replayed through `added`. `handleChatQueueClicked` asks the main view.
+- `fontEpoch` is bumped by the client resource reload listener (F3+T, pack changes): lines wrap again.
+- `ToastQueue` is fed (lines the main view isn't showing, by the channel's notifications and mute) but not drawn yet.
+- Tests: `./gradlew test` — 34 JUnit tests, plain JUnit 5 (no game started); `ChatFilterEquivalenceTest` checks the
+  new filters against a copy of 1.2.5's `ChatFilter.hidden` over every marker, setting and pip choice (≈162k cases).
+- Dev-tested 2026-10-17 with two clients: pips and their tooltips, @N and dots in the System view, "↓ Mentions" jump,
+  ×N, hold-still scrolling and the red scroll bar, F3+T, the Chat Delay line click, toolbar and menu — as in 1.2.5.
+  The reconfiguration snapshot is unit-tested only (no proxy in dev). No profiler comparison was made: the pips now
+  read cached counters instead of rescanning the 1000-line store ~15 times per frame.
+
 ### Phase 2 — VectorLib 0.7.0: SDF `RoundedBox` (approved) (6 d)
 
 **Goal:** the approved node. The look of existing consumers does not change.

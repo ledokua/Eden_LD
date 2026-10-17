@@ -38,7 +38,8 @@ public class EdenLDClient implements ClientModInitializer {
         net.ledok.eden_ld.client.compat.FtbSidebarCompat.initialize();
         // EMI no longer hangs on "Reloading..." after a rejoin; /emireload.
         net.ledok.eden_ld.client.compat.EmiReloadFix.initialize();
-        // The hub language's tables and the hub icons are read again after a resource reload (F3+T, pack changes).
+        // The hub language's tables and the hub icons are read again after a resource reload (F3+T, pack changes),
+        // and chat lines are wrapped again (the font may have changed).
         net.fabricmc.fabric.api.resource.ResourceManagerHelper.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)
                 .registerReloadListener(new net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener() {
                     @Override
@@ -50,6 +51,7 @@ public class EdenLDClient implements ClientModInitializer {
                     public void onResourceManagerReload(net.minecraft.server.packs.resources.ResourceManager manager) {
                         net.ledok.eden_ld.client.hub.HubLanguage.reloaded();
                         net.ledok.eden_ld.client.hub.HubIcons.clear();
+                        net.ledok.eden_ld.client.chat.panel.ChatEntry.fontChanged();
                     }
                 });
         // Waystones' "Visible to Team" means the owner's guild here (see WaystonesIntegration).

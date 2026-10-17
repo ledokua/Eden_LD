@@ -999,7 +999,8 @@ chat itself instead of Minecraft's window — in the same place and size, follow
 width, height, line spacing, opacity, text background, chat delay, hidden chat). Typing stays Minecraft's own input
 (command suggestions, ↑/↓ history, signed chat), and every message still reaches Minecraft's chat too (the log, the
 narrator, other mods). What it adds:
-- **1000 messages** of history (Minecraft keeps 100), and switching channel view is instant.
+- **1000 messages** of history (Minecraft keeps 100), and switching channel view is instant. They stay through a
+  server switch behind a proxy (a reconfiguration), as Minecraft keeps its own 100, still read or unread as they were.
 - **Heads**: each player's face before their message.
 - **Spam protection**: the very same line again from the same sender, right after it, adds a gray **×N** to the last
   one instead of a new line (it comes back on screen and counts as new).

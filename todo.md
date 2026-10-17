@@ -63,6 +63,14 @@ needs a README pass too.
         `muteBlockedCommands` now also lists `p`, `g`, `l` (Prism Server + live; originals in removed-mods-2026-10-17 /
         backup/old-configs-2026-10-17; BanHammer reads it on restart or its reload). Open: hub panels clear the draft
         even when refused (→ chat v2).
+        **Phase 1 built (Eden 1.2.6, 2026-10-17)**: chat model apart from drawing — `client/chat/model/` (tab filters,
+        rules, cached counters, viewport, two-slot wrap cache, layout, window, toast queue), `ChatView` instances behind
+        the static `ChatPanel`, Eden's lines kept across a reconfiguration (proxy switch), the queue-line click asks the
+        view, lines wrap again after F3+T. First JUnit tests (34, incl. a 1.2.5 filter equivalence check), all pass.
+        Dev-tested 2026-10-17 (LeDok + Bob): heads, ×2, mention stripe and 30 s linger, pips; System view hides chat,
+        L pip @1 + dot, "↓ Mentions: 1" jumps to Local and clears; scrolled up holds still, scroll bar blue → red on new
+        lines; F3+T; Chat Delay "[+2 pending lines]" click releases the next at once; hover toolbar, right-click menu.
+        Not tested: a real proxy switch (unit-tested only). Not committed, not deployed.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2

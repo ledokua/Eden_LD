@@ -2,9 +2,12 @@ package net.ledok.eden_ld.client.chat;
 
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.chat.ChatMarker;
+import net.ledok.eden_ld.client.chat.model.ChatCounters;
+import net.ledok.eden_ld.client.chat.model.ToastQueue;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.client.chat.panel.ChatPanel;
 import net.ledok.eden_ld.client.chat.panel.ChatStore;
+import net.ledok.eden_ld.client.chat.panel.ChatViews;
 import net.ledok.eden_ld.client.hub.HubState;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubSettings;
@@ -13,17 +16,25 @@ import net.minecraft.client.GuiMessage;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
+
 /**
  * What happened in each chat channel that the player hasn't seen ({@code docs/PLAN-chat-activity.md}): messages from
  * others (the dot on the channel's pip) and messages mentioning them (@N), read off {@link ChatStore} — a message
  * counts as seen once the open chat has drawn it ({@link ChatPanel}). Mutes and notification levels come from the
- * player's hub settings (per channel, kept on the server).
+ * player's hub settings (per channel, kept on the server). Lines the chat window isn't showing also go to the closed
+ * chat's toasts ({@link #toasts()}, drawn from phase 6 of {@code docs/PLAN-chat-v2.md}).
  */
 public final class ChatActivity {
 
     /** The "All messages" sound at most this often. */
     private static final long SOFT_SOUND_GAP_MS = 1500;
     private static long lastSoftSound;
+    private static final ToastQueue TOASTS = new ToastQueue();
+    /** Eden's lines at each reconfiguration (vanilla's chat state, until it's put back). */
+    private static final Map<Object, ChatStore.Snapshot> SNAPSHOTS = new WeakHashMap<>();
 
     private ChatActivity() {
     }
@@ -54,68 +65,85 @@ public final class ChatActivity {
     /** A message just joined vanilla's chat (ChatComponentMixin): Eden's store takes it too. */
     public static void added(GuiMessage message) {
         Minecraft minecraft = Minecraft.getInstance();
-        boolean mention = minecraft.player != null && ChatMarker.mentions(message.content(), minecraft.player.getUUID());
-        ChatStore.Added added = ChatStore.add(message, mention);
+        UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
+        boolean mention = self != null && ChatMarker.mentions(message.content(), self);
+        ChatStore.Added added = ChatStore.add(message, mention, self, HubState::ignores);
         ChatEntry entry = added.entry();
         // Any new line (server lines too): a scrolled-up chat holds still. A repeat stays where it was.
         if (!added.repeat()) {
-            ChatPanel.added(entry);
+            ChatViews.added(entry);
         }
         Channel channel = entry.channel();
         if (entry.seen() || channel == null) {
             return;
         }
-        if (!mention && muted(channel)) {
+        boolean muted = muted(channel);
+        if (!mention && muted) {
             // Muted: nothing to catch up on later either.
             entry.markSeen();
             return;
         }
-        if (!mention && notify(channel) == ChannelNotify.ALL_MESSAGES && !ChatFilter.channelSwitchedOff(channel)) {
+        ChannelNotify notify = notify(channel);
+        if (!mention && notify == ChannelNotify.ALL_MESSAGES && !ChatFilter.channelSwitchedOff(channel)) {
             long now = System.currentTimeMillis();
             if (now - lastSoftSound >= SOFT_SOUND_GAP_MS) {
                 lastSoftSound = now;
                 MentionSound.playSoft();
             }
         }
+        if (!ChatViews.main().shows(entry)) {
+            TOASTS.offer(entry, channel, notify, muted, entry.mention(), System.currentTimeMillis());
+        }
+    }
+
+    /** Vanilla's chat was cleared (leaving, or a reconfiguration): so is Eden's. */
+    public static void cleared() {
+        ChatStore.clear();
+        TOASTS.clear();
+        ChatViews.resetScroll();
+    }
+
+    /** Vanilla saved its chat for a reconfiguration (it clears it next): Eden's lines are kept with it. */
+    public static void stored(Object state) {
+        SNAPSHOTS.put(state, ChatStore.snapshot());
+    }
+
+    /**
+     * Vanilla put its chat back after a reconfiguration: Eden's lines come back too, as they were (seen, counted) —
+     * never replayed as new, so no sounds, toasts or dots come again.
+     */
+    public static void restored(Object state) {
+        ChatStore.Snapshot snapshot = SNAPSHOTS.remove(state);
+        if (snapshot != null) {
+            ChatStore.restore(snapshot);
+            ChatViews.resetScroll();
+        }
+    }
+
+    /** The closed chat's toasts, without those of channels read since or set to Nothing. */
+    public static ToastQueue toasts() {
+        if (!TOASTS.isEmpty()) {
+            ChatCounters counters = ChatStore.counters();
+            TOASTS.retain(channel -> notify(channel) != ChannelNotify.NOTHING && counters.unseen(channel) > 0);
+        }
+        return TOASTS;
     }
 
     // ---------------------------------------------------------------- what the pips show
 
     /** The dot: messages there not seen yet (never while muted). */
     public static boolean unseen(Channel channel) {
-        if (muted(channel)) {
-            return false;
-        }
-        for (ChatEntry entry : ChatStore.entries()) {
-            if (entry.channel() == channel && !entry.seen()) {
-                return true;
-            }
-        }
-        return false;
+        return !muted(channel) && ChatStore.counters().unseen(channel) > 0;
     }
 
     /** The System pip's dot: system lines (the server's, deaths, advancements) not seen yet. */
     public static boolean unseenSystem() {
-        for (ChatEntry entry : ChatStore.entries()) {
-            if (entry.channel() == null && !entry.seen()) {
-                return true;
-            }
-        }
-        return false;
+        return ChatStore.counters().unseenSystem() > 0;
     }
 
     /** The @N badge: mentions there not seen yet (none when its notifications are Nothing). */
     public static int mentions(Channel channel) {
-        if (notify(channel) == ChannelNotify.NOTHING) {
-            return 0;
-        }
-        int count = 0;
-        for (ChatEntry entry : ChatStore.entries()) {
-            if (entry.channel() == channel && entry.mention() && !entry.seen()) {
-                count++;
-            }
-        }
-        return count;
+        return notify(channel) == ChannelNotify.NOTHING ? 0 : ChatStore.counters().mentions(channel);
     }
 
     public static int mentionsTotal() {
@@ -133,6 +161,7 @@ public final class ChatActivity {
                 entry.markSeen();
             }
         }
+        TOASTS.read(channel);
     }
 
     /** Muting clears the dot (mentions stay). */

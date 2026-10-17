@@ -114,6 +114,15 @@ dependencies {
     modLocalRuntime files("libs/Economy_LD-1.0.2.jar")
     // Its bundled SQLite driver isn't unpacked from a local jar in the dev run.
     localRuntime "org.xerial:sqlite-jdbc:3.49.1.0"
+
+    // Unit tests of plain code (the chat model): no game is started.
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 loom {
