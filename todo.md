@@ -48,6 +48,17 @@ needs a README pass too.
         after setting Nether doFireTick, reset after). Friends can't show in dev (Minestar): same code, check live.
         Committed fd9bf7c; copied to Prism, live (1.2.2 to removed-mods-2026-10-14) and the pack (d4dc303, pushed)
         2026-10-14 15:35; on live from the next restart.
+  - [ ] **Chat v2** (owner, 2026-10-17; `docs/PLAN-chat-v2.md`): GardenMyth-like chat in Eden's themes, VectorLib
+        RoundedBox (0.7.0) + UiFont (0.8.0), PM tab in the core. **Phase 0 built (Eden 1.2.5)**: `chat/ChatGuard` —
+        `ChatChannels.send` (hub party/guild chat, /p /g /l) refuses § and control chars, >256, BanHammer mutes
+        (cached off-thread: event-sourced new mutes, two-reads-to-unmute, re-reads), a rate limit
+        (`chat.rate_limit_messages` 6 / `rate_limit_seconds` 5); guild name/MOTD, party name, bank tab names, gift notes
+        refuse § too (MOTD and gift note not while muted; note Markdown-escaped); /l shows refusals; ChatPatchesMenuMixin
+        removed. Reviewed twice by agents (all findings fixed). Dev-tested 2026-10-17: /g normal, § and >256 refused, 6-message
+        burst then "too fast", BanHammer mute refused at once on /g and /l, unmute lifted after ~18 s, a 15 s tempmute
+        lifted on time, the mute kept across a rejoin, the hub guild panel shows "You are muted."; 1.2.4's icons seen
+        (wardrobe tab, restore button, waystone stars). Open: add
+        `p`, `g`, `l` to BanHammer's `muteBlockedCommands` (pack/live config); hub panels clear the draft even when refused.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
