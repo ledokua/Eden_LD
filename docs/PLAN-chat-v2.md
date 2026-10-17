@@ -179,6 +179,25 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
 
 **Files, effort split and tests:** see the spec section.
 
+**Built (2026-10-17, VectorLib 0.7.0).** As specified, with amendments 11, 13 and 17:
+- `RoundedBox`, `BoxStyle`, `BoxShadow`, `BorderAlign` (`client.canvas`); `BoxRenderer` (shader quads + path
+  fallback) and `BoxCodec` (the packing, package-private); `VectorShaders` + `VectorRenderTypes.roundedBox/
+  roundedBoxShadow` (`render.primitive`); shader files `assets/vectorlib/shaders/core/rounded_box.{json,vsh,fsh}`
+  (glslang-validated, namespaced stage names).
+- Modes 4/5 encode a centered/outside border (the fill's inset); outer shadows and glows use a render type without
+  depth writes (amendment 11). Not done: the "all shadows before all boxes" batch for GuiGraphics runs — boxes are
+  emitted in painter's order instead (a run without shadows is still one draw call; shadows split it).
+- No public `CanvasRenderContext.box()` (only `sdf()`): custom nodes use `RoundedBox.draw(ctx, …)`.
+- The GuiGraphics overload draws at the pose's z (its path fallback too), so text drawn after it shows.
+- Also shipped: `Easing.IN_CUBIC` (appended, ordinals kept), `CanvasScreen.blurBackground`, `Path2D.roundRect` per
+  corner, `Flex.backgroundBox`, `/vectorlib boxes` (+ a button in `/vectorlib widgets`).
+- Tests: `RoundedBoxCodecTest` (12: every normal code under both GL rules, clamping, unsigned shorts, radius codes,
+  hit-testing, and emitted quads decoded with a Java mirror of the vertex shader). Dev clients: Fabric at GUI scale
+  1, 2 and 4, F3+T, `-Dvectorlib.noSdf=true`, a broken `.fsh` in a resource pack (one warning, reload fine, paths
+  used), rotation/scale/opacity, ScrollPanel clip, menu blur; NeoForge 21.1.249 draws with the shader too. Not yet
+  tried: an Iris shader pack in the owner's Prism Client, before/after screenshots of existing screens (no existing
+  call site changed).
+
 ### Phase 3 — VectorLib 0.7.1: motion and widget hooks (3 d; needs approval)
 
 **Goal:** generic pieces for GM-style polish, so Eden carries no private copies.

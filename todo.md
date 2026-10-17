@@ -70,7 +70,12 @@ needs a README pass too.
         Dev-tested 2026-10-17 (LeDok + Bob): heads, ×2, mention stripe and 30 s linger, pips; System view hides chat,
         L pip @1 + dot, "↓ Mentions: 1" jumps to Local and clears; scrolled up holds still, scroll bar blue → red on new
         lines; F3+T; Chat Delay "[+2 pending lines]" click releases the next at once; hover toolbar, right-click menu.
-        Not tested: a real proxy switch (unit-tested only). Not committed, not deployed.
+        Not tested: a real proxy switch (unit-tested only). Committed cd4d13f; not deployed.
+        **Phase 2 built (VectorLib 0.7.0, 2026-10-17)**: `RoundedBox`/`BoxStyle`/`BoxShadow` on VectorLib's own
+        `rounded_box` shader (one quad per box, per-pixel AA, soft shadows, path fallback), `Easing.IN_CUBIC`,
+        `CanvasScreen.blurBackground`, per-corner `Path2D.roundRect`, `Flex.backgroundBox`; synced into Eden/NPCs_LD/
+        Kits_LD libs. Dev-tested on Fabric (GUI 1/2/4, F3+T, noSdf, broken shader pack) and NeoForge. Still to try:
+        an Iris shader pack in Prism Client. Eden doesn't use it yet (phase 4).
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
