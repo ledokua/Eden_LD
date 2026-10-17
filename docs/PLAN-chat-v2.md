@@ -365,8 +365,9 @@ from the scope above:
   "@Bob " and Enter sends the line; picker search, Shift-picks keep the search, Enter inserts the first match and
   doesn't send, Esc closes only the picker; bed chat (menu + Esc and picker + Esc don't wake, Enter in search
   inserts); Classic ↔ Strips live; hub party picker (pick keeps the field's focus, Shift-picks); old look's menus and
-  picker unchanged. Not yet: GUI scales 1/2/4, all four themes for menus/picker, NCR/owo/Debugify in Prism,
-  `-Dvectorlib.noSdf`.
+  picker unchanged. Then GUI scales 1, 2 and 3 (4 needs a taller window than the 1280×720 test display) and all four
+  themes for the channel/message menus and the picker (readable on each; the focus border in the theme's accent),
+  strip gaps visible at GUI 1. Not yet: NCR/owo/Debugify in Prism, `-Dvectorlib.noSdf`.
 
 ### Phase 5 — Eden 1.3.1: tab strip replaces the pips (4 d)
 

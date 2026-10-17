@@ -94,7 +94,8 @@ needs a README pass too.
         ContextMenu channel/message menus in a per-screen `ChatCanvas` (z 300), the hub's emoji picker shared with the
         chat (`client/chat/ui/EmojiPicker`, `HubPicker`), per-message rounded HUD strips + `chat_hud_style`, ChatFlags
         known bits, `InBedChatScreenMixin`. 76 tests. Dev-tested the main flows (see the plan's Built (4b) note).
-        Open: GUI 1/2/4 + four themes for menus/picker, NCR/owo/Debugify in Prism, noSdf. Next: Phase 5 (tab strip). Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        GUI 1/2/3 and all four themes checked for menus/picker. Open: NCR/owo/Debugify in Prism, noSdf. Not deployed
+        (needs VectorLib 0.7.2 in the pack and live). Next: Phase 5 (tab strip). Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
