@@ -2,6 +2,7 @@ package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.client.EdenParchment;
+import net.ledok.eden_ld.client.chat.ui.EmojiPicker;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.PartyAction;
 import net.ledok.eden_ld.hub.HubPayloads.PartyAction.Action;
@@ -53,7 +54,7 @@ final class PartyTab {
     private static boolean refocusChat;
     private static String chatDraft = "";
     /** The chat's emoji picker; while open it takes the invites column's place. */
-    private static final HubEmojiPicker.State PICKER = new HubEmojiPicker.State();
+    private static final EmojiPicker.State PICKER = new EmojiPicker.State();
 
     private PartyTab() {
     }
@@ -167,11 +168,11 @@ final class PartyTab {
 
         Flex rest = Flex.row().gap(GAP);
         rest.sizing(Sizing.fill(), Sizing.fill());
-        boolean picker = HubEmojiPicker.showing(PICKER);
-        float chatWidth = widths[1] - GAP - (picker ? HubEmojiPicker.WIDTH : SIDE_WIDTH);
+        boolean picker = EmojiPicker.showing(PICKER);
+        float chatWidth = widths[1] - GAP - (picker ? HubPicker.WIDTH : SIDE_WIDTH);
         rest.item(centerColumn(screen, data, chatWidth));
         if (picker) {
-            rest.item(HubEmojiPicker.panel(screen, PICKER, () -> chatInput, PartyTab::refresh));
+            rest.item(HubPicker.panel(screen, PICKER, () -> chatInput, PartyTab::refresh));
         } else {
             rest.item(rightColumn(screen, data));
         }
@@ -360,8 +361,8 @@ final class PartyTab {
         };
         input.onSubmit(sendChat);
         compose.item(input);
-        if (HubEmojiPicker.available()) {
-            compose.item(HubEmojiPicker.button(PICKER, PartyTab::refresh));
+        if (EmojiPicker.available()) {
+            compose.item(HubPicker.button(PICKER, PartyTab::refresh));
         }
         compose.item(EdenParchment.fitButton(tr("send"), 34, 16, sendChat));
         talk.item(compose);

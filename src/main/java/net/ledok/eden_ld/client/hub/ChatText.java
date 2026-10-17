@@ -4,6 +4,7 @@ import net.ledok.eden_ld.chat.ChatLinks;
 import net.ledok.eden_ld.client.EdenParchment;
 import net.ledok.eden_ld.client.chat.ClientChatChannel;
 import net.ledok.eden_ld.client.chat.EmojiFont;
+import net.ledok.eden_ld.client.chat.ui.StickerNode;
 import net.ledok.vectorlib.client.canvas.CanvasGroup;
 import net.ledok.vectorlib.client.canvas.Interactive;
 import net.ledok.vectorlib.client.canvas.Rect;
@@ -55,9 +56,9 @@ final class ChatText extends CanvasGroup implements Interactive {
         column.item(text);
         net.ledok.vectorlib.client.canvas.layout.Flex row = net.ledok.vectorlib.client.canvas.layout.Flex.row().gap(3);
         for (ChatLinks.Sticker sticker : stickers) {
-            row.item(new StickerNode(sticker, STICKER_SIDE,
+            row.item(new StickerNode(sticker, STICKER_SIDE, HubPicker.look(),
                     () -> net.ledok.eden_ld.client.chat.GifViewer.open(sticker.url()), () -> {
-                    }, Component.translatable("chat.eden_ld.sticker.enlarge")));
+                    }, Component.translatable("chat.eden_ld.sticker.enlarge"), HubPicker::notice));
         }
         column.item(row);
         return column;
@@ -161,10 +162,9 @@ final class ChatText extends CanvasGroup implements Interactive {
                 ? ChatLinks.stickerOf(click.getValue()) : null;
         if (button == 1 && sticker != null && ClientChatChannel.emojiPicker()) {
             // Right-click a [Sticker]: save or drop it, as in chat.
-            if (!EmojiFont.toggleSticker(sticker) && Minecraft.getInstance().screen instanceof HubScreen screen) {
-                net.ledok.vectorlib.client.canvas.widget.Toast.text(screen.canvas(), Component.translatable(
-                        "chat.eden_ld.sticker.full", EmojiFont.stickersLimit()).withStyle(ChatFormatting.RED),
-                        EdenParchment.DANGER);
+            if (!EmojiFont.toggleSticker(sticker)) {
+                HubPicker.notice(Component.translatable("chat.eden_ld.sticker.full", EmojiFont.stickersLimit())
+                        .withStyle(ChatFormatting.RED));
             }
             return true;
         }
@@ -173,10 +173,9 @@ final class ChatText extends CanvasGroup implements Interactive {
                 && ClientChatChannel.emojiPicker()) {
             EmojiFont.Entry entry = EmojiFont.byCodepoint(insertion.codePointAt(0));
             if (entry != null) {
-                if (!EmojiFont.toggleFavorite(entry.id()) && Minecraft.getInstance().screen instanceof HubScreen screen) {
-                    net.ledok.vectorlib.client.canvas.widget.Toast.text(screen.canvas(), Component.translatable(
-                            "chat.eden_ld.emoji.favorites_full", EmojiFont.favoritesLimit()).withStyle(ChatFormatting.RED),
-                            EdenParchment.DANGER);
+                if (!EmojiFont.toggleFavorite(entry.id())) {
+                    HubPicker.notice(Component.translatable("chat.eden_ld.emoji.favorites_full",
+                            EmojiFont.favoritesLimit()).withStyle(ChatFormatting.RED));
                 }
                 return true;
             }

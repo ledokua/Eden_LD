@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.hub;
 
+import net.ledok.eden_ld.chat.ChatFlagBits;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 
@@ -58,8 +59,13 @@ public final class HubSettings {
      * on by default — remove it two releases after it ships.
      */
     public static final String CHAT_NEW_LOOK = "chat_new_look";
-    /** The chat switches that are on until the player turns them off, and their bits in {@link #chatFlags}. */
-    private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK);
+    /** How the closed chat's lines look with the new look: on = a rounded strip per message, off = the classic band. */
+    public static final String CHAT_HUD_STYLE = "chat_hud_style";
+    /**
+     * The chat switches that are on until the player turns them off, and their bits in {@link #chatFlags}. Append
+     * only: a client reads them by bit ({@code HubPayloads.ChatFlags}).
+     */
+    private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK, CHAT_HUD_STYLE);
     /** The longest timed mute the client may ask for (24 hours). */
     private static final int MAX_MUTE_MINUTES = 24 * 60;
     /** How hub tabs show news: badges, a glow, or both ({@link NotifyStyle} ordinal). */
@@ -190,15 +196,16 @@ public final class HubSettings {
         return !settings.contains(key) || settings.getBoolean(key);
     }
 
-    /** The chat switches as bits, in {@code CHAT_FLAGS} order (bit 0 = {@link #CHAT_NEW_LOOK}). */
+    /**
+     * The chat switches as bits, in {@code CHAT_FLAGS} order (bit 0 = {@link #CHAT_NEW_LOOK}), with the known half
+     * saying which this server has ({@link ChatFlagBits}).
+     */
     public static int chatFlags(MinecraftServer server, UUID player) {
-        int flags = 0;
-        for (int i = 0; i < CHAT_FLAGS.size(); i++) {
-            if (flag(server, player, CHAT_FLAGS.get(i))) {
-                flags |= 1 << i;
-            }
+        boolean[] values = new boolean[CHAT_FLAGS.size()];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = flag(server, player, CHAT_FLAGS.get(i));
         }
-        return flags;
+        return ChatFlagBits.pack(values);
     }
 
     /** A plain int setting (0 when unset): notify style, color, and the bit masks. */

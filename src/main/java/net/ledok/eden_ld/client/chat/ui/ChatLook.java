@@ -113,7 +113,7 @@ public final class ChatLook {
      * HUD chat isn't drawn under F1 or with chat hidden, so neither is this.
      */
     public static void drawClosing(GuiGraphics graphics) {
-        if (CHROME.on() || open != null || Minecraft.getInstance().screen != null || !CHROME.visible()) {
+        if (!closing()) {
             return;
         }
         float alpha = CHROME.value();
@@ -125,6 +125,20 @@ public final class ChatLook {
             RoundedBox.draw(graphics, INPUT[0], INPUT[1], INPUT[2] - INPUT[0], INPUT[3] - INPUT[1], inputStyle, alpha,
                     false);
         }
+    }
+
+    /** Whether {@link #drawClosing} draws the panels now (fading out, no screen over the HUD). */
+    private static boolean closing() {
+        return !CHROME.on() && open == null && Minecraft.getInstance().screen == null && CHROME.visible();
+    }
+
+    /**
+     * How far the closed chat's own backgrounds (the HUD strips) are in, 0..1: the panels fading out hand over to
+     * them — 1 minus the alpha {@link #drawClosing} draws the panels at, so the two never darken twice — and 1 when
+     * nothing is fading out.
+     */
+    public static float handover() {
+        return closing() ? 1f - CHROME.value() : 1f;
     }
 
     // ---------------------------------------------------------------- shared helpers

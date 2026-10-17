@@ -2,11 +2,13 @@ package net.ledok.eden_ld.client.chat;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
+import net.ledok.eden_ld.client.chat.ui.ChatMenus;
 import net.ledok.eden_ld.client.hub.HubScreen;
 import net.ledok.eden_ld.client.hub.HubState;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubSettings;
 import net.ledok.eden_ld.hub.HubSettings.ChannelNotify;
+import net.ledok.vectorlib.client.canvas.widget.ContextMenu;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -24,8 +26,12 @@ import java.util.Locale;
 /**
  * The menu a right-click on a chat channel's pip opens, Discord style: Mute ▸ (5 minutes … until turned back on) or
  * Unmute, Notifications ▸ (All messages, Only @mentions, Nothing), Mark as read, and Chat settings (the hub's
- * Settings → Chat). Drawn by hand over the chat screen like the emoji picker; it opens upward from the pip, and a
- * submenu opens beside the row under the mouse. Changes go to the server like any hub setting.
+ * Settings → Chat). Changes go to the server like any hub setting.
+ * <p>
+ * The new look ({@code docs/PLAN-chat-v2.md}, phase 4b) shows it as a VectorLib menu on the chat's canvas: its rows
+ * come from {@link #entries} (a {@link Spec} taken when it opens, and the {@link Actions} the rows run). The old look
+ * ({@code chat_new_look} off) keeps the 1.2.x menu below, drawn by hand over the chat screen like the old emoji
+ * picker: it opens upward from the pip, and a submenu opens beside the row under the mouse.
  */
 public final class ChannelMenu {
 
@@ -91,6 +97,104 @@ public final class ChannelMenu {
         return Component.translatable("chat.eden_ld.menu." + key, args);
     }
 
+    // ---------------------------------------------------------------- the new look's rows
+
+    /**
+     * What the new look's menu shows, taken when it opens: the channel's name in its color, the muted line (null when
+     * not muted), its notification level, whether Mark as read has anything to do, and the theme's dim text color.
+     */
+    public record Spec(Component title, int titleColor, @Nullable Component mutedLine, ChannelNotify level,
+                       boolean unread, int inkDim) {
+    }
+
+    /** What the rows do. */
+    public interface Actions {
+        /** Mute for this long (minutes; {@link HubSettings#MUTED_FOR_GOOD} until turned back on, 0 unmutes). */
+        void mute(int minutes);
+
+        void notify(ChannelNotify level);
+
+        void markRead();
+
+        /** The hub's Settings → Chat. */
+        void settings();
+    }
+
+    /** The menu for {@code target} as it is now; {@code inkDim} is the chat theme's dim text. */
+    public static Spec spec(Channel target, int inkDim) {
+        return new Spec(Component.translatable("chat.eden_ld.channel." + target.name().toLowerCase(Locale.ROOT)),
+                ClientChatChannel.color(target) | 0xFF000000, mutedLine(target), ChatActivity.notify(target),
+                ChatActivity.unseen(target) || ChatActivity.mentions(target) > 0, inkDim);
+    }
+
+    /** The rows acting on {@code target}, as the old menu's. */
+    public static Actions actions(Channel target) {
+        return new Actions() {
+            @Override
+            public void mute(int minutes) {
+                ChannelMenu.mute(target, minutes);
+            }
+
+            @Override
+            public void notify(ChannelNotify level) {
+                ChannelMenu.notify(target, level);
+            }
+
+            @Override
+            public void markRead() {
+                ChatActivity.markRead(target);
+            }
+
+            @Override
+            public void settings() {
+                HubState.openSettingsSection = "chat";
+                HubScreen.open("settings");
+            }
+        };
+    }
+
+    /**
+     * The new look's rows: the channel's name; Mute ▸, or (muted) the muted line and Unmute; Notifications ▸ with the
+     * level dim after it (a submenu row has no secondary text); Mark as read (greyed when nothing is unread); a line;
+     * Chat settings.
+     */
+    public static List<ContextMenu.Entry> entries(Spec spec, Actions actions) {
+        List<ContextMenu.Entry> entries = new ArrayList<>();
+        entries.add(new ContextMenu.Header(spec.title(), spec.titleColor()));
+        if (spec.mutedLine() == null) {
+            entries.add(new ContextMenu.Submenu(tr("mute"), () -> ChatMenus.build(muteEntries(actions)), true));
+        } else {
+            entries.add(new ContextMenu.Header(spec.mutedLine(), spec.inkDim()));
+            entries.add(new ContextMenu.Item(tr("unmute"), () -> actions.mute(0), true));
+        }
+        Component notify = Component.empty().append(tr("notify"))
+                .append(Component.literal("  ").append(notifyLabel(spec.level())).withColor(spec.inkDim() & 0xFFFFFF));
+        entries.add(new ContextMenu.Submenu(notify, () -> ChatMenus.build(notifyEntries(spec.level(), actions)), true));
+        entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
+        entries.add(new ContextMenu.Separator());
+        entries.add(new ContextMenu.Item(tr("settings"), actions::settings, true));
+        return entries;
+    }
+
+    /** Mute ▸: 5 minutes … until turned back on. */
+    static List<ContextMenu.Entry> muteEntries(Actions actions) {
+        List<ContextMenu.Entry> entries = new ArrayList<>();
+        for (int minutes : MUTES) {
+            entries.add(new ContextMenu.Item(tr(minutes < 0 ? "mute.forever" : "mute." + minutes),
+                    () -> actions.mute(minutes), true));
+        }
+        return entries;
+    }
+
+    /** Notifications ▸: the three levels in Discord's order, a dot on {@code current}. */
+    static List<ContextMenu.Entry> notifyEntries(ChannelNotify current, Actions actions) {
+        List<ContextMenu.Entry> entries = new ArrayList<>();
+        for (ChannelNotify level : List.of(ChannelNotify.ALL_MESSAGES, ChannelNotify.ONLY_MENTIONS, ChannelNotify.NOTHING)) {
+            entries.add(new ContextMenu.Check(notifyLabel(level), level == current, () -> actions.notify(level), true));
+        }
+        return entries;
+    }
+
     public static Component notifyLabel(ChannelNotify level) {
         return Component.translatable("chat.eden_ld.notify." + level.name().toLowerCase(Locale.ROOT));
     }
@@ -109,6 +213,8 @@ public final class ChannelMenu {
         String pattern = when.toLocalDate().equals(LocalDate.now()) ? "HH:mm" : "dd.MM HH:mm";
         return tr("muted_until", when.format(DateTimeFormatter.ofPattern(pattern)));
     }
+
+    // ---------------------------------------------------------------- the old look's menu
 
     private static List<Row> rows(Channel target) {
         List<Row> rows = new ArrayList<>();

@@ -54,6 +54,7 @@
     "FontRenderOutputMixin",
     "FontSetMixin",
     "GameRendererMixin",
+    "InBedChatScreenMixin",
     "MinecraftMixin",
     "PlayerRendererMixin",
     "PlayerTabOverlayMixin",

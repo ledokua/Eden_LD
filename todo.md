@@ -89,7 +89,12 @@ needs a README pass too.
         Review fixes rechecked in game at GUI scale 3, plus 3 more found and fixed then: lines under the picker/GIF were
         hovered and their toolbar took the picker's clicks (1.2 look too), text drew over the pills, the first badge ran
         off-screen; then 3 from an agent check (1.2-look tooltip over the picker, a fading pill through a new panel,
-        history text through the picker/GIF — panels now z 150), not rechecked in game. Open: NCR in Prism. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        history text through the picker/GIF — panels now z 150), not rechecked in game. Open: NCR in Prism.
+        **Phase 4b built (Eden 1.3.0, 2026-10-17)**: VectorLib
+        ContextMenu channel/message menus in a per-screen `ChatCanvas` (z 300), the hub's emoji picker shared with the
+        chat (`client/chat/ui/EmojiPicker`, `HubPicker`), per-message rounded HUD strips + `chat_hud_style`, ChatFlags
+        known bits, `InBedChatScreenMixin`. 76 tests. Dev-tested the main flows (see the plan's Built (4b) note).
+        Open: GUI 1/2/4 + four themes for menus/picker, NCR/owo/Debugify in Prism, noSdf. Next: Phase 5 (tab strip). Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2

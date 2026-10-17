@@ -9,6 +9,7 @@ import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.model.ChatViewport;
 import net.ledok.eden_ld.client.chat.model.ChatWindow;
 import net.ledok.eden_ld.client.chat.ui.ChatLook;
+import net.ledok.eden_ld.client.chat.ui.ChatMenus;
 import net.ledok.eden_ld.client.chat.ui.ChatTheme;
 import net.ledok.eden_ld.client.chat.ui.EdenChatUi;
 import net.ledok.eden_ld.client.hub.HubNotifications;
@@ -37,9 +38,10 @@ import java.util.UUID;
 /**
  * One chat window's lines ({@code docs/PLAN-chat-v2.md}): the lines from {@link ChatStore} its tab shows, drawn with
  * vanilla's chat settings — opacity, fading, line spacing — a head before each player's message, and a mention's
- * stripe and tint in the notification color (it stays on the HUD longer). It answers what the open chat asks: the
- * message, style and tag under the mouse, the hover toolbar, scrolling. The main window ({@link ChatViews#main()})
- * sits where vanilla's chat does; {@link ChatPanel} hands vanilla's questions to it.
+ * stripe and tint in the notification color (it stays on the HUD longer); with the new look, the closed chat puts each
+ * message on its own rounded strip ({@link HudStrips}) unless the player picked Classic. It answers what the open
+ * chat asks: the message, style and tag under the mouse, the hover toolbar, scrolling. The main window
+ * ({@link ChatViews#main()}) sits where vanilla's chat does; {@link ChatPanel} hands vanilla's questions to it.
  */
 public final class ChatView {
 
@@ -87,6 +89,9 @@ public final class ChatView {
     private final ChatWindow window;
     private final ChatViewport viewport = new ChatViewport();
     private final List<ToolButton> toolbar = new ArrayList<>();
+    /** A HUD strip's and a message's band rects, filled per message ({@link HudStrips}): nothing allocated per frame. */
+    private final float[] strip = new float[4];
+    private final float[] band = new float[4];
     /** Screen rects drawn over the lines (the new look's pills): no hover or click reaches a line through them. */
     private float @Nullable [] blockedA;
     private float @Nullable [] blockedB;
@@ -203,8 +208,9 @@ public final class ChatView {
         if (minecraft.options.chatVisibility().get() == ChatVisiblity.HIDDEN) {
             return;
         }
-        // Eden's new look in the open chat; on the HUD, its panels fading out after a close.
+        // Eden's new look in the open chat; on the HUD, its panels fading out after a close, and its strips.
         EdenChatUi look = focused ? ChatLook.open() : null;
+        boolean strips = !focused && hudStrips();
         if (!focused) {
             ChatLook.drawClosing(graphics);
         }
@@ -223,10 +229,10 @@ public final class ChatView {
         int accent = HubNotifications.color() & 0xFFFFFF;
         Font font = minecraft.font;
         // The message under the mouse in the open chat: its lines lit, its toolbar on the hovered line.
-        boolean menus = net.ledok.eden_ld.client.chat.ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen();
+        boolean menus = ChatMenus.open();
         Row hovered = focused && !menus ? rowAt(frame, mouseX, mouseY) : null;
         float chrome = look != null ? ChatLook.chrome() : 1f;
-        ChatTheme theme = look != null ? ChatTheme.current() : null;
+        ChatTheme theme = look != null || strips ? ChatTheme.current() : null;
         int shown = Math.max(0, Math.min(perPage, rows.size() - scroll));
         if (look != null) {
             drawPlate(graphics, frame, base, shown, lineHeight, theme, chrome, font);
@@ -236,8 +242,21 @@ public final class ChatView {
         graphics.pose().translate((float) frame.left(), 0.0F, 0.0F);
         graphics.pose().scale((float) scale, (float) scale, 1.0F);
         graphics.pose().translate(4.0F, 0.0F, 0.0F);
+        // Opening: the strips the HUD showed fade out while the plate fades in (no blink).
+        boolean handing = look != null && chrome < 1f && hudStrips();
+        float gap = strips || handing ? HudStrips.gap(minecraft.getWindow().getGuiScale(), scale) : 0f;
         if (look != null) {
+            if (handing) {
+                drawHudStrips(graphics, rows, scroll, shown, base, lineHeight, width, tickCount, opacity,
+                        backgroundOpacity, gap, theme, accent, 1f - chrome, 1f - chrome);
+            }
             drawEntryChrome(graphics, rows, scroll, shown, base, lineHeight, width, hovered, theme, chrome, accent);
+        } else if (strips) {
+            // The marks at full through a close: the panels fading out never draw them (only the strips hand over).
+            drawHudStrips(graphics, rows, scroll, shown, base, lineHeight, width, tickCount, opacity,
+                    backgroundOpacity, gap, theme, accent, ChatLook.handover(), 1f);
+            // All of them in one draw call, out before the first head (its setColor and blit don't flush boxes).
+            graphics.flush();
         }
         int drawn = 0;
         for (int r = 0; r + scroll < rows.size() && r < perPage; r++) {
@@ -262,7 +281,7 @@ public final class ChatView {
             int textY = bottom + textOffset;
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, 0.0F, 50.0F);
-            if (look == null) {
+            if (look == null && !strips) {
                 graphics.fill(-4, bottom - lineHeight, width + 8, bottom, backgroundAlpha << 24);
                 if (entry.mention) {
                     graphics.fill(-4, bottom - lineHeight, width + 8, bottom, (int) (0x50 * fade) << 24 | accent);
@@ -304,7 +323,13 @@ public final class ChatView {
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, base, 0.0F);
             if (look != null) {
+                if (handing) {
+                    drawQueueStrip(graphics, gap, width, theme, backgroundOpacity, 1f - chrome);
+                }
                 RoundedBox.draw(graphics, -3, 1, width + 6, 10, theme.queue, chrome, false);
+            } else if (strips) {
+                // Nothing fades out over it on a close (the panels don't reach it): no handover.
+                drawQueueStrip(graphics, gap, width, theme, backgroundOpacity, 1f);
             } else {
                 graphics.fill(-2, 0, width + 4, 9, (int) (255.0 * backgroundOpacity) << 24);
             }
@@ -384,19 +409,92 @@ public final class ChatView {
             while (last + 1 < shown && rows.get(last + 1 + scroll).entry() == entry) {
                 last++;
             }
-            float y0 = base - (last + 1) * lineHeight;
-            float y1 = base - r * lineHeight;
-            if (entry.mention) {
-                RoundedBox.draw(graphics, -3, y0, width + 10, y1 - y0, theme.fill(0x50000000 | accent), chrome, false);
-                RoundedBox.draw(graphics, -3, y0 + 1, 2, y1 - y0 - 2, theme.fill(0xFF000000 | accent), chrome, false);
-            } else if (entry.message.tag() != null) {
-                RoundedBox.draw(graphics, -3, y0 + 1, 2, y1 - y0 - 2,
-                        theme.fill(0xFF000000 | entry.message.tag().indicatorColor()), chrome, false);
-            }
+            HudStrips.band(band, base, r, last, lineHeight, width);
+            drawMarks(graphics, entry, theme, accent, chrome, chrome);
             if (hovered != null && hovered.entry() == entry) {
-                RoundedBox.draw(graphics, -3, y0, width + 10, y1 - y0, theme.hoverRow, chrome, false);
+                RoundedBox.draw(graphics, band[0], band[1], band[2] - band[0], band[3] - band[1], theme.hoverRow, chrome,
+                        false);
             }
             r = last + 1;
+        }
+    }
+
+    /**
+     * A message's marks over its band ({@link #band}, {@link HudStrips#band}): a mention's tint ({@code tint}) and
+     * stripe ({@code stripe}) in the notification color, or another tag's stripe in its own. The open look and the
+     * HUD's strips both draw them here, so nothing moves while one fades into the other.
+     */
+    private void drawMarks(GuiGraphics graphics, ChatEntry entry, ChatTheme theme, int accent, float tint,
+                           float stripe) {
+        float x0 = band[0];
+        float y0 = band[1];
+        float height = band[3] - band[1];
+        if (entry.mention) {
+            RoundedBox.draw(graphics, x0, y0, band[2] - x0, height, theme.hudMention(accent), tint, false);
+            RoundedBox.draw(graphics, x0, y0 + 1, 2, height - 2, theme.fill(0xFF000000 | accent), stripe, false);
+        } else if (entry.message.tag() != null) {
+            RoundedBox.draw(graphics, x0, y0 + 1, 2, height - 2,
+                    theme.fill(0xFF000000 | entry.message.tag().indicatorColor()), stripe, false);
+        }
+    }
+
+    /** The Chat Delay line's strip on the closed chat (Strips), under its text. */
+    private void drawQueueStrip(GuiGraphics graphics, float gap, int width, ChatTheme theme, double backgroundOpacity,
+                                float handover) {
+        HudStrips.queue(strip, gap, width);
+        RoundedBox.draw(graphics, strip[0], strip[1], strip[2] - strip[0], strip[3] - strip[1], theme.hudRow,
+                HudStrips.alpha(backgroundOpacity, 1.0, handover), false);
+    }
+
+    /**
+     * The closed chat draws its lines on strips ({@code chat_hud_style}): with the new look, unless the player picked
+     * Classic, and only with the box shader — the fallback would build its paths for every box on every frame.
+     */
+    private static boolean hudStrips() {
+        return ChatLook.enabled() && HubState.chatHudStrips() && RoundedBox.accelerated();
+    }
+
+    /**
+     * The closed chat's strips, before its lines: one per message, not per wrapped line ({@link HudStrips}), at Text
+     * Background Opacity × the message's fade × {@code handover} (how far the open look's panels have handed over to
+     * them). A message the HUD doesn't show (gone, or text too faint to draw) gets none. A mention's tint and stripe
+     * and another tag's stripe — vanilla's grey "System" one too, as every look draws it — sit exactly where the open
+     * look's {@link #drawEntryChrome} puts them, so nothing moves while one fades into the other: the tint at the
+     * message's fade, a stripe at fade × Chat Text Opacity, times {@code marks} — 1 on the HUD, where the panels
+     * fading out after a close never draw them, less only while the open look's own marks fade in. Boxes only: one
+     * draw call with whatever else is queued.
+     */
+    private void drawHudStrips(GuiGraphics graphics, List<Row> rows, int scroll, int shown, int base, int lineHeight,
+                               int width, int tickCount, double opacity, double backgroundOpacity, float gap,
+                               ChatTheme theme, int accent, float handover, float marks) {
+        if (handover < HudStrips.MIN_ALPHA && marks < HudStrips.MIN_ALPHA) {
+            return;
+        }
+        int r = 0;
+        while (r < shown) {
+            ChatEntry entry = rows.get(r + scroll).entry();
+            int first = r;
+            int last = r;
+            while (last + 1 < shown && rows.get(last + 1 + scroll).entry() == entry) {
+                last++;
+            }
+            r = last + 1;
+            int age = tickCount - entry.message.addedTime() - (entry.mention ? ChatPanel.MENTION_EXTRA : 0);
+            if (age >= VISIBLE) {
+                continue;
+            }
+            double fade = timeFactor(age);
+            if ((int) (255.0 * fade * opacity) <= 3) {
+                continue;
+            }
+            HudStrips.rect(strip, base, first, last, lineHeight, gap, width);
+            float alpha = HudStrips.alpha(backgroundOpacity, fade, handover);
+            if (alpha > 0f && strip[3] > strip[1]) {
+                RoundedBox.draw(graphics, strip[0], strip[1], strip[2] - strip[0], strip[3] - strip[1], theme.hudRow,
+                        alpha, false);
+            }
+            HudStrips.band(band, base, first, last, lineHeight, width);
+            drawMarks(graphics, entry, theme, accent, (float) (fade * marks), (float) (fade * opacity * marks));
         }
     }
 
@@ -586,6 +684,10 @@ public final class ChatView {
             return null;
         }
         if (ChatLook.open() != null && (inside(blockedA, mouseX, mouseY) || inside(blockedB, mouseX, mouseY))) {
+            return null;
+        }
+        // The new look's open menu has the pointer: no line is hovered, clicked or tooltipped under or around it.
+        if (ChatLook.open() != null && ChatMenus.open()) {
             return null;
         }
         double chatX = frame.chatX(mouseX);

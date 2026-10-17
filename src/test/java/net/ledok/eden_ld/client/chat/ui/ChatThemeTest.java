@@ -1,12 +1,16 @@
 package net.ledok.eden_ld.client.chat.ui;
 
 import net.ledok.eden_ld.client.theme.HubTheme;
+import net.ledok.vectorlib.client.canvas.BoxStyle;
+import net.ledok.vectorlib.client.canvas.widget.WidgetStyle;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The chat's colors on the four built-in themes (palettes as in their theme.json files). */
@@ -60,6 +64,86 @@ class ChatThemeTest {
         assertEquals(0x30FFFFFF, t.hover());
         assertEquals(0xFF101010, t.plate());
         assertEquals(HubTheme.Palette.PARCHMENT.ink(), t.ink(), "the rest still comes from the palette");
+    }
+
+    @Test
+    void hudStripsAreTheOpaquePlateDockedLeft() {
+        for (HubTheme.Palette p : new HubTheme.Palette[]{HubTheme.Palette.PARCHMENT, DARK, OVERGROWN, STONE}) {
+            ChatTheme.Tokens t = ChatTheme.derive(p, HubTheme.Chat.NONE);
+            BoxStyle row = ChatTheme.of(t).hudRow;
+            String name = Integer.toHexString(p.panel());
+            // Alpha comes from the HUD (Text Background Opacity × fade): the style itself is opaque.
+            assertEquals(0xFF, row.fill() >>> 24, name);
+            assertEquals(t.plate() & 0xFFFFFF, row.fill() & 0xFFFFFF, name);
+            assertEquals(0f, row.tl(), name);
+            assertEquals(2.5f, row.tr(), name);
+            assertEquals(2.5f, row.br(), name);
+            assertEquals(0f, row.bl(), name);
+            assertEquals(0f, row.borderWidth(), name);
+            assertTrue(row.shadows().isEmpty(), name);
+        }
+        HubTheme.Chat translucent = new HubTheme.Chat(Map.of("plate", 0x80101010), HubTheme.Chat.Glass.OFF);
+        assertEquals(0xFF101010, ChatTheme.of(ChatTheme.derive(DARK, translucent)).hudRow.fill(),
+                "a theme's translucent plate is made opaque");
+    }
+
+    @Test
+    void theMentionTintIsTheOpenLooksAndCached() {
+        ChatTheme theme = ChatTheme.of(ChatTheme.derive(DARK, HubTheme.Chat.NONE));
+        BoxStyle tint = theme.hudMention(0x123456);
+        assertEquals(0x50123456, tint.fill());
+        assertEquals(theme.fill(0x50123456), tint, "the same box as 4a's tint (fill 0x50, radius 2)");
+        assertSame(tint, theme.hudMention(0xFF123456), "the color's alpha is ignored; built once");
+        BoxStyle other = theme.hudMention(0xABCDEF);
+        assertNotSame(tint, other);
+        assertEquals(0x50ABCDEF, other.fill());
+    }
+
+    @Test
+    void fillsAreBuiltOncePerColor() {
+        ChatTheme theme = ChatTheme.of(ChatTheme.derive(HubTheme.Palette.PARCHMENT, HubTheme.Chat.NONE));
+        BoxStyle stripe = theme.fill(0xFFD0D0D0);
+        assertSame(stripe, theme.fill(0xFFD0D0D0));
+        assertEquals(0xFFD0D0D0, stripe.fill());
+        assertEquals(2f, stripe.tl());
+        assertEquals(2f, stripe.br());
+        for (int i = 0; i < 100; i++) {
+            assertEquals(0xFF000000 | i, theme.fill(0xFF000000 | i).fill(), "the cache clears without losing a color");
+        }
+    }
+
+    private static BoxStyle box(WidgetStyle.Skin skin) {
+        return ((WidgetStyle.Skin.Box) skin).style();
+    }
+
+    @Test
+    void theCanvasWidgetsAreTheThemesFlatBoxes() {
+        for (HubTheme.Palette p : new HubTheme.Palette[]{HubTheme.Palette.PARCHMENT, DARK, OVERGROWN, STONE}) {
+            ChatTheme.Tokens t = ChatTheme.derive(p, HubTheme.Chat.NONE);
+            ChatTheme theme = ChatTheme.of(t);
+            WidgetStyle widgets = theme.widgets;
+            String name = Integer.toHexString(p.panel());
+            // No square 1-px stroke on a hovered menu row, no doubled text.
+            assertEquals(0, widgets.accent(), name);
+            assertFalse(widgets.textShadow(), name);
+            assertSame(widgets, theme.canvas.widgets(), name);
+            assertSame(BoxStyle.NONE, box(widgets.button()), "a row at rest draws nothing: " + name);
+            assertEquals(t.ink(), widgets.text(), name);
+            BoxStyle popup = box(widgets.popup());
+            assertTrue(ChatTheme.contrast(t.ink(), popup.fill() | 0xFF000000) >= 4.5, "menu text on " + name);
+            assertTrue(ChatTheme.contrast(t.ink(), box(widgets.buttonHover()).fill() | 0xFF000000) >= 3,
+                    "a lit row's text on " + name);
+            assertEquals(4f, popup.tl(), name);
+            assertEquals(t.focusBorder(), box(widgets.fieldFocused()).borderColor(), name);
+            // The picker: its own panel, cells in the focus color, dim text without a shadow.
+            EmojiPicker.Look look = theme.pickerLook;
+            assertSame(theme.cellHover, look.cellHover(), name);
+            assertSame(theme.cellLit, look.cellLit(), name);
+            assertEquals(t.inkDim(), look.inkDim(), name);
+            assertFalse(look.textShadow(), name);
+            assertEquals(t.focusBorder() & 0xFFFFFF, theme.cellHover.fill() & 0xFFFFFF, name);
+            assertTrue((theme.cellLit.fill() >>> 24) > (theme.cellHover.fill() >>> 24), "the selected tab is stronger");
+        }
     }
 
     @Test

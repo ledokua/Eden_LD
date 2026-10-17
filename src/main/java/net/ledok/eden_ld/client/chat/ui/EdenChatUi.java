@@ -19,7 +19,8 @@ import org.jetbrains.annotations.Nullable;
  * puts it: the history ({@code ChatView}) and vanilla's own input line, which this frames with a translucent plate (in
  * place of vanilla's input strip) and fades in with the panels. Two pills sit in the history plate's bottom: "↓ New"
  * while the chat is scrolled up (back to the newest line) and "↓ Mentions" while mentions wait (to the oldest); they
- * stay out of the way of command suggestions and the lines under them can't be hovered or clicked through them.
+ * stay out of the way of command suggestions and the lines under them can't be hovered or clicked through them. The
+ * menus and the emoji picker live on its {@link ChatCanvas} (phase 4b).
  */
 public final class EdenChatUi {
 
@@ -31,6 +32,7 @@ public final class EdenChatUi {
     private static final int PILL_HEIGHT = 12;
 
     private final ChatScreen screen;
+    private final ChatCanvas canvas;
     private final Motion.Presence newPill = new Motion.Presence(160, 120);
     private final Motion.Presence mentionsPill = new Motion.Presence(160, 120);
     private final Pill newRect = new Pill();
@@ -57,15 +59,22 @@ public final class EdenChatUi {
 
     public EdenChatUi(ChatScreen screen) {
         this.screen = screen;
+        this.canvas = new ChatCanvas(screen);
     }
 
     public ChatScreen screen() {
         return screen;
     }
 
+    /** The menus and the emoji picker. */
+    public ChatCanvas canvas() {
+        return canvas;
+    }
+
     /** The start of every frame, before vanilla draws the chat. */
     public void frame() {
         ChatLook.showing(this);
+        canvas.sync(screen.width, screen.height, ChatTheme.current());
     }
 
     /** How far below its place the input row is drawn while the panels come in. */
@@ -156,8 +165,8 @@ public final class EdenChatUi {
         ChatTheme theme = ChatTheme.current();
         float chrome = ChatLook.chrome();
         graphics.pose().pushPose();
-        // Over the history's text (z 100, the font a little nearer) and its toolbar (120); under the picker and the GIF
-        // viewer (drawn later at 150) and the menus (300).
+        // Over the history's text (z 100, the font a little nearer) and its toolbar (120); under the GIF viewer (drawn
+        // later at 150) and the chat's canvas (the picker 300, the menus 600).
         graphics.pose().translate(0, 0, 150);
         // ↓ New: the plate's color, a foot line in the unread color while new lines wait.
         float e = newPill.value() * chrome;

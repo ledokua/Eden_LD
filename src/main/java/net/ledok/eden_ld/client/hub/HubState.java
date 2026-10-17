@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.client.hub;
 
+import net.ledok.eden_ld.chat.ChatFlagBits;
 import net.ledok.eden_ld.hub.HubPayloads;
 
 /**
@@ -13,8 +14,8 @@ public final class HubState {
     public static HubPayloads.PartyData partyData;
     public static HubPayloads.FriendsData friendsData;
     public static HubPayloads.SettingsData settingsData;
-    /** The chat switches ({@link HubPayloads.ChatFlags}); -1 until the server says (all on). */
-    public static int chatFlags = -1;
+    /** The chat switches ({@link HubPayloads.ChatFlags}); -1 until the server says (all on, none known). */
+    public static int chatFlags = ChatFlagBits.UNSENT;
     /** The Activities tab's cards (dungeons, raids, arenas). */
     public static HubPayloads.ActivitiesData activitiesData;
     public static HubPayloads.DuelsData duelsData;
@@ -72,7 +73,7 @@ public final class HubState {
         partyData = null;
         friendsData = null;
         settingsData = null;
-        chatFlags = -1;
+        chatFlags = ChatFlagBits.UNSENT;
         activitiesData = null;
         duelsData = null;
         wardrobeData = null;
@@ -93,9 +94,24 @@ public final class HubState {
         ignored = java.util.Map.of();
     }
 
+    /** A chat switch ({@link HubPayloads.ChatFlags} bit): as the server sent it, or on when it doesn't know it. */
+    public static boolean chatFlag(int bit) {
+        return ChatFlagBits.on(chatFlags, bit);
+    }
+
+    /** Whether the server knows the chat switch (it keeps the player's choice, so the Settings tab offers it). */
+    public static boolean chatFlagKnown(int bit) {
+        return ChatFlagBits.known(chatFlags, bit);
+    }
+
     /** Eden's new chat look (on unless the player turned it off). */
     public static boolean chatNewLook() {
-        return (chatFlags & HubPayloads.ChatFlags.NEW_LOOK) != 0;
+        return chatFlag(HubPayloads.ChatFlags.NEW_LOOK);
+    }
+
+    /** The closed chat's lines as rounded strips (on unless the player picked Classic; drawn with the new look only). */
+    public static boolean chatHudStrips() {
+        return chatFlag(HubPayloads.ChatFlags.HUD_STRIPS);
     }
 
     /** Whether the player ignores {@code uuid}: their lines hide, and lists put them last. */

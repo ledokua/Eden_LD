@@ -302,7 +302,7 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
   per resolved theme). A light panel gets dark glass (plate = the palette's ink). Optional `chat` block in
   `theme.json` (`HubTheme.Chat`, the record's last component); a bad color keeps the derived one. The built-in
   theme.json files need no `chat` block.
-- **Escape hatch without a wire break:** `SettingsData` is unchanged. The new S2C `ChatFlags` (bit 1 = new look) is
+- **Escape hatch without a wire break:** `SettingsData` is unchanged. The new S2C `ChatFlags` (bit 0, value 1 = new look) is
   sent before it, only when the client can receive it (`canSend`). Old clients and old servers keep working. The
   Settings → Chat toggle shows only after the server has sent the flags. Absent = on. The flag is read at
   `ChatScreen.init` (it applies the next time chat opens). Remove the hatch two releases after 1.3.0 ships.
@@ -325,6 +325,48 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
   showed over the picker. (b) A pill fading out showed through a panel opening over it; it now snaps away. (c) The
   picker and GIF viewer moved to z 150, so history text no longer shows through them; this was a 1.2.x bug too. Not
   yet tested: NCR in Prism.
+
+**Built (2026-10-17, Eden 1.3.0 — Phase 4b; still VectorLib 0.7.2, no VectorLib change).** Design and final decisions
+in the session's `p4b/design-4b.md` + `p4b/resolutions.md` (two critiques resolved there). Implemented in three
+stages by agents, reviewed by a 5-lens agent review + adversarial check (2 findings, fixed) and a second
+scenario-walk round (1 finding, fixed: picker tab icons now refresh when server emoji images arrive). Differences
+from the scope above:
+- **Menus:** `ChannelMenu`/`MessageMenu` gained pure `entries(Spec, Actions)`; the new look builds VectorLib
+  `ContextMenu`s from them (Mute ▸ with 5 durations, Notifications ▸ as checks, a muted header + Unmute, Mark as read
+  disabled with nothing unread). They live in `client/chat/ui/ChatCanvas` — one `CanvasEmbed` per host at **z 300**
+  (over the history, pills 150 and suggestions 200; under every tooltip), covering (0,0)–(w,h-16), idle (not drawn,
+  no allocation) when empty. ChannelMenu opens upward from its chip (the canvas clamp puts its bottom at h-16);
+  MessageMenu's bottom sits at the pointer (`ChatMenus.height` mirrors ContextMenu's private sizes; a reflection
+  test fails if they drift). Esc closes all levels; a click off a menu closes it and is consumed; a held row never
+  fires after Esc/resize/theme change (capture cancelled). The 1.2 hand-drawn menus stay for the old look.
+- **Picker:** `HubEmojiPicker` + `StickerNode` moved (git mv) to `client/chat/ui` as the public, host-agnostic
+  `EmojiPicker` (State/Host/Look/Panel, sized by column count: 8 = 108 wide in the hub, 10 = 132 in the chat) and
+  `StickerNode`. `ChatText`/`ChatMentions` stay in `client/hub` (the chat uses neither). The hub gets
+  `client/hub/HubPicker` (parchment look, Toasts, refocus of the chat field after a pick — fixes the hub losing
+  focus after a cell click). In the chat the panel rises from h-16 beside the emoji button (150 ms) and lifts away
+  (110 ms); search keeps the keyboard across in-panel clicks and Shift-picks; one row per wheel notch. `EmojiFont`
+  has a `revision()` counter (favorites, stickers, server list) the panel polls instead of whole-tab rebuilds. The
+  new look creates no vanilla search `EditBox`; the old look keeps the hand-drawn picker.
+- **Input:** `ChatScreenMixin` merges `charTyped`/`mouseReleased` (no other mod merges them; both end in `super`)
+  and implements the `EdenChatHost` duck; new `InBedChatScreenMixin` (keyPressed HEAD) so Esc over a menu/picker
+  doesn't wake the player and Enter in the picker search doesn't send.
+- **HUD:** per-message rounded strips (docked, radii 0,2.5,2.5,0, gap ≥ 1 physical pixel, alpha
+  `min(255, 300·textBackgroundOpacity)`), crossfading with the plates on open/close, Chat Delay strip, only with the
+  rounded-box shader. Setting `chat_hud_style` (Settings → Chat → Closed chat lines: Rounded strips / Classic, shown
+  with the new look). `ChatFlags` gained a "known bits" half (bits 16+, `chat/ChatFlagBits`) so a later flag reads
+  as on, and its option stays hidden, on a server that doesn't know it.
+- **Accepted behavior changes:** right/middle click on a menu row does nothing; VectorLib's click sound on picks;
+  rows 14 tall, menus ≥ 110 wide; submenus after a 180 ms rest or a click; menu state is a snapshot at open; rise 4;
+  the picker's tabs wrap into a grid; panel 132 wide; opening resets the search; a blank Enter in the chat search
+  inserts nothing (the hub keeps inserting the tab's first emoji).
+- **Tests:** 76 JUnit (menus entries, height mirror, picker layout, flag bits, HUD strip geometry, theme tokens).
+- **Dev-tested 2026-10-17** (GUI scale 3): strips with mention tint and gaps; channel menu, Mute ▸ 15 min → muted
+  header + Unmute → unmute; Notifications ▸ check; one Esc; message menu upward from the pointer, Reply inserts
+  "@Bob " and Enter sends the line; picker search, Shift-picks keep the search, Enter inserts the first match and
+  doesn't send, Esc closes only the picker; bed chat (menu + Esc and picker + Esc don't wake, Enter in search
+  inserts); Classic ↔ Strips live; hub party picker (pick keeps the field's focus, Shift-picks); old look's menus and
+  picker unchanged. Not yet: GUI scales 1/2/4, all four themes for menus/picker, NCR/owo/Debugify in Prism,
+  `-Dvectorlib.noSdf`.
 
 ### Phase 5 — Eden 1.3.1: tab strip replaces the pips (4 d)
 

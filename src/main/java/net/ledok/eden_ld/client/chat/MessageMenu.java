@@ -3,6 +3,7 @@ package net.ledok.eden_ld.client.chat;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.client.chat.panel.MessageText;
 import net.ledok.eden_ld.client.hub.Ignoring;
+import net.ledok.vectorlib.client.canvas.widget.ContextMenu;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -14,7 +15,9 @@ import java.util.List;
 /**
  * The menu a right-click on a chat message opens ({@code docs/PLAN-custom-chat.md}, phase 2): Reply, Copy text, Open
  * profile, Ignore (or Stop ignoring), and for staff Moderate — what applies to that line (the server's lines and
- * the player's own only copy). Drawn by hand over the chat screen like {@link ChannelMenu}, at the mouse.
+ * the player's own only copy). The new look ({@code docs/PLAN-chat-v2.md}, phase 4b) shows it as a VectorLib menu on
+ * the chat's canvas, its rows from {@link #entries}; the old look keeps the 1.2.x menu, drawn by hand over the chat
+ * screen like {@link ChannelMenu}, at the mouse.
  */
 public final class MessageMenu {
 
@@ -62,6 +65,88 @@ public final class MessageMenu {
         String name = MessageText.senderName(target);
         return name == null ? tr("title") : tr("title_from", name);
     }
+
+    // ---------------------------------------------------------------- the new look's rows
+
+    /**
+     * What the new look's menu shows, taken when it opens: its title in {@code titleColor}, whether the line is
+     * someone else's, whether it has a writer, whether the player is staff, and Ignore's label (or Stop ignoring).
+     */
+    public record Spec(Component title, int titleColor, boolean fromOther, boolean hasSender, boolean staff,
+                       Component ignoreLabel) {
+    }
+
+    /** What the rows do. */
+    public interface Actions {
+        void reply();
+
+        void copy();
+
+        void profile();
+
+        void ignore();
+
+        void moderate();
+    }
+
+    /** The menu for {@code target}; {@code inkDim} is the chat theme's dim text (the title). */
+    public static Spec spec(ChatEntry target, int inkDim) {
+        return new Spec(title(target), inkDim, MessageActions.fromOther(target), target.sender() != null,
+                MessageActions.staff(),
+                target.sender() == null ? Component.empty() : Ignoring.menuLabel(target.sender()));
+    }
+
+    /** The rows acting on {@code target} ({@link MessageActions}). */
+    public static Actions actions(ChatEntry target) {
+        return new Actions() {
+            @Override
+            public void reply() {
+                MessageActions.reply(target);
+            }
+
+            @Override
+            public void copy() {
+                MessageActions.copy(target);
+            }
+
+            @Override
+            public void profile() {
+                MessageActions.profile(target);
+            }
+
+            @Override
+            public void ignore() {
+                MessageActions.ignore(target);
+            }
+
+            @Override
+            public void moderate() {
+                MessageActions.moderate(target);
+            }
+        };
+    }
+
+    /** The new look's rows, the old menu's: the title, then what applies to the line. */
+    public static List<ContextMenu.Entry> entries(Spec spec, Actions actions) {
+        List<ContextMenu.Entry> entries = new ArrayList<>();
+        entries.add(new ContextMenu.Header(spec.title(), spec.titleColor()));
+        if (spec.fromOther()) {
+            entries.add(new ContextMenu.Item(tr("reply"), actions::reply, true));
+        }
+        entries.add(new ContextMenu.Item(tr("copy"), actions::copy, true));
+        if (spec.hasSender()) {
+            entries.add(new ContextMenu.Item(tr("profile"), actions::profile, true));
+        }
+        if (spec.fromOther()) {
+            entries.add(new ContextMenu.Item(spec.ignoreLabel(), actions::ignore, true));
+            if (spec.staff()) {
+                entries.add(new ContextMenu.Item(tr("moderate"), actions::moderate, true));
+            }
+        }
+        return entries;
+    }
+
+    // ---------------------------------------------------------------- the old look's menu
 
     private static List<Row> rows(ChatEntry target) {
         List<Row> rows = new ArrayList<>();

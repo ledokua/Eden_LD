@@ -865,6 +865,9 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
 - **Chat**
   - **New chat look** — the rounded chat panels in your hub theme's colors, with smooth motion (default on); off
     brings back the 1.2 chat. It applies the next time you open chat. See [Chat](#chat).
+  - **Closed chat lines** (with the new look) — *Rounded strips* (default): while the chat is closed, each message
+    sits on its own rounded strip in your theme's plate color, as strong as *Text Background Opacity* sets it;
+    *Classic*: the previous band. Applies at once. (Without the rounded-box shader the classic band is used.)
   - **Mention sound volume** — the ping when someone writes `@YourName`: a slider, 0–100% (0 = off,
     default 90%). Letting go plays a test ping. No game slider changes it — not "Players", not master
     volume (the ping makes up for it); only master at 0%, which mutes the whole game, silences it.
@@ -1023,6 +1026,15 @@ narrator, other mods). What it adds:
   set the chat's colors in a `chat` block of their `theme.json` (`plate`, `plate_input`, `border`, `focus_border`,
   `ink`, `ink_dim`, `hover`, `unread`, `accent`; `glass`: `auto`, `on` or `off`). Settings → Chat → **New chat look**
   turns it off (the 1.2 look).
+  - **Menus** in the same style: right-click a channel chip for **Mute ▸** (5, 15 min, 1 h, 24 h, until you turn
+    it back on; muted shows *Muted until …* and **Unmute**), **Notifications ▸** (the current level checked), *Mark
+    as read* and *Chat settings*; right-click a message (or its ⋯) for Reply, Copy text, Open profile, Ignore and,
+    for staff, Moderate. Submenus open on a short rest or a click; one Esc closes them all.
+  - **The emoji picker** is the hub's: a tab grid, search (Enter inserts the first match), Shift+click to pick
+    several, right-click to star an emoji or save/drop a sticker; it slides up beside the emoji button and one Esc
+    closes it. Typing goes back to the chat line after a pick (Shift-picks while searching keep the search).
+  - **Closed chat**: each message on its own rounded strip (Settings → Chat → *Closed chat lines* → Classic for the
+    previous band).
 - Other servers keep Minecraft's chat as it is.
 
 **Channels** (Project Zomboid style): every message goes to one of

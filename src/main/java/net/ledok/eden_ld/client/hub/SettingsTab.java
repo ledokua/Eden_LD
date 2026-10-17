@@ -135,13 +135,21 @@ final class SettingsTab {
     }
 
     private static void chat(Settings settings, HubPayloads.SettingsData data) {
-        if (HubState.chatFlags != -1) {
+        if (HubState.chatFlagKnown(HubPayloads.ChatFlags.NEW_LOOK)) {
             // Only when the server sent the chat flags (Eden 1.3.0+): an older one can't keep the choice.
             settings.heading(tr("section.look"));
             settings.add(Option.toggle(tr("chat_new_look"), HubState.chatNewLook(),
                             on -> send(HubSettings.CHAT_NEW_LOOK, on ? 1 : 0))
                     .text(tr("channel.focus.toggle")).hint(tr("chat_new_look.hint")).defaultValue(true)
                     .keywords("chat", "look", "style", "classic", "vanilla", "old"));
+            // The closed chat's lines: only the new look draws strips, and only a server that knows the switch keeps it.
+            if (HubState.chatNewLook() && HubState.chatFlagKnown(HubPayloads.ChatFlags.HUD_STRIPS)) {
+                settings.add(Option.choice(tr("chat_hud_style"), List.of(true, false), HubState.chatHudStrips(),
+                                strips -> tr(strips ? "chat_hud_style.strips" : "chat_hud_style.classic"),
+                                strips -> send(HubSettings.CHAT_HUD_STYLE, strips ? 1 : 0))
+                        .hint(tr("chat_hud_style.hint")).defaultValue(true)
+                        .keywords("chat", "hud", "lines", "background", "classic", "strips"));
+            }
         }
         settings.heading(tr("section.messages"));
         settings.add(messages(HubSettings.CHAT_DEATHS, "deaths", data.chatDeaths()));

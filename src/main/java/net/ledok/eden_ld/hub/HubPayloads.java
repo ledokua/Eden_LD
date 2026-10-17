@@ -2414,9 +2414,11 @@ public final class HubPayloads {
     }
 
     /**
-     * S2C (1.3.0+): the player's chat switches that are on unless turned off ({@code HubSettings.chatFlags}; bit 0 =
-     * the new chat look). Its own payload, sent after {@link SettingsData} only to clients that know it, so 1.2.x
-     * clients and servers still connect; without it everything is on.
+     * S2C (1.3.0+): the player's chat switches that are on unless turned off ({@code HubSettings.chatFlags}). Its own
+     * payload, sent after {@link SettingsData} only to clients that know it, so 1.2.x clients and servers still
+     * connect; without it everything is on. The low half holds the switches by bit; the high half (bit 16 up) says
+     * which of them the server knows, so a newer client keeps an unknown switch at its default and hides its control
+     * ({@link net.ledok.eden_ld.chat.ChatFlagBits}).
      */
     public record ChatFlags(int flags) implements CustomPacketPayload {
         public static final Type<ChatFlags> TYPE = new Type<>(id("chat_flags"));
@@ -2424,6 +2426,8 @@ public final class HubPayloads {
                 (buf, p) -> buf.writeVarInt(p.flags), buf -> new ChatFlags(buf.readVarInt()));
         /** Eden's new chat look. */
         public static final int NEW_LOOK = 1;
+        /** The closed chat's lines as rounded strips (with the new look); off = the classic band. */
+        public static final int HUD_STRIPS = 1 << 1;
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

@@ -103,8 +103,19 @@ public final class EmojiFont {
     @Nullable
     private static FontSet fontSet;
     private static List<Entry> entries = List.of();
+    /** Bumped when what a picker lists may have changed (see {@link #revision()}). */
+    private static int revision;
 
     private EmojiFont() {
+    }
+
+    /**
+     * A counter an open picker polls: it moves when a favorite or a saved sticker is toggled, and when
+     * the server's list (or its images, which put server emojis on the lists) arrives. Image loads for
+     * drawing (the standard emoji sheets, sticker glyphs) don't move it.
+     */
+    public static int revision() {
+        return revision;
     }
 
     /**
@@ -346,6 +357,7 @@ public final class EmojiFont {
         }
         favorites = List.copyOf(changed);
         rebuild();
+        revision++;
         ClientPlayNetworking.send(new HubPayloads.EmojiFavorite(id, add));
         return true;
     }
@@ -387,6 +399,7 @@ public final class EmojiFont {
             changed.remove(id);
         }
         stickers = List.copyOf(changed);
+        revision++;
         ClientPlayNetworking.send(new HubPayloads.EmojiFavorite(id, add));
         return true;
     }
@@ -424,6 +437,7 @@ public final class EmojiFont {
             return false;
         });
         rebuild();
+        revision++;
         // Only after the new font stopped using them.
         dropped.forEach(NativeImage::close);
         if (!missing.isEmpty() && ClientPlayNetworking.canSend(HubPayloads.EmojiRequest.TYPE)) {
@@ -494,6 +508,8 @@ public final class EmojiFont {
         }
         if (added) {
             rebuild();
+            // Server emojis join the lists with their images: the rest of the list arrived.
+            revision++;
         }
     }
 

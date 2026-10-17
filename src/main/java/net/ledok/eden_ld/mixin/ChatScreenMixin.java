@@ -38,10 +38,12 @@ import java.util.List;
  *   <li>a completed {@code :name:} turns into the emoji as you type;</li>
  *   <li>the GIF viewer (a [GIF] link clicked — ScreenMixin) sits over the chat.</li>
  * </ul>
- * Only on servers running Eden (nothing shows elsewhere).
+ * Only on servers running Eden (nothing shows elsewhere). The new look ({@code docs/PLAN-chat-v2.md}, phase 4) hands
+ * the menus and the picker to its host's {@link net.ledok.eden_ld.client.chat.ui.ChatCanvas}, which gets the screen's
+ * input first; with the new look off, everything below runs as in 1.2.x.
  */
 @Mixin(ChatScreen.class)
-public abstract class ChatScreenMixin extends Screen {
+public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_ld.client.chat.ui.EdenChatHost {
 
     @Unique
     private static final int EMOJI_BUTTON = 14;
@@ -88,6 +90,10 @@ public abstract class ChatScreenMixin extends Screen {
         eden_ld$emojiButton = ClientChatChannel.emojiPicker();
         if (!eden_ld$emojiButton) {
             eden_ld$pickerOpen = false;
+            if (eden_ld$ui != null) {
+                // The permission went while a sub-screen was over the chat.
+                eden_ld$ui.canvas().closePicker();
+            }
         }
         if (ClientChatChannel.current() == null) {
             return;
@@ -97,7 +103,8 @@ public abstract class ChatScreenMixin extends Screen {
         // The new look keeps the line inside its plate: clear of the emoji button, and of the plate's right edge.
         int rightRoom = eden_ld$newLook ? (eden_ld$emojiButton ? EMOJI_BUTTON + 4 : 4) : (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0);
         input.setWidth(input.getWidth() - eden_ld$badge - rightRoom);
-        if (eden_ld$emojiButton) {
+        // The new look's picker has its own search (no vanilla EditBox for Debugify's first-character drop to hit).
+        if (eden_ld$emojiButton && !eden_ld$newLook) {
             eden_ld$search = new EditBox(font, 0, 0, COLUMNS * CELL - 2, 12, Component.translatable("chat.eden_ld.emoji.search"));
             eden_ld$search.setHint(Component.translatable("chat.eden_ld.emoji.search").withStyle(ChatFormatting.DARK_GRAY));
             eden_ld$search.setMaxLength(40);
@@ -226,8 +233,8 @@ public abstract class ChatScreenMixin extends Screen {
     }
 
     /** The new look's host while this screen is the one showing, else null. */
-    @Unique
-    private net.ledok.eden_ld.client.chat.ui.EdenChatUi eden_ld$host() {
+    @Override
+    public net.ledok.eden_ld.client.chat.ui.EdenChatUi eden_ld$host() {
         return eden_ld$ui != null && minecraft != null && minecraft.screen == (Object) this ? eden_ld$ui : null;
     }
 
@@ -238,13 +245,14 @@ public abstract class ChatScreenMixin extends Screen {
         if (eden_ld$newLook && eden_ld$ui == null && minecraft != null && minecraft.screen == (Object) this) {
             eden_ld$ui = new net.ledok.eden_ld.client.chat.ui.EdenChatUi((ChatScreen) (Object) this);
         }
-        if (eden_ld$host() != null) {
-            eden_ld$ui.frame();
+        var host = eden_ld$host();
+        if (host != null) {
+            host.frame();
         }
         // What sits over the history (either look): the lines under the picker or the GIF viewer aren't hovered or
         // clicked through it, and a hovered line's toolbar stays clear of it.
-        net.ledok.eden_ld.client.chat.panel.ChatViews.main().cover(
-                eden_ld$pickerOpen && eden_ld$emojiButton ? eden_ld$panel() : null,
+        net.ledok.eden_ld.client.chat.panel.ChatViews.main().cover(host != null ? host.canvas().pickerRect()
+                        : eden_ld$pickerOpen && eden_ld$emojiButton ? eden_ld$panel() : null,
                 net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
     }
 
@@ -256,7 +264,8 @@ public abstract class ChatScreenMixin extends Screen {
         if (host == null) {
             return true;
         }
-        host.drawInputPlate(graphics, !eden_ld$searching());
+        // Lit while the line has the keyboard (not while the picker's search has it).
+        host.drawInputPlate(graphics, !host.canvas().typing());
         return false;
     }
 
@@ -476,17 +485,22 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "render", at = @At("TAIL"))
     private void eden_ld$drawExtras(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-        if (net.ledok.eden_ld.client.chat.GifViewer.isOpen() && eden_ld$pickerOpen) {
-            // Both sit bottom right: the GIF someone just clicked wins.
-            eden_ld$closePicker();
-        }
-        // The chat draws its text at z 100 (ChatView; the font a little nearer): the picker and the GIF viewer go
-        // above it (150), or chat lines under them would show through (command suggestions stay on top, 200).
         var host = eden_ld$host();
+        if (net.ledok.eden_ld.client.chat.GifViewer.isOpen()) {
+            // Both sit bottom right: the GIF someone just clicked wins.
+            if (eden_ld$pickerOpen) {
+                eden_ld$closePicker();
+            }
+            if (host != null && host.canvas().pickerOpen()) {
+                host.canvas().closePicker();
+            }
+        }
+        // The chat draws its text at z 100 (ChatView; the font a little nearer): the old picker and the GIF viewer go
+        // above it (150), or chat lines under them would show through (command suggestions stay on top, 200). The new
+        // look's canvas is drawn last, at 300 (ChatCanvas).
         if (host != null) {
             host.drawPills(graphics, font, mouseX, mouseY, commandSuggestions != null && commandSuggestions.isVisible(),
-                    ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen(),
-                    eden_ld$pickerOpen && eden_ld$emojiButton ? eden_ld$panel() : null,
+                    host.canvas().menuOpen(), host.canvas().pickerRect(),
                     net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
         }
         graphics.pose().pushPose();
@@ -503,14 +517,16 @@ public abstract class ChatScreenMixin extends Screen {
         }
         ChannelMenu.render(graphics, font, mouseX, mouseY, width, height);
         net.ledok.eden_ld.client.chat.MessageMenu.render(graphics, font, mouseX, mouseY, width, height);
-        net.ledok.eden_ld.client.chat.panel.ChatPanel.Tool tool = ChannelMenu.isOpen()
-                || net.ledok.eden_ld.client.chat.MessageMenu.isOpen() ? null
-                : net.ledok.eden_ld.client.chat.panel.ChatPanel.toolAt(mouseX, mouseY);
+        net.ledok.eden_ld.client.chat.panel.ChatPanel.Tool tool = net.ledok.eden_ld.client.chat.ui.ChatMenus.open()
+                ? null : net.ledok.eden_ld.client.chat.panel.ChatPanel.toolAt(mouseX, mouseY);
         if (tool != null) {
             graphics.renderTooltip(font, Component.translatable("chat.eden_ld.action."
                     + tool.name().toLowerCase(java.util.Locale.ROOT)), mouseX, mouseY);
         }
         graphics.pose().popPose();
+        if (host != null) {
+            host.canvas().render(graphics, mouseX, mouseY, partialTick);
+        }
     }
 
     @Unique
@@ -531,9 +547,11 @@ public abstract class ChatScreenMixin extends Screen {
         boolean command = input.getValue().startsWith("/");
         int y0 = height - 14;
         int y1 = height - 2;
-        Channel hovered = ChannelMenu.isOpen() ? null : eden_ld$pipAt(mouseX, mouseY);
-        int accent = net.ledok.eden_ld.client.hub.HubNotifications.color();
         var host = eden_ld$host();
+        // No pip lights or explains itself while a menu has the pointer.
+        Channel hovered = (host != null ? host.canvas().menuOpen() : ChannelMenu.isOpen()) ? null
+                : eden_ld$pipAt(mouseX, mouseY);
+        int accent = net.ledok.eden_ld.client.hub.HubNotifications.color();
         if (host != null) {
             eden_ld$drawChips(graphics, mouseX, mouseY, host, current, target, command, hovered);
             return;
@@ -647,7 +665,7 @@ public abstract class ChatScreenMixin extends Screen {
         }
         int[] system = eden_ld$systemPip();
         boolean systemOn = ClientChatChannel.systemView();
-        boolean systemHovered = !ChannelMenu.isOpen() && eden_ld$overSystemPip(mouseX, mouseY);
+        boolean systemHovered = !host.canvas().menuOpen() && eden_ld$overSystemPip(mouseX, mouseY);
         net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[0], y0, system[1] - system[0], chipHeight,
                 systemHovered ? theme.pipHover : systemOn ? theme.pipLit : theme.pip, fade, false);
         if (systemOn) {
@@ -728,7 +746,7 @@ public abstract class ChatScreenMixin extends Screen {
             graphics.pose().pushPose();
             graphics.pose().translate(0, host.rise(), 0);
             net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, y0 + 1, EMOJI_BUTTON, 10,
-                    hover || eden_ld$pickerOpen ? theme.buttonHover : theme.button, fade, false);
+                    hover || host.canvas().pickerOpen() ? theme.buttonHover : theme.button, fade, false);
             int color = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(0xFFFFFFFF, fade);
             if (color != 0) {
                 graphics.drawString(font, icon, x0 + (EMOJI_BUTTON - font.width(icon)) / 2 + 1, y0 + 2, color, false);
@@ -854,6 +872,21 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void eden_ld$keys(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        var host = eden_ld$host();
+        if (host != null) {
+            // The new look: the menus, the GIF viewer and the picker first (ChatCanvas), then Ctrl+Tab.
+            if (host.canvas().keyPressed(keyCode, scanCode, modifiers)) {
+                cir.setReturnValue(true);
+            } else if (eden_ld$badge > 0 && keyCode == GLFW.GLFW_KEY_TAB && Screen.hasControlDown()) {
+                ClientChatChannel.cycle(Screen.hasShiftDown());
+                cir.setReturnValue(true);
+            }
+            return;
+        }
+        if (eden_ld$newLook) {
+            // The new look without its host (bed chat with chat disallowed draws nothing): nothing of Eden's to act on.
+            return;
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && (ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen())) {
             ChannelMenu.close();
             net.ledok.eden_ld.client.chat.MessageMenu.close();
@@ -897,17 +930,26 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void eden_ld$clicks(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (ChannelMenu.isOpen()) {
+        var host = eden_ld$host();
+        if (host == null && eden_ld$newLook) {
+            // The new look without its host (bed chat with chat disallowed): its chips and picker aren't there.
+            return;
+        }
+        if (host != null) {
+            // The new look's menus and picker (ChatCanvas) first: an open menu takes any click.
+            if (host.canvas().mouseClicked(mouseX, mouseY, button)) {
+                cir.setReturnValue(true);
+                return;
+            }
+        } else if (ChannelMenu.isOpen()) {
             ChannelMenu.click(mouseX, mouseY);
             cir.setReturnValue(true);
             return;
-        }
-        if (net.ledok.eden_ld.client.chat.MessageMenu.isOpen()) {
+        } else if (net.ledok.eden_ld.client.chat.MessageMenu.isOpen()) {
             net.ledok.eden_ld.client.chat.MessageMenu.click(mouseX, mouseY);
             cir.setReturnValue(true);
             return;
         }
-        var host = eden_ld$host();
         if (host != null && host.clicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
             return;
@@ -924,7 +966,11 @@ public abstract class ChatScreenMixin extends Screen {
             if (button == 1) {
                 for (int[] bounds : eden_ld$pipBounds(ClientChatChannel.current())) {
                     if (bounds[0] == pip.ordinal()) {
-                        ChannelMenu.open(pip, bounds[1], height - 14);
+                        if (host != null) {
+                            host.canvas().openChannelMenu(pip, bounds[1]);
+                        } else {
+                            ChannelMenu.open(pip, bounds[1], height - 14);
+                        }
                     }
                 }
             } else {
@@ -951,7 +997,13 @@ public abstract class ChatScreenMixin extends Screen {
             switch (tool) {
                 case REPLY -> net.ledok.eden_ld.client.chat.MessageActions.reply(entry);
                 case COPY -> net.ledok.eden_ld.client.chat.MessageActions.copy(entry);
-                case MORE -> net.ledok.eden_ld.client.chat.MessageMenu.open(entry, (int) mouseX, (int) mouseY);
+                case MORE -> {
+                    if (host != null) {
+                        host.canvas().openMessageMenu(entry, mouseX, mouseY);
+                    } else {
+                        net.ledok.eden_ld.client.chat.MessageMenu.open(entry, (int) mouseX, (int) mouseY);
+                    }
+                }
             }
             cir.setReturnValue(true);
             return;
@@ -990,12 +1042,27 @@ public abstract class ChatScreenMixin extends Screen {
             net.ledok.eden_ld.client.chat.panel.ChatEntry message = eden_ld$pickerOpen && eden_ld$overPanel(mouseX, mouseY)
                     ? null : net.ledok.eden_ld.client.chat.panel.ChatPanel.entryAt(mouseX, mouseY);
             if (message != null) {
-                net.ledok.eden_ld.client.chat.MessageMenu.open(message, (int) mouseX, (int) mouseY);
+                if (host != null) {
+                    host.canvas().openMessageMenu(message, mouseX, mouseY);
+                } else {
+                    net.ledok.eden_ld.client.chat.MessageMenu.open(message, (int) mouseX, (int) mouseY);
+                }
                 cir.setReturnValue(true);
             }
             return;
         }
         if (button != 0) {
+            return;
+        }
+        if (host != null) {
+            // The picker took its own clicks above: the button toggles it, a click anywhere else closes it and still
+            // reaches the screen.
+            if (eden_ld$overEmojiButton(mouseX, mouseY)) {
+                host.canvas().togglePicker();
+                cir.setReturnValue(true);
+            } else if (host.canvas().pickerOpen()) {
+                host.canvas().closePicker();
+            }
             return;
         }
         if (eden_ld$overEmojiButton(mouseX, mouseY)) {
@@ -1036,11 +1103,50 @@ public abstract class ChatScreenMixin extends Screen {
         net.ledok.eden_ld.client.chat.GifViewer.close();
         ChannelMenu.close();
         net.ledok.eden_ld.client.chat.MessageMenu.close();
+        if (eden_ld$ui != null) {
+            // Its menus, focus and pointer shape go; the picker stays open across a sub-screen, as the old one.
+            eden_ld$ui.canvas().removed();
+        }
+    }
+
+    /**
+     * Typed characters: the new look's picker search while it has the keyboard (merged into ChatScreen, which has
+     * none of its own; the bed chat's calls super into this).
+     */
+    @Override
+    public boolean charTyped(char c, int modifiers) {
+        var host = eden_ld$host();
+        if (host != null && host.canvas().charTyped(c, modifiers)) {
+            return true;
+        }
+        return super.charTyped(c, modifiers);
+    }
+
+    /**
+     * Releases: the new look's canvas first (a menu row fires on release, a scroll bar drag ends), then the screen's
+     * own as always (vanilla's drag state, other mods' buttons). Merged into ChatScreen, which has none of its own.
+     */
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        var host = eden_ld$host();
+        boolean taken = host != null && host.canvas().mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(mouseX, mouseY, button) || taken;
     }
 
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
     private void eden_ld$scrollPicker(double mouseX, double mouseY, double scrollX, double scrollY,
                                       CallbackInfoReturnable<Boolean> cir) {
+        var host = eden_ld$host();
+        if (host != null) {
+            // The wheel over the picker or a menu scrolls it, never the chat.
+            if (host.canvas().mouseScrolled(mouseX, mouseY, scrollY)) {
+                cir.setReturnValue(true);
+            }
+            return;
+        }
+        if (eden_ld$newLook) {
+            return;
+        }
         if (eden_ld$tabAt(mouseX, mouseY) >= 0 || (eden_ld$pickerOpen && eden_ld$overPanel(mouseX, mouseY)
                 && mouseY < eden_ld$panel()[1] + TAB_STRIP)) {
             // Over the tab strip: scroll the tabs.

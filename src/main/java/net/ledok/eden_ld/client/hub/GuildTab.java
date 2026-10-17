@@ -2,6 +2,7 @@ package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.client.EdenParchment;
+import net.ledok.eden_ld.client.chat.ui.EmojiPicker;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.GuildAction;
 import net.ledok.eden_ld.hub.HubPayloads.GuildAction.Action;
@@ -95,7 +96,7 @@ final class GuildTab {
     private static boolean refocusChat;
     private static String chatDraft = "";
     /** The chat's emoji picker: beside the chat, only while the right panel is collapsed (it takes that room). */
-    private static final HubEmojiPicker.State PICKER = new HubEmojiPicker.State();
+    private static final EmojiPicker.State PICKER = new EmojiPicker.State();
 
     // Create form and directory search survive tab rebuilds (pushes land while typing).
     private static String createName = "";
@@ -630,9 +631,9 @@ final class GuildTab {
         }
         column.item(EdenParchment.hairline());
 
-        boolean picker = pickerRoom && HubEmojiPicker.showing(PICKER);
+        boolean picker = pickerRoom && EmojiPicker.showing(PICKER);
         // The open picker sits right of the chat lines, above the chat field.
-        float linesWidth = picker ? width - HubEmojiPicker.WIDTH - 4 : width;
+        float linesWidth = picker ? width - HubPicker.WIDTH - 4 : width;
         Flex chat = Flex.column().gap(2).padding(Insets.of(2, 3, 2, 3));
         if (HubState.guildChat.stream().allMatch(entry -> HubState.ignores(entry.sender()))) {
             chat.item(EdenParchment.text(tr("chat_empty"), EdenParchment.INK_DIM, (int) (linesWidth - 20)));
@@ -656,7 +657,7 @@ final class GuildTab {
             area.sizing(Sizing.fill(), Sizing.expand());
             chatPanel.sizing(Sizing.expand(), Sizing.fill());
             area.item(chatPanel);
-            area.item(HubEmojiPicker.panel(screen, PICKER, () -> chatInput, GuildTab::refresh));
+            area.item(HubPicker.panel(screen, PICKER, () -> chatInput, GuildTab::refresh));
             column.item(area);
         } else {
             chatPanel.sizing(Sizing.fill(), Sizing.expand());
@@ -685,8 +686,8 @@ final class GuildTab {
         };
         input.onSubmit(sendChat);
         compose.item(input);
-        if (pickerRoom && HubEmojiPicker.available()) {
-            compose.item(HubEmojiPicker.button(PICKER, GuildTab::refresh));
+        if (pickerRoom && EmojiPicker.available()) {
+            compose.item(HubPicker.button(PICKER, GuildTab::refresh));
         }
         compose.item(EdenParchment.fitButton(tr("send"), 34, 16, sendChat));
         column.item(compose);
