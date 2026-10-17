@@ -101,7 +101,11 @@ needs a README pass too.
         **Phase 5 built (Eden 1.3.1, 2026-10-17)**: tab strip above a fixed-height plate, typing glyph, tab menu,
         hidden tabs, client-side `[tag]` switch, SelectGuard, closed chat follows the tab + other channels' unseen
         mentions, `chat_all_tab` / `chat_system_in_tabs`. 137 tests; agent review (3 fixed). **Not tested in game yet**
-        (see the plan's Built (5) note for the checklist). Not deployed. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        (see the plan's Built (5) note for the checklist). **Deployed to Prism Client/Server and the pack 2026-10-18**
+        (owner asked; pack f7107b5, pushed; 1.2.5 to removed-mods-2026-10-18). Bundles VectorLib 0.7.2 — japicmp:
+        binary compatible with 0.6.2, so the pack's other mods (Arenas, Economy, Kits, NPCs, Duels, DeathsHelper,
+        PuffishSkillsAdditions) are fine. **Live still runs 1.2.5** (not uploaded): pack clients on 1.3.1 join it fine
+        (no new registry content; ChatFlags never sent → new look on, its toggles hidden) until live gets 1.3.1. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
