@@ -367,7 +367,11 @@ from the scope above:
   inserts); Classic ↔ Strips live; hub party picker (pick keeps the field's focus, Shift-picks); old look's menus and
   picker unchanged. Then GUI scales 1, 2 and 3 (4 needs a taller window than the 1280×720 test display) and all four
   themes for the channel/message menus and the picker (readable on each; the focus border in the theme's accent),
-  strip gaps visible at GUI 1. Not yet: NCR/owo/Debugify in Prism, `-Dvectorlib.noSdf`.
+  strip gaps visible at GUI 1. Then at 1920×1080 with No Chat Reports 2.9.1, owo 0.13.0 and Debugify 1.1 (the
+  pack's jars) in the dev client: chat sends; NCR's lock button shows its tooltip and opens its screen, and Back
+  returns to the chat; the picker covers NCR's buttons and takes their clicks, as the 1.2 picker did; GUI scale 4
+  (480×270): menus and picker fit. `-Dvectorlib.noSdf=true`: the closed chat falls back to Classic, and the menus,
+  picker and plates draw through the path fallback.
 
 ### Phase 5 — Eden 1.3.1: tab strip replaces the pips (4 d)
 
