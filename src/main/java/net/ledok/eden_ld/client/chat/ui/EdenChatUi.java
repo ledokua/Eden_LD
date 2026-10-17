@@ -139,15 +139,26 @@ public final class EdenChatUi {
             pill.y1 = y1;
         }
         boolean room = !suggestions;
-        mentionsPill.set(room && mentions > 0 && !mentionsRect.under(coverA) && !mentionsRect.under(coverB));
-        newPill.set(room && viewport.scroll() > 0 && !newRect.under(coverA) && !newRect.under(coverB));
+        // A panel opening over a pill takes its place at once (a pill fading out would show through the panel).
+        if (mentionsRect.under(coverA) || mentionsRect.under(coverB)) {
+            mentionsPill.snap(false);
+        } else {
+            mentionsPill.set(room && mentions > 0);
+        }
+        if (newRect.under(coverA) || newRect.under(coverB)) {
+            newPill.snap(false);
+        } else {
+            newPill.set(room && viewport.scroll() > 0);
+        }
         newRect.live = newPill.on() && newPill.visible();
         mentionsRect.live = mentionsPill.on() && mentionsPill.visible();
 
         ChatTheme theme = ChatTheme.current();
         float chrome = ChatLook.chrome();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 100);
+        // Over the history's text (z 100, the font a little nearer) and its toolbar (120); under the picker and the GIF
+        // viewer (drawn later at 150) and the menus (300).
+        graphics.pose().translate(0, 0, 150);
         // ↓ New: the plate's color, a foot line in the unread color while new lines wait.
         float e = newPill.value() * chrome;
         if (e > 0.004f) {

@@ -86,8 +86,10 @@ needs a README pass too.
         chips and @N badges; empty-view line; escape hatch Settings → Chat → New chat look (new S2C `ChatFlags`,
         `SettingsData` unchanged). Agent review: 7 findings fixed, 4 refuted. 40 tests pass. Dev-tested 2026-10-17: all
         four themes, bed chat, scale 0.5, opacity 0/1, toggle off/on, empty view, pills, command list, picker, sending.
-        Open: in-game recheck of the review fixes (GUI scale 3: picker over the Mentions pill; @N badge; a toolbar beside
-        the pill), NCR in Prism, Chat Delay box. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        Review fixes rechecked in game at GUI scale 3, plus 3 more found and fixed then: lines under the picker/GIF were
+        hovered and their toolbar took the picker's clicks (1.2 look too), text drew over the pills, the first badge ran
+        off-screen; then 3 from an agent check (1.2-look tooltip over the picker, a fading pill through a new panel,
+        history text through the picker/GIF — panels now z 150), not rechecked in game. Open: NCR in Prism. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2

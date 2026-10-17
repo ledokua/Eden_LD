@@ -241,6 +241,11 @@ public abstract class ChatScreenMixin extends Screen {
         if (eden_ld$host() != null) {
             eden_ld$ui.frame();
         }
+        // What sits over the history (either look): the lines under the picker or the GIF viewer aren't hovered or
+        // clicked through it, and a hovered line's toolbar stays clear of it.
+        net.ledok.eden_ld.client.chat.panel.ChatViews.main().cover(
+                eden_ld$pickerOpen && eden_ld$emojiButton ? eden_ld$panel() : null,
+                net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
     }
 
     /** Vanilla's input strip: the new look draws its plate there instead (before the screen's own widgets). */
@@ -475,8 +480,8 @@ public abstract class ChatScreenMixin extends Screen {
             // Both sit bottom right: the GIF someone just clicked wins.
             eden_ld$closePicker();
         }
-        // The chat draws its text 50 units up (vanilla): the picker and the GIF viewer go above
-        // it, or chat lines under them would show through (command suggestions stay on top, 200).
+        // The chat draws its text at z 100 (ChatView; the font a little nearer): the picker and the GIF viewer go
+        // above it (150), or chat lines under them would show through (command suggestions stay on top, 200).
         var host = eden_ld$host();
         if (host != null) {
             host.drawPills(graphics, font, mouseX, mouseY, commandSuggestions != null && commandSuggestions.isVisible(),
@@ -485,7 +490,7 @@ public abstract class ChatScreenMixin extends Screen {
                     net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
         }
         graphics.pose().pushPose();
-        graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        graphics.pose().translate(0.0F, 0.0F, 150.0F);
         net.ledok.eden_ld.client.chat.GifViewer.render(graphics, font, width, height, mouseX, mouseY);
         if (eden_ld$badge > 0) {
             eden_ld$drawPips(graphics, mouseX, mouseY);
@@ -583,7 +588,8 @@ public abstract class ChatScreenMixin extends Screen {
         }
         int[] pill = eden_ld$pill();
         if (pill != null) {
-            boolean over = !ChannelMenu.isOpen() && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3];
+            boolean over = !ChannelMenu.isOpen() && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3]
+                    && !eden_ld$overPanel(mouseX, mouseY);
             graphics.fill(pill[0], pill[1], pill[2], pill[3], over ? 0xFF000000 | accent : 0xD0000000 | accent & 0xFFFFFF);
             graphics.drawString(font, Component.translatable("chat.eden_ld.mentions.jump",
                     net.ledok.eden_ld.client.chat.ChatActivity.mentionsTotal()), pill[0] + 4, pill[1] + 2, 0xFFFFFFFF, false);
@@ -669,13 +675,15 @@ public abstract class ChatScreenMixin extends Screen {
     private void eden_ld$drawBadge(GuiGraphics graphics, net.ledok.eden_ld.client.chat.ui.ChatTheme theme, int color,
                                    String text, int right, int top, float fade) {
         int w = font.width(text) + 4;
+        // On the first chip it would start left of the screen: kept on it, its ring included.
+        int x0 = Math.max(1, right - w);
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 10);
-        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, right - w, top, w, 9, theme.badge(color), fade, false);
+        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, top, w, 9, theme.badge(color), fade, false);
         int ink = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(
                 net.ledok.eden_ld.client.chat.ui.ChatLook.textOn(color), fade);
         if (ink != 0) {
-            graphics.drawString(font, text, right - w + 2, top + 1, ink, false);
+            graphics.drawString(font, text, x0 + 2, top + 1, ink, false);
         }
         graphics.pose().popPose();
     }
@@ -928,7 +936,8 @@ public abstract class ChatScreenMixin extends Screen {
             return;
         }
         int[] pill = eden_ld$pill();
-        if (pill != null && button == 0 && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3]) {
+        if (pill != null && button == 0 && mouseX >= pill[0] && mouseX < pill[2] && mouseY >= pill[1] && mouseY < pill[3]
+                && !eden_ld$overPanel(mouseX, mouseY)) {
             net.ledok.eden_ld.client.chat.ChatActivity.jumpToMention(null);
             cir.setReturnValue(true);
             return;

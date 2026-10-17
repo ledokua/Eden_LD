@@ -90,6 +90,8 @@ public final class ChatView {
     /** Screen rects drawn over the lines (the new look's pills): no hover or click reaches a line through them. */
     private float @Nullable [] blockedA;
     private float @Nullable [] blockedB;
+    private int @Nullable [] coverA;
+    private int @Nullable [] coverB;
 
     /** The lines the tab shows, newest first, and what they were picked with. */
     private List<Row> rows = List.of();
@@ -408,16 +410,23 @@ public final class ChatView {
         tag.icon().draw(graphics, row.indent() + font.width(row.text()) + 4, textY);
     }
 
-    /** A toolbar's right end (chat units), moved left of the pills it would sit under: they stay readable and clickable. */
-    private int clearOfPills(Frame frame, int right, int width, int top, int bottom) {
+    /**
+     * A toolbar's right end (chat units), moved left of what it would sit under — the picker or the GIF viewer, and in
+     * the new look the pills — so they stay readable and clickable and the toolbar stays usable.
+     */
+    private int clearOfCovers(Frame frame, int right, int width, int top, int bottom, boolean pills) {
+        float[][] rects = {
+                coverA == null ? null : new float[]{coverA[0], coverA[1], coverA[2], coverA[3]},
+                coverB == null ? null : new float[]{coverB[0], coverB[1], coverB[2], coverB[3]},
+                pills ? blockedB : null, pills ? blockedA : null};
         double scale = frame.scale();
-        for (float[] pill : new float[][]{blockedB, blockedA}) {
-            if (pill == null) {
+        for (float[] rect : rects) {
+            if (rect == null) {
                 continue;
             }
-            double x0 = (pill[0] - frame.left()) / scale - 4.0;
-            double x1 = (pill[2] - frame.left()) / scale - 4.0;
-            if (right - width < x1 && right > x0 && top < pill[3] / scale && bottom > pill[1] / scale) {
+            double x0 = (rect[0] - frame.left()) / scale - 4.0;
+            double x1 = (rect[2] - frame.left()) / scale - 4.0;
+            if (right - width < x1 && right > x0 && top < rect[3] / scale && bottom > rect[1] / scale) {
                 right = Mth.floor(x0) - 2;
             }
         }
@@ -437,9 +446,7 @@ public final class ChatView {
         double localY = frame.chatY(mouseY);
         String time = time(entry.time());
         int timeWidth = font.width(time) + 6;
-        if (theme != null) {
-            right = clearOfPills(frame, right, timeWidth + tools.size() * TOOL, top, bottom);
-        }
+        right = clearOfCovers(frame, right, timeWidth + tools.size() * TOOL, top, bottom, theme != null);
         int x = right - tools.size() * TOOL;
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 20.0F);
@@ -556,13 +563,26 @@ public final class ChatView {
         blockedB = b;
     }
 
+    /** The panels over the lines this frame, in either look (the emoji picker, the GIF viewer: GUI rects, or null). */
+    public void cover(int @Nullable [] a, int @Nullable [] b) {
+        coverA = a;
+        coverB = b;
+    }
+
     private static boolean inside(float @Nullable [] rect, double x, double y) {
+        return rect != null && x >= rect[0] && x < rect[2] && y >= rect[1] && y < rect[3];
+    }
+
+    private static boolean inside(int @Nullable [] rect, double x, double y) {
         return rect != null && x >= rect[0] && x < rect[2] && y >= rect[1] && y < rect[3];
     }
 
     @Nullable
     private Row rowAt(Frame frame, double mouseX, double mouseY) {
         if (!frame.open() || minecraft().options.chatVisibility().get() == ChatVisiblity.HIDDEN) {
+            return null;
+        }
+        if (inside(coverA, mouseX, mouseY) || inside(coverB, mouseX, mouseY)) {
             return null;
         }
         if (ChatLook.open() != null && (inside(blockedA, mouseX, mouseY) || inside(blockedB, mouseX, mouseY))) {

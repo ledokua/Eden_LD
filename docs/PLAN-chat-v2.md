@@ -314,9 +314,17 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
   under menus; the Chat Delay box's click band). 4 were refuted.
 - **Dev-tested** (dev server 25598, two clients): all four themes; bed chat (plate stops at Leave Bed, the button works,
   the close leaves no ghost); chat scale 0.5; opacity 0 and 1; toggle off → the 1.2 look and back; empty view;
-  pills (New → newest, Mentions → its channel); command list over the input plate; emoji picker; sending. The
-  review fixes are built and unit-tested (40 tests); their in-game recheck is pending (GUI scale 3 with the picker
-  open and a mention waiting; the @N badge; a toolbar beside the Mentions pill). Not yet tested: NCR in Prism, Chat Delay.
+  pills (New → newest, Mentions → its channel); command list over the input plate; emoji picker; sending. Review
+  fixes rechecked in game at GUI scale 3 (426×240): the picker hides the Mentions pill and its emoji take the click;
+  the @N badge clears its label; a hovered line's toolbar sits left of the pill; the Chat Delay box's bottom edge
+  releases lines. That pass found three more issues, all fixed and rechecked. (1) Lines under the picker or GIF viewer
+  were still hovered, so their toolbar drew over the picker and took its clicks; this happened in the 1.2 look too.
+  Now `ChatView.cover` takes those panels in either look. (2) Line text drew over the pills (text at z 100 plus the
+  font's offset), so the pills now draw at z 150. (3) The first chip's badge ran off the screen edge. A two-agent
+  check of those fixes found three more, fixed but not rechecked in game. (a) In the 1.2 look the Mentions tooltip still
+  showed over the picker. (b) A pill fading out showed through a panel opening over it; it now snaps away. (c) The
+  picker and GIF viewer moved to z 150, so history text no longer shows through them; this was a 1.2.x bug too. Not
+  yet tested: NCR in Prism.
 
 ### Phase 5 — Eden 1.3.1: tab strip replaces the pips (4 d)
 
