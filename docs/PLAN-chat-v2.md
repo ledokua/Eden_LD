@@ -220,6 +220,24 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
 - An embed demo screen that extends a vanilla `Screen`.
 - Esc and tooltips work in the embed.
 
+**Built (2026-10-17, VectorLib 0.7.1).** As planned, with amendment 8:
+- `Motion.Spring` / `Presence` / `outBack` (`client.canvas`): wall-clock, snap with animations off; each clock read also
+  takes a time for tests.
+- `ContextMenu`: `Submenu`, `Check`, `Separator`, `Header` are new `Entry` records beside the unchanged `Item`; submenus
+  open beside their row on a 180 ms rest or a click (left when the right has no room), a pick closes the whole menu
+  chain (popups under it stay), Esc peels one menu. Open 150 ms OUT_CUBIC rise 4 + fade; close 110 ms IN_CUBIC lift 3
+  in the overlay layer. `Button.leading()` (protected) makes room for the check dot.
+- `WidgetStyle.Skin.Box(BoxStyle)`; `VectorLib.defaults().roundedFlat()/windowElevation()` — off (decision 5 waits
+  for the owner's sign-off on the look).
+- `CanvasEmbed` (`client.presentation`): render/mouse/keys/scroll handed on; only content counts as taken; a click
+  outside open popups closes them and is taken; Tab only while the canvas has focus; `escape()`; `removed()`.
+- Binary-compat check: `./gradlew :common:apiCompat` (japicmp 0.4.3) against `VectorLib/compat-baseline/` (now 0.7.1);
+  0.7.1 vs 0.7.0: no incompatible change.
+- Tests: `MotionTest` (6), `ContextMenuTest` (5; rows pressed directly — no font headless). Dev client:
+  `/vectorlib motion` (a vanilla `Screen` + `CanvasEmbed`): spring highlight, presence pill, embed tooltip, menu rise,
+  hover-opened submenu with the dot, pick closes both, Esc ×3 peels submenu → menu → screen; `/vectorlib boxes`
+  "Defaults: try them…" (flat skins as boxes, window elevation).
+
 ### Phase 4 — Eden 1.3.0: Eden chat screen, plates, motion, menus (5.5 d; needs VL 0.7.1)
 
 **Goal:** the first GM look. Same geometry as today (bottom-left, vanilla chat width, height and scale). The pips stay for this release.

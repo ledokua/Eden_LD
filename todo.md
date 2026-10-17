@@ -76,6 +76,9 @@ needs a README pass too.
         `CanvasScreen.blurBackground`, per-corner `Path2D.roundRect`, `Flex.backgroundBox`; synced into Eden/NPCs_LD/
         Kits_LD libs. Dev-tested on Fabric (GUI 1/2/4, F3+T, noSdf, broken shader pack) and NeoForge. Still to try:
         an Iris shader pack in Prism Client. Eden doesn't use it yet (phase 4).
+        **Phase 3 built (VectorLib 0.7.1, 2026-10-17)**: `Motion` (Spring/Presence/outBack), `ContextMenu` submenus/
+        checks/separators/headers with rise/lift motion (`Item` unchanged), `CanvasEmbed`, `Skin.Box`, opt-in
+        `VectorLib.defaults()`, japicmp `apiCompat`; dev-tested (`/vectorlib motion`); synced into the mods' libs.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
