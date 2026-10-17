@@ -135,6 +135,14 @@ final class SettingsTab {
     }
 
     private static void chat(Settings settings, HubPayloads.SettingsData data) {
+        if (HubState.chatFlags != -1) {
+            // Only when the server sent the chat flags (Eden 1.3.0+): an older one can't keep the choice.
+            settings.heading(tr("section.look"));
+            settings.add(Option.toggle(tr("chat_new_look"), HubState.chatNewLook(),
+                            on -> send(HubSettings.CHAT_NEW_LOOK, on ? 1 : 0))
+                    .text(tr("channel.focus.toggle")).hint(tr("chat_new_look.hint")).defaultValue(true)
+                    .keywords("chat", "look", "style", "classic", "vanilla", "old"));
+        }
         settings.heading(tr("section.messages"));
         settings.add(messages(HubSettings.CHAT_DEATHS, "deaths", data.chatDeaths()));
         settings.add(messages(HubSettings.CHAT_ADVANCEMENTS, "advancements", data.chatAdvancements()));

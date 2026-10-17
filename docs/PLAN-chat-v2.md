@@ -274,6 +274,50 @@ There are two tracks. **Track V** is VectorLib. **Track E** is Eden. Phase 10 (s
 - Rapid open and close leaves no stuck alpha.
 - All four themes; chat scale 0.5 and 1; opacity sliders; Chat Delay above 0.
 
+**Built (2026-10-17, Eden 1.3.0 — Phase 4a; needs VectorLib 0.7.2).** Split per amendment 18; 4b (VectorLib menus in a
+`CanvasEmbed`, the picker refactor of amendment 16, HUD strips) is next. Decisions that differ from the scope above
+(design and critique: the session's `p4/design-4a.md`, `p4/critique.md`):
+- **No `EdenChatScreen`, no silent overlay.** One host, `client/chat/ui/EdenChatUi`, per `ChatScreen` (bed chat
+  included, amendment 1), made by `ChatScreenMixin` the first time the screen draws itself (`minecraft.screen == this`:
+  NCR's headless screen never gets one). **Vanilla geometry is kept:** history at its vanilla frame (no jump between
+  open and closed), vanilla's `EditBox` where it is and drawn by vanilla — caret, inline suggestion, Brigadier
+  formatter and NCR/owo hooks untouched. A taller input plate would collide with NCR's buttons, Leave Bed and the
+  suggestion list, so amendment 6's overlay waits for Phase 7 (wrapped input).
+- **Plates:** the history plate is docked to the left edge (radii 0,4,4,0) and drawn by `ChatView` before its lines
+  (one plate, no line backgrounds; mentions are a rounded inset box per message). The input plate replaces vanilla's
+  input strip (`@WrapWithCondition` on that `fill`), x 0..w-2, y h-14..h-1, translucent (hotbar shows through), with
+  the theme's focus border. *Text Background Opacity* scales both (0.5 = the full look, 0 = none).
+- **Motion:** `ChatLook.CHROME` (`Presence` 200/140 ms). Open fades the plates in; the input row rises 4 units. The
+  close is decided in `Minecraft.setScreen` (`MinecraftMixin`, HEAD): back to the game → the HUD chat draws the
+  panels fading out (`ChatLook.drawClosing`); another `ChatScreen` (bed → chat) keeps them; any other screen covers
+  them at once. Fade rule: lines the HUD was showing stay as they were, older ones come in with the panels (no blink).
+  Text alpha under 4 isn't drawn (the font draws it opaque).
+- **Pills:** "↓ New: N" (or "↓ To newest") centered in the plate's bottom row, "↓ Mentions: N" at its right end (moved
+  into the plate: over NCR's buttons before). Each has its own `Presence`. They are hidden under command suggestions,
+  the emoji picker and the GIF viewer. While a menu is open they don't light up. The lines under them can't be
+  hovered or clicked (`ChatView.block`), and a hovered line's toolbar moves left of them.
+- **Chips:** the pips drawn as rounded chips under the rise (lit foot line on the selected one, unseen dot, the @N
+  badge is a pill with a ring in the plate's color), System chip included; the emoji button sits in the plate.
+- **Theme tokens:** `ChatTheme` (tokens, `derive`, `liftFor`/`contrast` to WCAG targets, `BoxStyle` presets, cached
+  per resolved theme). A light panel gets dark glass (plate = the palette's ink). Optional `chat` block in
+  `theme.json` (`HubTheme.Chat`, the record's last component); a bad color keeps the derived one. The built-in
+  theme.json files need no `chat` block.
+- **Escape hatch without a wire break:** `SettingsData` is unchanged. The new S2C `ChatFlags` (bit 1 = new look) is
+  sent before it, only when the client can receive it (`canSend`). Old clients and old servers keep working. The
+  Settings → Chat toggle shows only after the server has sent the flags. Absent = on. The flag is read at
+  `ChatScreen.init` (it applies the next time chat opens). Remove the hatch two releases after 1.3.0 ships.
+- **VectorLib 0.7.2:** `RoundedBox.draw(graphics, x, y, w, h, style, alpha, flush)` (an alpha multiplier, no
+  per-frame styles), additive and checked with japicmp.
+- **Reviewed** by a 5-dimension agent review with an adversarial check of every finding: 7 confirmed and fixed
+  (pills under the picker/GIF viewer took their clicks; the toolbar covered the Mentions pill; the @N badge covered
+  its chip's label; a bad `chat` color turned text invisible; the toggle did nothing on 1.2.x servers; the pill lit
+  under menus; the Chat Delay box's click band). 4 were refuted.
+- **Dev-tested** (dev server 25598, two clients): all four themes; bed chat (plate stops at Leave Bed, the button works,
+  the close leaves no ghost); chat scale 0.5; opacity 0 and 1; toggle off → the 1.2 look and back; empty view;
+  pills (New → newest, Mentions → its channel); command list over the input plate; emoji picker; sending. The
+  review fixes are built and unit-tested (40 tests); their in-game recheck is pending (GUI scale 3 with the picker
+  open and a mention waiting; the @N badge; a toolbar beside the Mentions pill). Not yet tested: NCR in Prism, Chat Delay.
+
 ### Phase 5 — Eden 1.3.1: tab strip replaces the pips (4 d)
 
 **Goal:** GM's channel chips with the eased lit plate, badges and a channel-switch slide.

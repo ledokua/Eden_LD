@@ -682,6 +682,10 @@ public final class HubServer {
         if (server == null) {
             return;
         }
+        // The chat flags first: the Settings page rebuilt for SettingsData then shows them as they are.
+        if (ServerPlayNetworking.canSend(player, HubPayloads.ChatFlags.TYPE)) {
+            ServerPlayNetworking.send(player, new HubPayloads.ChatFlags(HubSettings.chatFlags(server, player.getUUID())));
+        }
         ServerPlayNetworking.send(player, new HubPayloads.SettingsData(
                 HubSettings.partyInvitesFrom(server, player.getUUID()).ordinal(), MinestarHook.LOADED,
                 HubSettings.theme(server, player.getUUID()),

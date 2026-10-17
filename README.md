@@ -863,6 +863,8 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
   - **Ignored players** — everyone you ignore, each with *Stop ignoring* (the way back to someone
     offline and not your friend). See [Ignoring players](#ignoring-players).
 - **Chat**
+  - **New chat look** — the rounded chat panels in your hub theme's colors, with smooth motion (default on); off
+    brings back the 1.2 chat. It applies the next time you open chat. See [Chat](#chat).
   - **Mention sound volume** — the ping when someone writes `@YourName`: a slider, 0–100% (0 = off,
     default 90%). Letting go plays a test ping. No game slider changes it — not "Players", not master
     volume (the ping makes up for it); only master at 0%, which mutes the whole game, silences it.
@@ -1012,6 +1014,15 @@ narrator, other mods). What it adds:
   [Sticker] links as their addresses, spoilers as their text), **Open profile** (the hub), **Ignore** / Stop
   ignoring, and for staff who may punish, **Moderate** (the Moderation window on that player's page). The server's
   lines and your own only copy.
+- **The look** (1.3.0, [docs/PLAN-chat-v2.md](docs/PLAN-chat-v2.md)): the open chat (bed chat too) sits on rounded,
+  translucent panels in the hub theme's colors — dark glass on the light themes (parchment, stone tablet) — that fade
+  in when it opens and out when it closes; everything stays where Minecraft puts it. Messages light up as rounded rows
+  on hover, with their time and buttons on one rounded bar. **↓ New: N** shows while you've scrolled up (back to the
+  newest line) and **↓ Mentions: N** while mentions wait (to the oldest one). A view with nothing in it says so. The
+  game's *Text Background Opacity* fades the panels (its default, 50%, is the full look; 0% hides them). Themes can
+  set the chat's colors in a `chat` block of their `theme.json` (`plate`, `plate_input`, `border`, `focus_border`,
+  `ink`, `ink_dim`, `hover`, `unread`, `accent`; `glass`: `auto`, `on` or `off`). Settings → Chat → **New chat look**
+  turns it off (the 1.2 look).
 - Other servers keep Minecraft's chat as it is.
 
 **Channels** (Project Zomboid style): every message goes to one of

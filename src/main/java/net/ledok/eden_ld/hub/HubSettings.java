@@ -53,6 +53,13 @@ public final class HubSettings {
     public static final java.util.List<String> CHAT_MUTE = java.util.List.of(
             "chat_mute_global", "chat_mute_local", "chat_mute_party", "chat_mute_guild");
     public static final int MUTED_FOR_GOOD = -1;
+    /**
+     * Eden's new chat look (rounded panels in the hub theme's colors, motion); off = the 1.2.x chat. An escape hatch,
+     * on by default — remove it two releases after it ships.
+     */
+    public static final String CHAT_NEW_LOOK = "chat_new_look";
+    /** The chat switches that are on until the player turns them off, and their bits in {@link #chatFlags}. */
+    private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK);
     /** The longest timed mute the client may ask for (24 hours). */
     private static final int MAX_MUTE_MINUTES = 24 * 60;
     /** How hub tabs show news: badges, a glow, or both ({@link NotifyStyle} ordinal). */
@@ -175,6 +182,23 @@ public final class HubSettings {
     public static int mentionVolume(MinecraftServer server, UUID player) {
         CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
         return settings.contains(MENTION_VOLUME) ? settings.getInt(MENTION_VOLUME) : DEFAULT_MENTION_VOLUME;
+    }
+
+    /** A setting that is on until the player turns it off. */
+    public static boolean flag(MinecraftServer server, UUID player, String key) {
+        CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
+        return !settings.contains(key) || settings.getBoolean(key);
+    }
+
+    /** The chat switches as bits, in {@code CHAT_FLAGS} order (bit 0 = {@link #CHAT_NEW_LOOK}). */
+    public static int chatFlags(MinecraftServer server, UUID player) {
+        int flags = 0;
+        for (int i = 0; i < CHAT_FLAGS.size(); i++) {
+            if (flag(server, player, CHAT_FLAGS.get(i))) {
+                flags |= 1 << i;
+            }
+        }
+        return flags;
     }
 
     /** A plain int setting (0 when unset): notify style, color, and the bit masks. */
@@ -421,6 +445,13 @@ public final class HubSettings {
             CompoundTag settings = root.getCompound(TAG);
             settings.putInt(PARTY_INVITES_FROM, value);
             root.put(TAG, settings);
+            return true;
+        }
+        if (CHAT_FLAGS.contains(key)) {
+            if (value != 0 && value != 1) {
+                return false;
+            }
+            settings(server, player).putBoolean(key, value != 0);
             return true;
         }
         return false;

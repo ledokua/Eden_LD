@@ -2413,6 +2413,24 @@ public final class HubPayloads {
         }
     }
 
+    /**
+     * S2C (1.3.0+): the player's chat switches that are on unless turned off ({@code HubSettings.chatFlags}; bit 0 =
+     * the new chat look). Its own payload, sent after {@link SettingsData} only to clients that know it, so 1.2.x
+     * clients and servers still connect; without it everything is on.
+     */
+    public record ChatFlags(int flags) implements CustomPacketPayload {
+        public static final Type<ChatFlags> TYPE = new Type<>(id("chat_flags"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ChatFlags> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarInt(p.flags), buf -> new ChatFlags(buf.readVarInt()));
+        /** Eden's new chat look. */
+        public static final int NEW_LOOK = 1;
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: pick a hub theme (must be free or unlocked for the player). */
     public record ThemeSelect(String theme) implements CustomPacketPayload {
         public static final Type<ThemeSelect> TYPE = new Type<>(id("theme_select"));
@@ -3058,6 +3076,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(HubTours.TYPE, HubTours.CODEC);
         PayloadTypeRegistry.playC2S().register(TourStart.TYPE, TourStart.CODEC);
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
+        PayloadTypeRegistry.playS2C().register(ChatFlags.TYPE, ChatFlags.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsData.TYPE, DuelsData.CODEC);

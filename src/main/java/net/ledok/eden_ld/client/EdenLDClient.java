@@ -287,6 +287,12 @@ public class EdenLDClient implements ClientModInitializer {
 
         net.ledok.eden_ld.client.hub.ActivityReturn.initialize();
         net.ledok.eden_ld.client.theme.HubThemes.initialize();
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ChatFlags.TYPE, (payload, context) -> {
+            HubState.chatFlags = payload.flags();
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onSettingsData();
+            }
+        });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.SettingsData.TYPE, (payload, context) -> {
             int languageBefore = HubState.settingsData == null ? 0 : HubState.settingsData.hubLanguage();
             boolean iconsBefore = HubState.settingsData != null && HubState.settingsData.themeIconsOff();

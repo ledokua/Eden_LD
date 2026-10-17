@@ -236,6 +236,8 @@
   "gui.eden_ld.hub.settings.channel.focus": "Only the selected channel",
   "gui.eden_ld.hub.settings.channel.focus.toggle": "On",
   "gui.eden_ld.hub.settings.channel.focus.hint": "Chat shows just the channel you type into (Discord counts as Global); switching channel switches what you see.",
+  "gui.eden_ld.hub.settings.chat_new_look": "New chat look",
+  "gui.eden_ld.hub.settings.chat_new_look.hint": "Rounded chat panels in your hub theme's colors, with smooth motion. Off: the previous chat. Applies the next time you open chat.",
   "chat.eden_ld.history": "— Recent Global chat (%s) —",
   "gui.eden_ld.hub.settings.tab.privacy": "Privacy",
   "gui.eden_ld.hub.settings.tab.chat": "Chat",
@@ -1458,6 +1460,9 @@
   "chat.eden_ld.pip.system": "S",
   "chat.eden_ld.badge.system": "System",
   "chat.eden_ld.pip.system.name": "System messages",
+  "chat.eden_ld.jump": "↓ To newest",
+  "chat.eden_ld.jump.new": "↓ New: %s",
+  "chat.eden_ld.empty": "No messages here",
   "chat.eden_ld.tab.all": "All",
   "chat.eden_ld.pip.system.hint": "The server's messages, deaths and advancements only. Your messages still go to your channel; click a channel to go back.",
   "message.eden_ld.tutorial.locked_block": "You can't use that during the tutorial."

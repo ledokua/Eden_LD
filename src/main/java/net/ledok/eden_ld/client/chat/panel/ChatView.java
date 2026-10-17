@@ -8,6 +8,9 @@ import net.ledok.eden_ld.client.chat.model.ChatRules;
 import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.model.ChatViewport;
 import net.ledok.eden_ld.client.chat.model.ChatWindow;
+import net.ledok.eden_ld.client.chat.ui.ChatLook;
+import net.ledok.eden_ld.client.chat.ui.ChatTheme;
+import net.ledok.eden_ld.client.chat.ui.EdenChatUi;
 import net.ledok.eden_ld.client.hub.HubNotifications;
 import net.ledok.eden_ld.client.hub.HubState;
 import net.minecraft.client.GuiMessageTag;
@@ -24,6 +27,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.ChatVisiblity;
+import net.ledok.vectorlib.client.canvas.RoundedBox;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -83,6 +87,9 @@ public final class ChatView {
     private final ChatWindow window;
     private final ChatViewport viewport = new ChatViewport();
     private final List<ToolButton> toolbar = new ArrayList<>();
+    /** Screen rects drawn over the lines (the new look's pills): no hover or click reaches a line through them. */
+    private float @Nullable [] blockedA;
+    private float @Nullable [] blockedB;
 
     /** The lines the tab shows, newest first, and what they were picked with. */
     private List<Row> rows = List.of();
@@ -194,6 +201,11 @@ public final class ChatView {
         if (minecraft.options.chatVisibility().get() == ChatVisiblity.HIDDEN) {
             return;
         }
+        // Eden's new look in the open chat; on the HUD, its panels fading out after a close.
+        EdenChatUi look = focused ? ChatLook.open() : null;
+        if (!focused) {
+            ChatLook.drawClosing(graphics);
+        }
         Frame frame = frame();
         List<Row> rows = rows(frame);
         double scale = frame.scale();
@@ -211,11 +223,20 @@ public final class ChatView {
         // The message under the mouse in the open chat: its lines lit, its toolbar on the hovered line.
         boolean menus = net.ledok.eden_ld.client.chat.ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen();
         Row hovered = focused && !menus ? rowAt(frame, mouseX, mouseY) : null;
+        float chrome = look != null ? ChatLook.chrome() : 1f;
+        ChatTheme theme = look != null ? ChatTheme.current() : null;
+        int shown = Math.max(0, Math.min(perPage, rows.size() - scroll));
+        if (look != null) {
+            drawPlate(graphics, frame, base, shown, lineHeight, theme, chrome, font);
+        }
 
         graphics.pose().pushPose();
         graphics.pose().translate((float) frame.left(), 0.0F, 0.0F);
         graphics.pose().scale((float) scale, (float) scale, 1.0F);
         graphics.pose().translate(4.0F, 0.0F, 0.0F);
+        if (look != null) {
+            drawEntryChrome(graphics, rows, scroll, shown, base, lineHeight, width, hovered, theme, chrome, accent);
+        }
         int drawn = 0;
         for (int r = 0; r + scroll < rows.size() && r < perPage; r++) {
             Row row = rows.get(r + scroll);
@@ -225,6 +246,10 @@ public final class ChatView {
                 continue;
             }
             double fade = focused ? 1.0 : timeFactor(age);
+            if (look != null) {
+                // Lines the HUD was showing stay as they were; older ones come in with the panels.
+                fade = age < VISIBLE ? Math.max(timeFactor(age), chrome) : chrome;
+            }
             int alpha = (int) (255.0 * fade * opacity);
             int backgroundAlpha = (int) (255.0 * fade * backgroundOpacity);
             drawn++;
@@ -235,23 +260,36 @@ public final class ChatView {
             int textY = bottom + textOffset;
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, 0.0F, 50.0F);
-            graphics.fill(-4, bottom - lineHeight, width + 8, bottom, backgroundAlpha << 24);
-            if (entry.mention) {
-                graphics.fill(-4, bottom - lineHeight, width + 8, bottom, (int) (0x50 * fade) << 24 | accent);
-                graphics.fill(-4, bottom - lineHeight, -2, bottom, alpha << 24 | accent);
-            } else if (entry.message.tag() != null) {
-                graphics.fill(-4, bottom - lineHeight, -2, bottom, entry.message.tag().indicatorColor() | alpha << 24);
-            }
-            if (hovered != null && hovered.entry() == entry) {
-                graphics.fill(-4, bottom - lineHeight, width + 8, bottom, 0x18FFFFFF);
+            if (look == null) {
+                graphics.fill(-4, bottom - lineHeight, width + 8, bottom, backgroundAlpha << 24);
+                if (entry.mention) {
+                    graphics.fill(-4, bottom - lineHeight, width + 8, bottom, (int) (0x50 * fade) << 24 | accent);
+                    graphics.fill(-4, bottom - lineHeight, -2, bottom, alpha << 24 | accent);
+                } else if (entry.message.tag() != null) {
+                    graphics.fill(-4, bottom - lineHeight, -2, bottom, entry.message.tag().indicatorColor() | alpha << 24);
+                }
+                if (hovered != null && hovered.entry() == entry) {
+                    graphics.fill(-4, bottom - lineHeight, width + 8, bottom, 0x18FFFFFF);
+                }
             }
             graphics.pose().translate(0.0F, 0.0F, 50.0F);
             if (row.first() && row.indent() > 0) {
+                if (look != null) {
+                    // A head is blitted at once: the boxes queued so far go first.
+                    graphics.flush();
+                }
                 drawHead(graphics, entry.sender(), textY, alpha);
             }
             graphics.drawString(font, row.text(), row.indent(), textY, 0xFFFFFF | alpha << 24);
             if (row == hovered) {
-                drawToolbar(graphics, font, frame, entry, width + 8, bottom - lineHeight, bottom, mouseX, mouseY);
+                if (look != null) {
+                    drawTagIcon(graphics, font, row, textY);
+                    drawToolbar(graphics, font, frame, entry, width + 6, bottom - lineHeight - 1, bottom + 1, textY,
+                            mouseX, mouseY, theme, chrome);
+                } else {
+                    drawToolbar(graphics, font, frame, entry, width + 8, bottom - lineHeight, bottom,
+                            bottom - lineHeight + (lineHeight - 8) / 2, mouseX, mouseY, null, 1f);
+                }
             }
             graphics.pose().popPose();
             if (focused) {
@@ -263,33 +301,132 @@ public final class ChatView {
         if (queued > 0) {
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, base, 0.0F);
-            graphics.fill(-2, 0, width + 4, 9, (int) (255.0 * backgroundOpacity) << 24);
+            if (look != null) {
+                RoundedBox.draw(graphics, -3, 1, width + 6, 10, theme.queue, chrome, false);
+            } else {
+                graphics.fill(-2, 0, width + 4, 9, (int) (255.0 * backgroundOpacity) << 24);
+            }
             graphics.pose().translate(0.0F, 0.0F, 50.0F);
-            graphics.drawString(font, Component.translatable("chat.queue", queued), 0, 1,
-                    0xFFFFFF | (int) (128.0 * opacity) << 24);
+            int color = 0xFFFFFF | (int) (128.0 * opacity) << 24;
+            int queueColor = look != null ? ChatLook.textColor(color, chrome) : color;
+            if (queueColor != 0) {
+                graphics.drawString(font, Component.translatable("chat.queue", queued), 0, look != null ? 2 : 1,
+                        queueColor);
+            }
             graphics.pose().popPose();
         }
 
         if (focused && !rows.isEmpty()) {
             int total = rows.size() * lineHeight;
-            int shown = drawn * lineHeight;
-            if (total != shown && total > 0) {
-                int top = scroll * shown / rows.size() - base;
-                int bar = shown * shown / total;
+            int shownHeight = drawn * lineHeight;
+            if (total != shownHeight && total > 0) {
+                int top = scroll * shownHeight / rows.size() - base;
+                int bar = shownHeight * shownHeight / total;
                 int barAlpha = top > 0 ? 170 : 96;
-                int color = viewport.newCount() > 0 ? 0xCC3333 : 0x3333AA;
-                int x = width + 4;
-                // Over the lines' backgrounds (z 50), as vanilla draws it.
-                graphics.fill(x, -top, x + 2, -top - bar, 100, color | barAlpha << 24);
-                graphics.fill(x + 2, -top, x + 1, -top - bar, 100, 0xCCCCCC | barAlpha << 24);
+                if (look != null) {
+                    RoundedBox.draw(graphics, width + 3, -top - bar, 2, bar,
+                            viewport.newCount() > 0 ? theme.thumbNew : theme.thumb, barAlpha / 255f * chrome, false);
+                } else {
+                    int color = viewport.newCount() > 0 ? 0xCC3333 : 0x3333AA;
+                    int x = width + 4;
+                    // Over the lines' backgrounds (z 50), as vanilla draws it.
+                    graphics.fill(x, -top, x + 2, -top - bar, 100, color | barAlpha << 24);
+                    graphics.fill(x + 2, -top, x + 1, -top - bar, 100, 0xCCCCCC | barAlpha << 24);
+                }
             }
         }
         graphics.pose().popPose();
     }
 
-    /** ↩ ⧉ ⋯ at the right end of the hovered line (Reply only on someone else's message). */
+    /**
+     * The open chat's history plate, in GUI units so its border and corners keep their size at any chat scale: docked
+     * to the screen's left edge, around the shown lines, ending above the hearts (and above the bed's Leave Bed
+     * button). With nothing to show, one empty row saying so.
+     */
+    private void drawPlate(GuiGraphics graphics, Frame frame, int base, int shown, int lineHeight, ChatTheme theme,
+                           float chrome, Font font) {
+        double scale = frame.scale();
+        int rowsTall = Math.max(1, shown);
+        float x0 = (float) frame.left();
+        float x1 = (float) (frame.left() + (frame.boxWidth() + 12) * scale);
+        float bottom = (float) (base * scale);
+        int guiHeight = minecraft().getWindow().getGuiScaledHeight();
+        boolean bed = minecraft().screen instanceof net.minecraft.client.gui.screens.InBedChatScreen;
+        float y1 = bed ? bottom : Math.min(bottom + 2, guiHeight - 39);
+        float y0 = (float) ((base - rowsTall * lineHeight) * scale) - 2;
+        var style = theme.history(ChatLook.panelOpacity());
+        ChatLook.history(x0, y0, x1, y1, style);
+        RoundedBox.draw(graphics, x0, y0, x1 - x0, y1 - y0, style, chrome, false);
+        if (shown == 0) {
+            Component empty = Component.translatable("chat.eden_ld.empty");
+            int color = ChatLook.textColor(theme.tokens.inkDim(), chrome);
+            if (color != 0) {
+                graphics.flush();
+                graphics.drawString(font, empty, Math.round((x0 + x1 - font.width(empty)) / 2),
+                        Math.round(bottom - lineHeight * (float) scale / 2 - 4), color, false);
+            }
+        }
+    }
+
+    /**
+     * Per message, not per wrapped line: the hovered message's light, a mention's tint and stripe in the notification
+     * color, another tag's stripe (vanilla's "Not Secure", No Chat Reports' marks) — one rounded box over all of its
+     * shown lines.
+     */
+    private void drawEntryChrome(GuiGraphics graphics, List<Row> rows, int scroll, int shown, int base, int lineHeight,
+                                 int width, @Nullable Row hovered, ChatTheme theme, float chrome, int accent) {
+        int r = 0;
+        while (r < shown) {
+            ChatEntry entry = rows.get(r + scroll).entry();
+            int last = r;
+            while (last + 1 < shown && rows.get(last + 1 + scroll).entry() == entry) {
+                last++;
+            }
+            float y0 = base - (last + 1) * lineHeight;
+            float y1 = base - r * lineHeight;
+            if (entry.mention) {
+                RoundedBox.draw(graphics, -3, y0, width + 10, y1 - y0, theme.fill(0x50000000 | accent), chrome, false);
+                RoundedBox.draw(graphics, -3, y0 + 1, 2, y1 - y0 - 2, theme.fill(0xFF000000 | accent), chrome, false);
+            } else if (entry.message.tag() != null) {
+                RoundedBox.draw(graphics, -3, y0 + 1, 2, y1 - y0 - 2,
+                        theme.fill(0xFF000000 | entry.message.tag().indicatorColor()), chrome, false);
+            }
+            if (hovered != null && hovered.entry() == entry) {
+                RoundedBox.draw(graphics, -3, y0, width + 10, y1 - y0, theme.hoverRow, chrome, false);
+            }
+            r = last + 1;
+        }
+    }
+
+    /** A tag's icon after the hovered line, as vanilla draws it (No Chat Reports' encrypted mark). */
+    private static void drawTagIcon(GuiGraphics graphics, Font font, Row row, int textY) {
+        GuiMessageTag tag = row.entry().message.tag();
+        if (tag == null || tag.icon() == null) {
+            return;
+        }
+        graphics.flush();
+        tag.icon().draw(graphics, row.indent() + font.width(row.text()) + 4, textY);
+    }
+
+    /** A toolbar's right end (chat units), moved left of the pills it would sit under: they stay readable and clickable. */
+    private int clearOfPills(Frame frame, int right, int width, int top, int bottom) {
+        double scale = frame.scale();
+        for (float[] pill : new float[][]{blockedB, blockedA}) {
+            if (pill == null) {
+                continue;
+            }
+            double x0 = (pill[0] - frame.left()) / scale - 4.0;
+            double x1 = (pill[2] - frame.left()) / scale - 4.0;
+            if (right - width < x1 && right > x0 && top < pill[3] / scale && bottom > pill[1] / scale) {
+                right = Mth.floor(x0) - 2;
+            }
+        }
+        return right;
+    }
+
+    /** ↩ ⧉ ⋯ at the right end of the hovered line (Reply only on someone else's message), with when it came. */
     private void drawToolbar(GuiGraphics graphics, Font font, Frame frame, ChatEntry entry, int right, int top,
-                             int bottom, int mouseX, int mouseY) {
+                             int bottom, int textY, int mouseX, int mouseY, @Nullable ChatTheme theme, float chrome) {
         List<ChatPanel.Tool> tools = new ArrayList<>();
         if (net.ledok.eden_ld.client.chat.MessageActions.fromOther(entry)) {
             tools.add(ChatPanel.Tool.REPLY);
@@ -298,25 +435,54 @@ public final class ChatView {
         tools.add(ChatPanel.Tool.MORE);
         double localX = frame.chatX(mouseX);
         double localY = frame.chatY(mouseY);
+        String time = time(entry.time());
+        int timeWidth = font.width(time) + 6;
+        if (theme != null) {
+            right = clearOfPills(frame, right, timeWidth + tools.size() * TOOL, top, bottom);
+        }
         int x = right - tools.size() * TOOL;
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 20.0F);
-        // When it came, left of the buttons.
-        String time = time(entry.time());
-        int timeWidth = font.width(time) + 6;
-        graphics.fill(x - timeWidth, top, x, bottom, 0xE0262626);
-        graphics.drawString(font, time, x - timeWidth + 3, top + (bottom - top - 8) / 2, 0xFFA0A0A0, false);
+        if (theme != null) {
+            RoundedBox.draw(graphics, x - timeWidth, top, timeWidth + tools.size() * TOOL, bottom - top, theme.toolbar,
+                    chrome, false);
+        } else {
+            graphics.fill(x - timeWidth, top, x, bottom, 0xE0262626);
+        }
+        int first = x;
         for (ChatPanel.Tool tool : tools) {
             boolean over = localX >= x && localX < x + TOOL && localY >= top && localY < bottom;
-            graphics.fill(x, top, x + TOOL, bottom, over ? 0xF0505050 : 0xE0262626);
+            if (theme != null) {
+                if (over) {
+                    RoundedBox.draw(graphics, x + 1, top + 1, TOOL - 2, bottom - top - 2, theme.toolbarLit, chrome, false);
+                }
+            } else {
+                graphics.fill(x, top, x + TOOL, bottom, over ? 0xF0505050 : 0xE0262626);
+            }
+            toolbar.add(new ToolButton(tool, entry, x, top, x + TOOL, bottom));
+            x += TOOL;
+        }
+        if (theme != null) {
+            graphics.flush();
+        }
+        // When it came, left of the buttons; then the buttons' symbols.
+        int dim = theme != null ? ChatLook.textColor(theme.tokens.inkDim(), chrome) : 0xFFA0A0A0;
+        if (dim != 0) {
+            graphics.drawString(font, time, first - timeWidth + 3, textY, dim, false);
+        }
+        x = first;
+        for (ChatPanel.Tool tool : tools) {
+            boolean over = localX >= x && localX < x + TOOL && localY >= top && localY < bottom;
             String symbol = switch (tool) {
                 case REPLY -> "↩";
                 case COPY -> "⧉";
                 case MORE -> "⋯";
             };
-            graphics.drawString(font, symbol, x + (TOOL - font.width(symbol)) / 2 + 1, top + (bottom - top - 8) / 2,
-                    over ? 0xFFFFFFFF : 0xFFC0C0C0, false);
-            toolbar.add(new ToolButton(tool, entry, x, top, x + TOOL, bottom));
+            int color = theme != null ? ChatLook.textColor(over ? theme.tokens.ink() : theme.tokens.inkDim(), chrome)
+                    : over ? 0xFFFFFFFF : 0xFFC0C0C0;
+            if (color != 0) {
+                graphics.drawString(font, symbol, x + (TOOL - font.width(symbol)) / 2 + 1, textY, color, false);
+            }
             x += TOOL;
         }
         graphics.pose().popPose();
@@ -384,9 +550,22 @@ public final class ChatView {
 
     // ---------------------------------------------------------------- the mouse (the open chat)
 
+    /** What covers the lines this frame (GUI rects x0, y0, x1, y1, or null). */
+    public void block(float @Nullable [] a, float @Nullable [] b) {
+        blockedA = a;
+        blockedB = b;
+    }
+
+    private static boolean inside(float @Nullable [] rect, double x, double y) {
+        return rect != null && x >= rect[0] && x < rect[2] && y >= rect[1] && y < rect[3];
+    }
+
     @Nullable
     private Row rowAt(Frame frame, double mouseX, double mouseY) {
         if (!frame.open() || minecraft().options.chatVisibility().get() == ChatVisiblity.HIDDEN) {
+            return null;
+        }
+        if (ChatLook.open() != null && (inside(blockedA, mouseX, mouseY) || inside(blockedB, mouseX, mouseY))) {
             return null;
         }
         double chatX = frame.chatX(mouseX);
@@ -441,6 +620,10 @@ public final class ChatView {
         }
         double x = mouseX - frame.left() - 2.0;
         double below = frame.bottom() - mouseY;
+        if (ChatLook.open() != null) {
+            // The new look's box sits one unit lower and is a unit taller (render).
+            return x <= frame.textWidth() && below < -frame.scale() && below > Mth.floor(-11.0 * frame.scale());
+        }
         return x <= frame.textWidth() && below < 0.0 && below > Mth.floor(-9.0 * frame.scale());
     }
 

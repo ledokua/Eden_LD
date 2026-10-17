@@ -236,6 +236,8 @@
   "gui.eden_ld.hub.settings.channel.focus": "Лише вибраний канал",
   "gui.eden_ld.hub.settings.channel.focus.toggle": "Увімк.",
   "gui.eden_ld.hub.settings.channel.focus.hint": "Чат показує лише канал, у який ви пишете (Discord — це Глобальний); зміна каналу змінює й те, що видно.",
+  "gui.eden_ld.hub.settings.chat_new_look": "Новий вигляд чату",
+  "gui.eden_ld.hub.settings.chat_new_look.hint": "Заокруглені панелі чату в кольорах теми хабу, з плавною анімацією. Вимкнено: попередній чат. Діє з наступного відкриття чату.",
   "chat.eden_ld.history": "— Нещодавній глобальний чат (%s) —",
   "gui.eden_ld.hub.settings.tab.privacy": "Приватність",
   "gui.eden_ld.hub.settings.tab.chat": "Чат",
@@ -1458,6 +1460,9 @@
   "chat.eden_ld.pip.system": "С",
   "chat.eden_ld.badge.system": "Система",
   "chat.eden_ld.pip.system.name": "Системні повідомлення",
+  "chat.eden_ld.jump": "↓ До нових",
+  "chat.eden_ld.jump.new": "↓ Нових: %s",
+  "chat.eden_ld.empty": "Тут ще немає повідомлень",
   "chat.eden_ld.tab.all": "Усі",
   "chat.eden_ld.pip.system.hint": "Лише повідомлення сервера, смерті й досягнення. Ваші повідомлення й далі йдуть у ваш канал; клік на канал повертає назад.",
   "message.eden_ld.tutorial.locked_block": "Під час навчання цим користуватися не можна."

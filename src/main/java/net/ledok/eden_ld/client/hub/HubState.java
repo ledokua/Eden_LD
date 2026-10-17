@@ -13,6 +13,8 @@ public final class HubState {
     public static HubPayloads.PartyData partyData;
     public static HubPayloads.FriendsData friendsData;
     public static HubPayloads.SettingsData settingsData;
+    /** The chat switches ({@link HubPayloads.ChatFlags}); -1 until the server says (all on). */
+    public static int chatFlags = -1;
     /** The Activities tab's cards (dungeons, raids, arenas). */
     public static HubPayloads.ActivitiesData activitiesData;
     public static HubPayloads.DuelsData duelsData;
@@ -70,6 +72,7 @@ public final class HubState {
         partyData = null;
         friendsData = null;
         settingsData = null;
+        chatFlags = -1;
         activitiesData = null;
         duelsData = null;
         wardrobeData = null;
@@ -88,6 +91,11 @@ public final class HubState {
         profileTarget = null;
         profileData = null;
         ignored = java.util.Map.of();
+    }
+
+    /** Eden's new chat look (on unless the player turned it off). */
+    public static boolean chatNewLook() {
+        return (chatFlags & HubPayloads.ChatFlags.NEW_LOOK) != 0;
     }
 
     /** Whether the player ignores {@code uuid}: their lines hide, and lists put them last. */

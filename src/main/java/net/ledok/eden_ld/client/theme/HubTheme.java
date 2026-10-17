@@ -23,7 +23,8 @@ import java.util.List;
  *   "rows": { "texture": "row.png", "alt": "row_alt.png", "border": 4 },
  *   "tile_edges": true,                                    // panel/row edges repeat, not stretch
  *   "decorations": [ { "texture": "vines.png", "anchor": "top_left", "x": -14, "y": -6,
- *                      "width": 28, "height": 180, "layer": "front" } ]
+ *                      "width": 28, "height": 180, "layer": "front" } ],
+ *   "chat": { "glass": "auto", "plate": "#1D272B", "hover": "#1CFFFFFF", ... }  // the chat's colors (ChatTheme)
  * }
  * }</pre>
  * Texture names without a namespace are files next to theme.json.
@@ -31,7 +32,7 @@ import java.util.List;
  */
 public record HubTheme(ResourceLocation id, Component name, ResourceLocation textures, boolean textShadow,
                        Palette palette, @Nullable Background background, @Nullable Rows rows,
-                       List<Decoration> decorations, boolean tileEdges) {
+                       List<Decoration> decorations, boolean tileEdges, Chat chat) {
 
     /** A texture and its pixel size. */
     public record Image(ResourceLocation texture, int width, int height) {
@@ -89,8 +90,15 @@ public record HubTheme(ResourceLocation id, Component name, ResourceLocation tex
 
         /** "#RRGGBB" or "#AARRGGBB"; anything unreadable keeps the default. */
         private static int color(JsonObject json, String key, int fallback) {
+            Integer value = parse(json, key);
+            return value != null ? value : fallback;
+        }
+
+        /** {@code key}'s color ({@code #RRGGBB} opaque, {@code #AARRGGBB}), or null: missing, or not a color (logged). */
+        @org.jetbrains.annotations.Nullable
+        static Integer parse(JsonObject json, String key) {
             if (!json.has(key)) {
-                return fallback;
+                return null;
             }
             String hex = json.get(key).getAsString().trim().replace("#", "");
             try {
@@ -98,13 +106,51 @@ public record HubTheme(ResourceLocation id, Component name, ResourceLocation tex
                 return hex.length() <= 6 ? (int) (0xFF000000L | value) : (int) value;
             } catch (NumberFormatException e) {
                 EdenLD.LOGGER.warn("[Themes] Bad color '{}' for '{}'.", hex, key);
-                return fallback;
+                return null;
             }
+        }
+    }
+
+    /**
+     * The chat's own colors ({@code ChatTheme}), each optional: {@code plate}, {@code plate_input}, {@code border},
+     * {@code focus_border}, {@code ink}, {@code ink_dim}, {@code hover}, {@code unread}, {@code accent}. Missing ones are
+     * derived from the palette. {@code glass}: {@code auto} (a light panel gets dark glass so server colors stay
+     * readable), {@code on}, {@code off}.
+     */
+    public record Chat(java.util.Map<String, Integer> colors, Glass glass) {
+
+        public enum Glass { AUTO, ON, OFF }
+
+        public static final Chat NONE = new Chat(java.util.Map.of(), Glass.AUTO);
+        private static final List<String> KEYS = List.of("plate", "plate_input", "border", "focus_border", "ink",
+                "ink_dim", "hover", "unread", "accent");
+
+        static Chat read(JsonObject json) {
+            java.util.Map<String, Integer> colors = new java.util.HashMap<>();
+            for (String key : KEYS) {
+                // A bad value keeps the derived color (it's logged).
+                Integer value = Palette.parse(json, key);
+                if (value != null) {
+                    colors.put(key, value);
+                }
+            }
+            Glass glass = switch (json.has("glass") ? json.get("glass").getAsString() : "auto") {
+                case "on", "dark" -> Glass.ON;
+                case "off" -> Glass.OFF;
+                default -> Glass.AUTO;
+            };
+            return new Chat(java.util.Map.copyOf(colors), glass);
+        }
+
+        /** The theme's own value for a chat color, or {@code fallback}. */
+        public int color(String key, int fallback) {
+            Integer value = colors.get(key);
+            return value != null ? value : fallback;
         }
     }
 
     public static final HubTheme PARCHMENT = new HubTheme(PARCHMENT_ID,
             Component.translatable("hub_theme.eden_ld.parchment"),
             ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "textures/gui/themes/parchment/"), false, Palette.PARCHMENT,
-            null, null, List.of(), false);
+            null, null, List.of(), false, Chat.NONE);
 }

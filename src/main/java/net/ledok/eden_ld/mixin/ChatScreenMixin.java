@@ -67,6 +67,15 @@ public abstract class ChatScreenMixin extends Screen {
     /** Set while the input is rewritten (setValue calls onEdited again). */
     @Unique
     private boolean eden_ld$rewriting;
+    /** Eden's new chat look on this screen (decided at init: an Eden server, and the player hasn't turned it off). */
+    @Unique
+    private boolean eden_ld$newLook;
+    /** Its host, made the first time this screen draws itself (a screen built and never shown gets none). */
+    @Unique
+    private net.ledok.eden_ld.client.chat.ui.EdenChatUi eden_ld$ui;
+
+    @Shadow
+    net.minecraft.client.gui.components.CommandSuggestions commandSuggestions;
 
     protected ChatScreenMixin(Component title) {
         super(title);
@@ -75,6 +84,7 @@ public abstract class ChatScreenMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void eden_ld$makeRoom(CallbackInfo ci) {
         eden_ld$badge = 0;
+        eden_ld$newLook = net.ledok.eden_ld.client.chat.ui.ChatLook.enabled();
         eden_ld$emojiButton = ClientChatChannel.emojiPicker();
         if (!eden_ld$emojiButton) {
             eden_ld$pickerOpen = false;
@@ -84,7 +94,9 @@ public abstract class ChatScreenMixin extends Screen {
         }
         eden_ld$badge = eden_ld$pipsWidth();
         input.setX(input.getX() + eden_ld$badge);
-        input.setWidth(input.getWidth() - eden_ld$badge - (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0));
+        // The new look keeps the line inside its plate: clear of the emoji button, and of the plate's right edge.
+        int rightRoom = eden_ld$newLook ? (eden_ld$emojiButton ? EMOJI_BUTTON + 4 : 4) : (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0);
+        input.setWidth(input.getWidth() - eden_ld$badge - rightRoom);
         if (eden_ld$emojiButton) {
             eden_ld$search = new EditBox(font, 0, 0, COLUMNS * CELL - 2, 12, Component.translatable("chat.eden_ld.emoji.search"));
             eden_ld$search.setHint(Component.translatable("chat.eden_ld.emoji.search").withStyle(ChatFormatting.DARK_GRAY));
@@ -191,7 +203,8 @@ public abstract class ChatScreenMixin extends Screen {
     @Unique
     private int[] eden_ld$pill() {
         int count = net.ledok.eden_ld.client.chat.ChatActivity.mentionsTotal();
-        if (eden_ld$badge == 0 || count == 0) {
+        // The new look has its own, in the history plate.
+        if (eden_ld$badge == 0 || count == 0 || eden_ld$host() != null) {
             return null;
         }
         int w = font.width(Component.translatable("chat.eden_ld.mentions.jump", count)) + 8;
@@ -201,8 +214,62 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Unique
     private boolean eden_ld$overEmojiButton(double mouseX, double mouseY) {
-        return eden_ld$emojiButton && mouseX >= width - 2 - EMOJI_BUTTON && mouseX < width - 2
+        int x1 = eden_ld$emojiRight();
+        return eden_ld$emojiButton && mouseX >= x1 - EMOJI_BUTTON && mouseX < x1
                 && mouseY >= height - 14 && mouseY < height - 2;
+    }
+
+    /** The emoji button's right edge: inside the new look's plate (2 in from its rounded end), else vanilla's row end. */
+    @Unique
+    private int eden_ld$emojiRight() {
+        return eden_ld$newLook ? width - 4 : width - 2;
+    }
+
+    /** The new look's host while this screen is the one showing, else null. */
+    @Unique
+    private net.ledok.eden_ld.client.chat.ui.EdenChatUi eden_ld$host() {
+        return eden_ld$ui != null && minecraft != null && minecraft.screen == (Object) this ? eden_ld$ui : null;
+    }
+
+    // ---------------------------------------------------------------- the new look's frame
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void eden_ld$lookFrame(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+        if (eden_ld$newLook && eden_ld$ui == null && minecraft != null && minecraft.screen == (Object) this) {
+            eden_ld$ui = new net.ledok.eden_ld.client.chat.ui.EdenChatUi((ChatScreen) (Object) this);
+        }
+        if (eden_ld$host() != null) {
+            eden_ld$ui.frame();
+        }
+    }
+
+    /** Vanilla's input strip: the new look draws its plate there instead (before the screen's own widgets). */
+    @com.llamalad7.mixinextras.injector.v2.WrapWithCondition(method = "render", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/GuiGraphics;fill(IIIII)V"))
+    private boolean eden_ld$inputStrip(GuiGraphics graphics, int x0, int y0, int x1, int y1, int color) {
+        var host = eden_ld$host();
+        if (host == null) {
+            return true;
+        }
+        host.drawInputPlate(graphics, !eden_ld$searching());
+        return false;
+    }
+
+    /** The line itself stays vanilla's; in the new look it's in the theme's ink and comes in with the panels. */
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "render", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/components/EditBox;render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V"))
+    private void eden_ld$inputLine(EditBox box, GuiGraphics graphics, int mouseX, int mouseY, float partialTick,
+                                   com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
+        var host = eden_ld$host();
+        if (host == null) {
+            original.call(box, graphics, mouseX, mouseY, partialTick);
+            return;
+        }
+        host.styleInput(box);
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, host.rise(), 0);
+        original.call(box, graphics, mouseX, mouseY, partialTick);
+        graphics.pose().popPose();
     }
 
     /** Picker header: the tab strip (favorites, the server's emojis, Discord's categories), then search. */
@@ -410,6 +477,13 @@ public abstract class ChatScreenMixin extends Screen {
         }
         // The chat draws its text 50 units up (vanilla): the picker and the GIF viewer go above
         // it, or chat lines under them would show through (command suggestions stay on top, 200).
+        var host = eden_ld$host();
+        if (host != null) {
+            host.drawPills(graphics, font, mouseX, mouseY, commandSuggestions != null && commandSuggestions.isVisible(),
+                    ChannelMenu.isOpen() || net.ledok.eden_ld.client.chat.MessageMenu.isOpen(),
+                    eden_ld$pickerOpen && eden_ld$emojiButton ? eden_ld$panel() : null,
+                    net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
+        }
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
         net.ledok.eden_ld.client.chat.GifViewer.render(graphics, font, width, height, mouseX, mouseY);
@@ -454,6 +528,11 @@ public abstract class ChatScreenMixin extends Screen {
         int y1 = height - 2;
         Channel hovered = ChannelMenu.isOpen() ? null : eden_ld$pipAt(mouseX, mouseY);
         int accent = net.ledok.eden_ld.client.hub.HubNotifications.color();
+        var host = eden_ld$host();
+        if (host != null) {
+            eden_ld$drawChips(graphics, mouseX, mouseY, host, current, target, command, hovered);
+            return;
+        }
         for (int[] pip : eden_ld$pipBounds(current)) {
             Channel channel = Channel.of(pip[0]);
             int x0 = pip[1];
@@ -517,6 +596,90 @@ public abstract class ChatScreenMixin extends Screen {
         }
     }
 
+    /**
+     * The new look's pips: rounded chips inside the input plate (rows h-13..h-3), rising and fading in with it — the
+     * channel typed into lit with a foot line in its color, a dot for unseen lines, the @N badge ringed by the plate.
+     */
+    @Unique
+    private void eden_ld$drawChips(GuiGraphics graphics, int mouseX, int mouseY,
+                                   net.ledok.eden_ld.client.chat.ui.EdenChatUi host, Channel current, Channel target,
+                                   boolean command, Channel hovered) {
+        var theme = net.ledok.eden_ld.client.chat.ui.ChatTheme.current();
+        float fade = net.ledok.eden_ld.client.chat.ui.ChatLook.chrome();
+        int y0 = height - 13;
+        int chipHeight = 10;
+        int badgeColor = net.ledok.eden_ld.client.hub.HubNotifications.color();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, host.rise(), 0);
+        for (int[] pip : eden_ld$pipBounds(current)) {
+            Channel channel = Channel.of(pip[0]);
+            int x0 = pip[1];
+            int x1 = pip[2];
+            boolean on = !ClientChatChannel.systemView() && channel == target;
+            boolean dim = net.ledok.eden_ld.client.chat.ChatFilter.channelSwitchedOff(channel)
+                    || net.ledok.eden_ld.client.chat.ChatActivity.muted(channel);
+            int color = command && on ? 0xFF808080 : ClientChatChannel.color(channel);
+            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, y0, x1 - x0, chipHeight,
+                    channel == hovered ? theme.pipHover : on ? theme.pipLit : theme.pip, fade, false);
+            if (on) {
+                net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0 + 2, y0 + chipHeight - 1, x1 - x0 - 4, 1,
+                        theme.fill(color | 0xFF000000), fade, false);
+            }
+            if (net.ledok.eden_ld.client.chat.ChatActivity.unseen(channel)) {
+                net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x1 - 4, y0 + 1, 3, 3, theme.dot, fade, false);
+            }
+            int text = on ? color : (dim ? 0x70000000 : 0xB0000000) | color & 0xFFFFFF;
+            text = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(text, fade);
+            if (text != 0) {
+                graphics.drawString(font, eden_ld$pipLabel(channel, channel == current), x0 + 3, height - 12, text, false);
+            }
+            int mentions = net.ledok.eden_ld.client.chat.ChatActivity.mentions(channel);
+            if (mentions > 0) {
+                // Above the label (h-12), border included.
+                eden_ld$drawBadge(graphics, theme, badgeColor, "@" + (mentions > 9 ? "9+" : mentions), x1 + 2, y0 - 9, fade);
+            }
+        }
+        int[] system = eden_ld$systemPip();
+        boolean systemOn = ClientChatChannel.systemView();
+        boolean systemHovered = !ChannelMenu.isOpen() && eden_ld$overSystemPip(mouseX, mouseY);
+        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[0], y0, system[1] - system[0], chipHeight,
+                systemHovered ? theme.pipHover : systemOn ? theme.pipLit : theme.pip, fade, false);
+        if (systemOn) {
+            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[0] + 2, y0 + chipHeight - 1,
+                    system[1] - system[0] - 4, 1, theme.fill(0xFFAAAAAA), fade, false);
+        } else if (net.ledok.eden_ld.client.chat.ChatActivity.unseenSystem()) {
+            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[1] - 4, y0 + 1, 3, 3, theme.dot, fade, false);
+        }
+        int systemText = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(systemOn ? 0xFFAAAAAA : 0xB0AAAAAA, fade);
+        if (systemText != 0) {
+            graphics.drawString(font, eden_ld$systemLabel(systemOn), system[0] + 3, height - 12, systemText, false);
+        }
+        graphics.pose().popPose();
+        if (systemHovered) {
+            graphics.renderComponentTooltip(font, List.of(Component.translatable("chat.eden_ld.pip.system.name"),
+                    Component.translatable("chat.eden_ld.pip.system.hint").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
+        }
+        if (hovered != null) {
+            graphics.renderComponentTooltip(font, eden_ld$pipTooltip(hovered, current), mouseX, mouseY);
+        }
+    }
+
+    /** "@N" in the notification color (text black or white, whichever reads), its right end at {@code right}. */
+    @Unique
+    private void eden_ld$drawBadge(GuiGraphics graphics, net.ledok.eden_ld.client.chat.ui.ChatTheme theme, int color,
+                                   String text, int right, int top, float fade) {
+        int w = font.width(text) + 4;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 10);
+        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, right - w, top, w, 9, theme.badge(color), fade, false);
+        int ink = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(
+                net.ledok.eden_ld.client.chat.ui.ChatLook.textOn(color), fade);
+        if (ink != 0) {
+            graphics.drawString(font, text, right - w + 2, top + 1, ink, false);
+        }
+        graphics.pose().popPose();
+    }
+
     @Unique
     private static List<Component> eden_ld$pipTooltip(Channel channel, Channel active) {
         List<Component> lines = new java.util.ArrayList<>();
@@ -546,12 +709,27 @@ public abstract class ChatScreenMixin extends Screen {
 
     @Unique
     private void eden_ld$drawEmojiButton(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x0 = width - 2 - EMOJI_BUTTON;
+        int x0 = eden_ld$emojiRight() - EMOJI_BUTTON;
         int y0 = height - 14;
         boolean hover = eden_ld$overEmojiButton(mouseX, mouseY);
-        graphics.fill(x0, y0, width - 2, height - 2, hover || eden_ld$pickerOpen ? 0xE0303030 : 0xC0000000);
         Component icon = EmojiTabs.icon(EmojiTabs.SERVER);
-        graphics.drawString(font, icon, x0 + (EMOJI_BUTTON - font.width(icon)) / 2 + 1, y0 + 2, 0xFFFFFFFF, false);
+        var host = eden_ld$host();
+        if (host != null) {
+            var theme = net.ledok.eden_ld.client.chat.ui.ChatTheme.current();
+            float fade = net.ledok.eden_ld.client.chat.ui.ChatLook.chrome();
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, host.rise(), 0);
+            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, y0 + 1, EMOJI_BUTTON, 10,
+                    hover || eden_ld$pickerOpen ? theme.buttonHover : theme.button, fade, false);
+            int color = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(0xFFFFFFFF, fade);
+            if (color != 0) {
+                graphics.drawString(font, icon, x0 + (EMOJI_BUTTON - font.width(icon)) / 2 + 1, y0 + 2, color, false);
+            }
+            graphics.pose().popPose();
+        } else {
+            graphics.fill(x0, y0, eden_ld$emojiRight(), height - 2, hover || eden_ld$pickerOpen ? 0xE0303030 : 0xC0000000);
+            graphics.drawString(font, icon, x0 + (EMOJI_BUTTON - font.width(icon)) / 2 + 1, y0 + 2, 0xFFFFFFFF, false);
+        }
         if (hover) {
             graphics.renderTooltip(font, Component.translatable("chat.eden_ld.emoji.button"), mouseX, mouseY);
         }
@@ -718,6 +896,11 @@ public abstract class ChatScreenMixin extends Screen {
         }
         if (net.ledok.eden_ld.client.chat.MessageMenu.isOpen()) {
             net.ledok.eden_ld.client.chat.MessageMenu.click(mouseX, mouseY);
+            cir.setReturnValue(true);
+            return;
+        }
+        var host = eden_ld$host();
+        if (host != null && host.clicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
             return;
         }

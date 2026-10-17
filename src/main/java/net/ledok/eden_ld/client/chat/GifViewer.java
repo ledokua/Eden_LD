@@ -60,6 +60,11 @@ public final class GifViewer {
         return url != null;
     }
 
+    /** Where the viewer sits {x0, y0, x1, y1}, or null while it's closed. */
+    public static int @Nullable [] bounds(int screenWidth, int screenHeight) {
+        return url == null ? null : panel(screenWidth, screenHeight);
+    }
+
     /** Opens the viewer for a GIF link (replacing any open one) and starts loading it. */
     public static void open(String link) {
         close();

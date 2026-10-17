@@ -79,6 +79,15 @@ needs a README pass too.
         **Phase 3 built (VectorLib 0.7.1, 2026-10-17)**: `Motion` (Spring/Presence/outBack), `ContextMenu` submenus/
         checks/separators/headers with rise/lift motion (`Item` unchanged), `CanvasEmbed`, `Skin.Box`, opt-in
         `VectorLib.defaults()`, japicmp `apiCompat`; dev-tested (`/vectorlib motion`); synced into the mods' libs.
+        **Phase 4a built (Eden 1.3.0 + VectorLib 0.7.2, 2026-10-17)**: one `EdenChatUi` host per `ChatScreen` (bed chat
+        too), vanilla geometry kept; docked rounded history plate and translucent input plate in the theme's colors
+        (`ChatTheme`, optional `chat` block in theme.json, dark glass on light themes); open/close fades decided in
+        `Minecraft.setScreen`; "↓ New: N" and restyled "↓ Mentions" pills in the plate; rounded hover rows, toolbar,
+        chips and @N badges; empty-view line; escape hatch Settings → Chat → New chat look (new S2C `ChatFlags`,
+        `SettingsData` unchanged). Agent review: 7 findings fixed, 4 refuted. 40 tests pass. Dev-tested 2026-10-17: all
+        four themes, bed chat, scale 0.5, opacity 0/1, toggle off/on, empty view, pills, command list, picker, sending.
+        Open: in-game recheck of the review fixes (GUI scale 3: picker over the Mentions pill; @N badge; a toolbar beside
+        the pill), NCR in Prism, Chat Delay box. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2

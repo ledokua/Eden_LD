@@ -148,7 +148,10 @@ public final class HubThemes {
                 }
             }
             boolean tileEdges = json.has("tile_edges") && json.get("tile_edges").getAsBoolean();
-            return new HubTheme(id, name, textures, shadow, palette, background, rows, List.copyOf(decorations), tileEdges);
+            HubTheme.Chat chat = json.has("chat") && json.get("chat").isJsonObject()
+                    ? HubTheme.Chat.read(json.getAsJsonObject("chat")) : HubTheme.Chat.NONE;
+            return new HubTheme(id, name, textures, shadow, palette, background, rows, List.copyOf(decorations), tileEdges,
+                    chat);
         }
 
         private static String string(JsonObject json, String key, String fallback) {
