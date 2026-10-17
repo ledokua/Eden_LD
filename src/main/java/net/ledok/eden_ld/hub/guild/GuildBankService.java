@@ -365,6 +365,9 @@ public final class GuildBankService {
         }
         if (tab >= 0 && tab < guild.bank.tabNames.size()) {
             String trimmed = name.trim();
+            if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(trimmed)) {
+                return Component.translatable("message.eden_ld.text.illegal_characters");
+            }
             guild.bank.tabNames.set(tab, trimmed.length() > 16 ? trimmed.substring(0, 16) : trimmed);
             manager.markChanged();
         }

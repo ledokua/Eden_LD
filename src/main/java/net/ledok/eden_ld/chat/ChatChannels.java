@@ -101,6 +101,7 @@ public final class ChatChannels {
                     + "channels and chat format. Remove it (Eden replaces it).");
         }
         net.ledok.eden_ld.chat.emoji.EmojiRegistry.initialize();
+        ChatGuard.initialize();
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register(ChatChannels::onChat);
         ServerMessageEvents.ALLOW_GAME_MESSAGE.register((server, message, overlay) -> onGameMessage(server, message));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ChatChannelSelect.TYPE,
@@ -245,6 +246,11 @@ public final class ChatChannels {
         };
         if (unavailable != null) {
             return unavailable;
+        }
+        // What typed chat gets from vanilla and BanHammer: allowed characters, length, mutes, a rate limit.
+        Component refused = ChatGuard.check(sender, trimmed);
+        if (refused != null) {
+            return refused;
         }
         inOrder(sender, trimmed, () -> deliver(sender, channel, null, trimmed));
         return null;

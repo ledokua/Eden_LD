@@ -171,8 +171,12 @@ public class EdenCommands {
                                 context.getSource().sendFailure(Component.translatable("message.eden_ld.players_only"));
                                 return 0;
                             }
-                            ChatChannels.send(player, ChatChannels.Channel.LOCAL,
+                            Component error = ChatChannels.send(player, ChatChannels.Channel.LOCAL,
                                     StringArgumentType.getString(context, "message"));
+                            if (error != null) {
+                                context.getSource().sendFailure(error);
+                                return 0;
+                            }
                             return 1;
                         })));
 

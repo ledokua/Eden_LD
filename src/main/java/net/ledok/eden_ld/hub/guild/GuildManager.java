@@ -149,6 +149,9 @@ public final class GuildManager extends SavedData {
         if (trimmed.length() < MIN_NAME_LENGTH || trimmed.length() > MAX_NAME_LENGTH) {
             return error("bad_name", MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         }
+        if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(trimmed)) {
+            return Component.translatable("message.eden_ld.text.illegal_characters");
+        }
         for (Guild guild : guilds.values()) {
             if (guild != self && guild.name.equalsIgnoreCase(trimmed)) {
                 return error("name_taken", trimmed);
@@ -569,6 +572,13 @@ public final class GuildManager extends SavedData {
             return error("no_permission");
         }
         String trimmed = motd.trim();
+        if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(trimmed)) {
+            return Component.translatable("message.eden_ld.text.illegal_characters");
+        }
+        // Every member reads it: not while muted (clearing it is fine).
+        if (!trimmed.isEmpty() && net.ledok.eden_ld.chat.ChatGuard.mutedNow(actor)) {
+            return Component.translatable("message.eden_ld.chat.muted");
+        }
         guild.motd = trimmed.length() > MAX_MOTD_LENGTH ? trimmed.substring(0, MAX_MOTD_LENGTH) : trimmed;
         setDirty();
         return null;

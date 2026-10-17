@@ -49,6 +49,25 @@ public final class BanHammerCompat {
         return LOADED ? Hook.recent(limit) : List.of();
     }
 
+    /**
+     * When the player's active mute ends (epoch millis): 0 when not muted, {@link Long#MAX_VALUE} when permanent.
+     * Reads BanHammer's database: call it off the server thread.
+     */
+    public static long mutedUntil(UUID player) {
+        return LOADED ? Hook.mutedUntil(player) : 0;
+    }
+
+    /**
+     * Runs {@code listener} with the player and when the mute ends (epoch millis, {@link Long#MAX_VALUE} = permanent)
+     * whenever BanHammer mutes someone — taken from the punishment itself, which BanHammer announces before its
+     * database has it (any thread).
+     */
+    public static void onMute(java.util.function.BiConsumer<UUID, Long> listener) {
+        if (LOADED) {
+            Hook.onMute(listener);
+        }
+    }
+
     /** Runs {@code listener} with the punished player whenever BanHammer punishes someone (any thread). */
     public static void onPunishment(Consumer<UUID> listener) {
         if (LOADED) {
@@ -80,6 +99,21 @@ public final class BanHammerCompat {
             }
             list.sort(Comparator.comparingLong(PunishView::time).reversed());
             return list;
+        }
+
+        static long mutedUntil(UUID player) {
+            long until = 0;
+            try {
+                for (var p : eu.pb4.banhammer.api.BanHammer.getPunishments(player, eu.pb4.banhammer.api.PunishmentType.MUTE)) {
+                    if (p.isExpired()) {
+                        continue;
+                    }
+                    until = Math.max(until, p.isTemporary() ? p.getExpirationDate().getTime() : Long.MAX_VALUE);
+                }
+            } catch (Throwable e) {
+                EdenLD.LOGGER.warn("Couldn't read BanHammer mutes", e);
+            }
+            return until;
         }
 
         @Nullable
@@ -125,6 +159,15 @@ public final class BanHammerCompat {
             }
             list.sort(Comparator.comparingLong(PunishView::time).reversed());
             return list.size() > limit ? List.copyOf(list.subList(0, limit)) : list;
+        }
+
+        static void onMute(java.util.function.BiConsumer<UUID, Long> listener) {
+            eu.pb4.banhammer.api.BanHammer.registerPunishmentEvent((punishment, silent, invisible) -> {
+                if (punishment.type == eu.pb4.banhammer.api.PunishmentType.MUTE && punishment.playerUUID != null) {
+                    listener.accept(punishment.playerUUID, punishment.isTemporary()
+                            ? punishment.getExpirationDate().getTime() : Long.MAX_VALUE);
+                }
+            });
         }
 
         static void onPunishment(Consumer<UUID> listener) {

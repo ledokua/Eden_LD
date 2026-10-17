@@ -45,7 +45,6 @@
     "AbstractContainerScreenAccessor",
     "AudioChannelMixin",
     "ChatComponentMixin",
-    "ChatPatchesMenuMixin",
     "ChatScreenAccessor",
     "ChatScreenMixin",
     "CommandSuggestionsMixin",

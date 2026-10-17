@@ -101,7 +101,9 @@ public final class MailHub {
                 String kind = theme ? "theme" : "background";
                 String body = net.ledok.eden_ld.hub.lang.AssetLang.format(locale, "mail.eden_ld.gift." + kind + ".body", giver, look);
                 if (!note.isBlank()) {
-                    body += "\n\n" + net.ledok.eden_ld.hub.lang.AssetLang.format(locale, "mail.eden_ld.gift.note", note);
+                    // The giver's own words: shown as typed, not as Markdown.
+                    body += "\n\n" + net.ledok.eden_ld.hub.lang.AssetLang.format(locale, "mail.eden_ld.gift.note",
+                            net.ledok.vectorlib.text.MarkdownText.escape(note));
                 }
                 texts.put(locale, new net.ledok.economy_ld.mail.MailContent.Text(
                         net.ledok.eden_ld.hub.lang.AssetLang.format(locale, "mail.eden_ld.gift.title", giver), body));

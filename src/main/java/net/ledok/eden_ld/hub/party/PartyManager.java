@@ -653,6 +653,9 @@ public class PartyManager {
         if (trimmed.isEmpty() || trimmed.length() > MAX_NAME_LENGTH) {
             return error("bad_name");
         }
+        if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(trimmed)) {
+            return Component.translatable("message.eden_ld.text.illegal_characters");
+        }
         party.name = trimmed;
         return null;
     }

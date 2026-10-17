@@ -1042,7 +1042,13 @@ narrator, other mods). What it adds:
 - **One message elsewhere**: start it with `!g`, `!l`, `!p` or `!gd` (global, local, party,
   guild) — e.g. `!p on my way`. That channel's pip lights up while you type it.
 - `/p`, `/g`, `/l <message>` and the hub's party/guild chat panels post to the same channels.
-  Party and guild messages typed in normal chat also land in the hub panels' history.
+  Party and guild messages typed in normal chat also land in the hub panels' history. They follow typed chat's
+  rules: no `§` or control characters, at most 256 characters, nothing while muted in BanHammer (its database is
+  read off the server thread: at join, when BanHammer mutes someone, and every few seconds while a muted player
+  keeps trying, so an unmute takes effect within about 20 seconds), and a rate limit — `chat.rate_limit_messages`
+  (6) in a row, as many again every `chat.rate_limit_seconds` (5); 0 turns it off. Guild names and MOTDs, party
+  names, bank tab names and Wardrobe gift notes refuse `§` and control characters too; a muted player can't set a
+  MOTD or add a gift note.
 - Local chat tells you when no one was close enough to hear.
 - Only Global reaches the **Minestar Discord bridge** (it listens to Fabric's chat event, which
   Eden fires for Global only).
@@ -1354,7 +1360,9 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     "discord_guild_id": "",
     "emoji_sync_minutes": 60,
     "emoji_favorites": 5,
-    "sticker_favorites": 5
+    "sticker_favorites": 5,
+    "rate_limit_messages": 6,
+    "rate_limit_seconds": 5
   },
   "tab_list": {
     "enabled": true,
@@ -1489,8 +1497,8 @@ Other mods can register flight rules and read cached Minestar profiles — see [
   text instead of keys. Refresh them if a new Realm Keys version adds messages.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
-  pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it, and its menu is
-  lifted above the chat lines.
+  pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may
+  draw under the chat lines: Eden no longer moves it).
 - **Chat Heads** — Eden's chat window draws heads itself, so Chat Heads' heads don't show on Eden servers (it can
   leave the pack; elsewhere it works as usual).
 - **Mods and resource packs with their own font glyphs** (Economy_LD's coin, icon fonts) — emojis

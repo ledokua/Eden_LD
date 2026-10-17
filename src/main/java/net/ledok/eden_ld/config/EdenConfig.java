@@ -233,6 +233,13 @@ public class EdenConfig {
         public int emoji_favorites = 5;
         /** Saved stickers per player (their own picker tab); per group: LuckPerms meta eden_ld.sticker_favorites. */
         public int sticker_favorites = 5;
+        /**
+         * The hub's party/guild chat and /p, /g, /l (typed chat has vanilla's own spam limit): a player may send this
+         * many messages in a row… 0 = no limit.
+         */
+        public int rate_limit_messages = 6;
+        /** …and as many again every this many seconds. */
+        public int rate_limit_seconds = 5;
     }
 
     /**

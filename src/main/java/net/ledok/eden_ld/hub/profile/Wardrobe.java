@@ -105,6 +105,15 @@ public final class Wardrobe {
         if (note.length() > MAX_NOTE) {
             note = note.substring(0, MAX_NOTE);
         }
+        // The note is the giver's words in someone's mail: chat's rules (no § or control characters, not while muted).
+        if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(note)) {
+            notice(giver, Component.translatable("message.eden_ld.text.illegal_characters"), false);
+            return;
+        }
+        if (!note.isEmpty() && net.ledok.eden_ld.chat.ChatGuard.mutedNow(giver.getUUID())) {
+            notice(giver, Component.translatable("message.eden_ld.chat.muted"), false);
+            return;
+        }
         String message = note;
         EconomyCompat.take(giver, rule.price(), paid -> {
             if (!paid) {
