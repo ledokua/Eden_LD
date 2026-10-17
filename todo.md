@@ -57,8 +57,12 @@ needs a README pass too.
         removed. Reviewed twice by agents (all findings fixed). Dev-tested 2026-10-17: /g normal, § and >256 refused, 6-message
         burst then "too fast", BanHammer mute refused at once on /g and /l, unmute lifted after ~18 s, a 15 s tempmute
         lifted on time, the mute kept across a rejoin, the hub guild panel shows "You are muted."; 1.2.4's icons seen
-        (wardrobe tab, restore button, waystone stars). Open: add
-        `p`, `g`, `l` to BanHammer's `muteBlockedCommands` (pack/live config); hub panels clear the draft even when refused.
+        (wardrobe tab, restore button, waystone stars). Deployed
+        2026-10-17 11:15 with 1.2.4's icons: Prism (1.2.3 to removed-mods-2026-10-17), live (1.2.3 to
+        backup/removed-mods-2026-10-17), pack d01210e (pushed); on live from the next restart. BanHammer's
+        `muteBlockedCommands` now also lists `p`, `g`, `l` (Prism Server + live; originals in removed-mods-2026-10-17 /
+        backup/old-configs-2026-10-17; BanHammer reads it on restart or its reload). Open: hub panels clear the draft
+        even when refused (→ chat v2).
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
