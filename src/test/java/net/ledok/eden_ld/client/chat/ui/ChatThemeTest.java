@@ -147,6 +147,49 @@ class ChatThemeTest {
     }
 
     @Test
+    void theTabStripsBoxesAreGmsChipAndFolderTab() {
+        for (HubTheme.Palette p : new HubTheme.Palette[]{HubTheme.Palette.PARCHMENT, DARK, OVERGROWN, STONE}) {
+            ChatTheme.Tokens t = ChatTheme.derive(p, HubTheme.Chat.NONE);
+            ChatTheme theme = ChatTheme.of(t);
+            String name = Integer.toHexString(p.panel());
+            // A chip: the plate at alpha 199, radius 3 (its strength is the draw's alpha).
+            assertEquals(199, theme.tab.fill() >>> 24, name);
+            assertEquals(t.plate() & 0xFFFFFF, theme.tab.fill() & 0xFFFFFF, name);
+            assertEquals(3f, theme.tab.tl(), name);
+            assertEquals(3f, theme.tab.br(), name);
+            // The lit plate: the input plate at alpha 245, rounded on top only.
+            assertEquals(245, theme.tabLit.fill() >>> 24, name);
+            assertEquals(t.plateInput() & 0xFFFFFF, theme.tabLit.fill() & 0xFFFFFF, name);
+            assertEquals(3f, theme.tabLit.tl(), name);
+            assertEquals(3f, theme.tabLit.tr(), name);
+            assertEquals(0f, theme.tabLit.br(), name);
+            assertEquals(0f, theme.tabLit.bl(), name);
+            // The labels read: the active one on the lit plate, the others on the plate.
+            assertTrue(ChatTheme.contrast(t.ink(), theme.tabLit.fill() | 0xFF000000) >= 4.5, "active label on " + name);
+            assertTrue(ChatTheme.contrast(t.inkDim(), t.plate()) >= 3, "idle label on " + name);
+        }
+    }
+
+    @Test
+    void aMutedTabsInkSitsBetweenTheDimInkAndThePlate() {
+        for (HubTheme.Palette p : new HubTheme.Palette[]{HubTheme.Palette.PARCHMENT, DARK, OVERGROWN, STONE}) {
+            ChatTheme.Tokens t = ChatTheme.derive(p, HubTheme.Chat.NONE);
+            int muted = ChatTheme.of(t).inkMuted;
+            String name = Integer.toHexString(p.panel());
+            assertEquals(0xFF, muted >>> 24, "opaque: " + name);
+            for (int shift = 0; shift <= 16; shift += 8) {
+                int dim = t.inkDim() >> shift & 0xFF;
+                int plate = t.plate() >> shift & 0xFF;
+                int channel = muted >> shift & 0xFF;
+                assertTrue(channel >= Math.min(dim, plate) && channel <= Math.max(dim, plate), name);
+            }
+            double dimContrast = ChatTheme.contrast(t.inkDim(), t.plate());
+            double mutedContrast = ChatTheme.contrast(muted, t.plate());
+            assertTrue(mutedContrast < dimContrast && mutedContrast > 1.2, "dimmer, still there: " + name);
+        }
+    }
+
+    @Test
     void liftingStopsAtTheFirstReadableShade() {
         int lifted = ChatTheme.liftFor(0xFF3A4A6A, 0xFF1C1C1F, 4.5);
         assertTrue(ChatTheme.contrast(lifted, 0xFF1C1C1F) >= 4.5);

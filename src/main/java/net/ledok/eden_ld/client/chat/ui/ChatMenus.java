@@ -59,6 +59,16 @@ public final class ChatMenus {
         return above >= 0 ? above : y;
     }
 
+    /**
+     * The top of a menu {@code height} tall opened from something {@code anchorTop}..{@code anchorBottom} tall (a tab:
+     * its chip; the input glyph: the canvas' bottom), on a canvas {@code limit} tall: 1 below it when it fits, else
+     * ending 1 above it (at the top at the most).
+     */
+    public static float below(float anchorTop, float anchorBottom, float height, float limit) {
+        float under = anchorBottom + 1;
+        return under + height <= limit ? under : Math.max(0, anchorTop - 1 - height);
+    }
+
     /** Whether a channel or message menu is open on the chat screen showing (either look). */
     public static boolean open() {
         EdenChatUi ui = ChatLook.open();

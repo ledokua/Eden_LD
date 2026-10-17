@@ -44,10 +44,19 @@ public final class ChatTheme {
     /** "↓ New", "↓ Mentions". */
     public final BoxStyle pill;
     public final BoxStyle pillHover;
-    /** A channel pip: idle, the channel typed into, under the pointer. */
+    /** The input row's channel glyph (1.3.0's pips): idle, lit, under the pointer. */
     public final BoxStyle pip;
     public final BoxStyle pipLit;
     public final BoxStyle pipHover;
+    /**
+     * A tab of the strip ({@code docs/PLAN-chat-v2.md}, phase 5; GM's chip): the plate's color at alpha 199, its
+     * strength (hover, Text Background Opacity, the open fade) given as the draw's alpha.
+     */
+    public final BoxStyle tab;
+    /** The active tab's lit plate, a folder tab (rounded on top only), as solid as the input plate. */
+    public final BoxStyle tabLit;
+    /** A muted tab's label (and its strike): dimmer than {@link Tokens#inkDim()}, toward the plate. */
+    public final int inkMuted;
     /** The emoji button. */
     public final BoxStyle button;
     public final BoxStyle buttonHover;
@@ -99,6 +108,9 @@ public final class ChatTheme {
         pipHover = BoxStyle.fill(Colors.lerp(tokens.plate, tokens.ink, 0.2f) | 0xFF000000).withRadius(3);
         button = pip;
         buttonHover = pipHover;
+        tab = BoxStyle.fill(Colors.withAlpha(tokens.plate, 199)).withRadius(3);
+        tabLit = BoxStyle.fill(Colors.withAlpha(tokens.plateInput, 245)).withRadii(3, 3, 0, 0);
+        inkMuted = Colors.lerp(tokens.inkDim, tokens.plate, 0.48f) | 0xFF000000;
         dot = BoxStyle.fill(tokens.unread).pill();
         stripe = BoxStyle.fill(0xFFFFFFFF).pill();
         thumb = BoxStyle.fill(tokens.inkDim).pill();

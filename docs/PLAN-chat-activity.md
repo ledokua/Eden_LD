@@ -51,3 +51,38 @@ Dev, 2026-10-12 (Eden 1.1.9, two clients: Player768 and Bob):
   (unmuted it).
 - Guild switched off: dimmed pip; Ctrl+Tab went Local → Global → Local (skipped it); a click selected Guild.
 - Not checked: lines from others in a switched-off channel while selected (Bob had no guild), the All messages sound.
+
+## The new look's tabs (2026-10-17, Eden 1.3.1)
+
+With the new chat look ([PLAN-chat-v2.md](PLAN-chat-v2.md), phase 5) a tab strip above the history replaces the pips:
+`[All] Global Local [Party] [Guild] System`. The 1.2 look (*New chat look* off) keeps everything above unchanged,
+pips and "Only the selected channel" included, until that switch is removed. Decision by decision:
+
+- **Pips** — *changed* in the new look: GM-style tabs above the history plate (18 tall, wrapping on a narrow chat),
+  the active one on a lit plate with a foot line in its color. A channel's tab is the channel typed into; All and
+  System keep it, shown by a glyph left of the input line (G, L, P, Gd; a typed `!l ` turns it to L, a command to a
+  dim "/"), which a click cycles. The input no longer moves when the channel changes.
+- **A dot … always; @N** — *kept*, on the tabs: the dot shows on the active tab too while unseen lines remain, and
+  hides under @N. All has neither (its lines are the other tabs'); System has the dot.
+- **Click a pip — also a channel switched off** — *changed*: a channel hidden in Settings → Chat has no tab (and
+  leaves All); its tab shows only while it is the active one. The ways back: `/ch`, a `[tag]` click, `!x` for one
+  message, *Show hidden tabs ▸* in any tab's menu, Settings → Chat. A click on a tab with @N still jumps to its
+  oldest unseen mention.
+- **Ctrl+Tab skips switched-off channels** — *kept*: Ctrl+Tab / Ctrl+Shift+Tab step through the tabs shown (All and
+  System included, hidden channels not); a bare Shift+Tab goes back on an empty line with no suggestion list. In
+  the new look Ctrl+Tab changes the view, not only the channel typed into.
+- **Right-click: Mute ▸, Notifications ▸, Chat settings** — *kept*, and grown: a channel's tab adds *Hide tab*
+  (*Show tab* on a hidden one), *Show hidden tabs ▸* and, on Global, *Discord messages*; System has *Mark as read*
+  and *Also in channel tabs*; All has *Mark all as read* and *Hide tab*. The glyph's right-click opens the typed-into
+  channel's menu.
+
+How it works:
+- **Seen = drawn**, **Mute**, **Notifications**, **Stored**, **Settings → Chat**, **Vanilla clients** — *kept*. A muted
+  channel's tab, or one set to Nothing, is struck through. *Deliberately not* GM's underline for "Only @mentions":
+  that is Eden's default, so it would mark every tab.
+- **Finding the ping** — *kept*, and the closed chat (which follows the active tab until phase 6's toasts) also shows
+  unseen mention lines from other tabs. "↓ Mentions" moves to a tab that shows the line — All when it does (as the
+  1.2 default view), else the channel's own tab — and a mention no tab can show any more (a party left meanwhile) is
+  marked seen and skipped, so it can't hold the pill.
+- A `[tag]` click switches at once in the new look (no "Chat channel: Local" line in every tab; on All or System the
+  action bar says it), and a `!x` one-shot sent from another channel's tab says where it went.

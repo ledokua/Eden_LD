@@ -3,6 +3,8 @@ package net.ledok.eden_ld.client.chat;
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.chat.ChatMarker;
 import net.ledok.eden_ld.client.chat.model.ChatCounters;
+import net.ledok.eden_ld.client.chat.model.ChatRules;
+import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.model.ToastQueue;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.client.chat.panel.ChatPanel;
@@ -164,6 +166,34 @@ public final class ChatActivity {
         TOASTS.read(channel);
     }
 
+    /** Mark as read on the System tab: the lines of no channel (the server's, other mods', deaths, advancements). */
+    public static void markReadSystem() {
+        for (ChatEntry entry : ChatStore.entries()) {
+            if (entry.channel() == null) {
+                entry.markSeen();
+            }
+        }
+    }
+
+    /** Mark all as read (the All tab): every line, and the closed chat's toasts. */
+    public static void markReadAll() {
+        for (ChatEntry entry : ChatStore.entries()) {
+            entry.markSeen();
+        }
+        TOASTS.clear();
+    }
+
+    /**
+     * Whether the closed chat (new look) shows this line although its tab doesn't: a mention the player hasn't seen
+     * yet, from a channel whose notifications aren't Nothing, that All would show (not an ignored player's, not a
+     * hidden channel's) — until the toasts (phase 6), the only sign on screen of where a ping came from.
+     */
+    public static boolean unseenMention(ChatEntry entry, ChatRules rules) {
+        Channel channel = entry.channel();
+        return entry.mention() && !entry.seen() && channel != null && notify(channel) != ChannelNotify.NOTHING
+                && ChatTabSpec.ALL.shows(entry.mark(), rules);
+    }
+
     /** Muting clears the dot (mentions stay). */
     public static void clearUnseen(Channel channel) {
         for (ChatEntry entry : ChatStore.entries()) {
@@ -175,25 +205,39 @@ public final class ChatActivity {
 
     // ---------------------------------------------------------------- jumping to a mention
 
-    /** The oldest unseen mention there (any channel for null), switching channel first when it isn't shown. */
+    /**
+     * The oldest unseen mention there (any channel for null), switching channel first when it isn't shown. The new
+     * look then shows a tab that has it ({@link ChatTabActions#reveal}) — System can't, nor a closed channel's tab; a
+     * mention no tab can show is marked seen and the next one is tried.
+     */
     public static boolean jumpToMention(@Nullable Channel only) {
-        ChatEntry target = null;
+        boolean tabs = ChatFilter.newLook();
+        while (true) {
+            ChatEntry target = oldestUnseenMention(only);
+            if (target == null) {
+                return false;
+            }
+            if (!ChatPanel.shows(target)) {
+                // Hidden in this view: its channel shows it.
+                ClientChatChannel.select(target.channel());
+                if (tabs && !ChatPanel.shows(target) && !ChatTabActions.reveal(target)) {
+                    continue;
+                }
+            }
+            ChatPanel.scrollTo(target);
+            return true;
+        }
+    }
+
+    @Nullable
+    private static ChatEntry oldestUnseenMention(@Nullable Channel only) {
         for (ChatEntry entry : ChatStore.entries()) {
             Channel channel = entry.channel();
             if (channel != null && entry.mention() && !entry.seen() && (only == null || channel == only)
                     && notify(channel) != ChannelNotify.NOTHING) {
-                target = entry;
-                break;
+                return entry;
             }
         }
-        if (target == null) {
-            return false;
-        }
-        if (!ChatPanel.shows(target)) {
-            // Hidden in this view: its channel shows it.
-            ClientChatChannel.select(target.channel());
-        }
-        ChatPanel.scrollTo(target);
-        return true;
+        return null;
     }
 }

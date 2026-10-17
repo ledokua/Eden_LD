@@ -32,6 +32,17 @@ public record ChatLayout(Anchor anchor, float fx, float fy, int width, int heigh
         return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
     }
 
+    /**
+     * How many lines the open chat shows so that {@code reserve} GUI units stay free above its history plate (the new
+     * look's tab strip and its badges, phase 5): at most {@code perPage}, at least one. {@code bottom} is the newest
+     * line's bottom (GUI units); the plate reaches 2 units above the top line; a line is {@code lineHeight} chat units
+     * drawn at {@code scale}.
+     */
+    public static int capLines(int perPage, double bottom, double reserve, int lineHeight, double scale) {
+        int fit = (int) Math.floor((bottom - 2 - reserve) / (lineHeight * scale));
+        return Math.max(1, Math.min(perPage, fit));
+    }
+
     /** Where the window goes on a screen this size: zoomed, no bigger than the screen, and wholly on it. */
     public Rect place(int screenWidth, int screenHeight) {
         double scale = clampZoom(zoom) / 100.0;

@@ -389,6 +389,39 @@ from the scope above:
 - A narrow chat wraps the strip.
 - uk_ua label widths.
 
+**Built (2026-10-17, Eden 1.3.1 — on top of the unshipped 1.3.0, tag `eden-1.3.0`; VectorLib 0.7.2, no VectorLib
+change).** Design, two critiques and final decisions in the session's `p5/design-5.md` + `p5/resolutions-5.md`;
+implemented in two agent stages, reviewed by a 5-lens agent review with an adversarial check (3 findings, fixed; 4
+refuted). Owner answers (2026-10-17): version 1.3.1; the closed chat follows the active tab until Phase 6;
+"Only the selected channel" (CHAT_FOCUS) stays for the old look; All first. What was built:
+- **Strip** (`ChatTabStrip`, pure `TabStripLayout`): [All] Global Local [Party] [Guild] System above the history plate,
+  which is now fixed-height while the chat is open (capped on short screens, `ChatView.reserve`), so the strip never
+  jumps. GardenMyth's geometry (18 tall, gap 2, wrap), a lit folder tab and foot line on τ 45 ms springs, hover springs,
+  the unseen dot (also on the active tab while unseen lines remain), strike-through for muted/Nothing, @N badges. No
+  "mentions only" underline: ONLY_MENTIONS is Eden's default and would mark every tab. The strip fades out with the
+  plates on close (`ChatLook` keeps its rects). Nothing allocated per frame.
+- **Semantics** (`ChatTabs`, `ChatTabActions`): a channel tab is the typing channel; All and System keep the typing
+  channel, shown by a glyph in the input row (pops on a change; click cycles; right-click = that channel's menu). The
+  view mode normalizes when All is off. Hidden channels (Settings or the tab menu) have no tab unless active; routes
+  back: "Show hidden tabs ▸", Settings, `/ch`, a `[tag]`, `!x`. `[tag]` clicks switch on the client at once (overlay
+  "Chat channel: X" in All/System); `!x` from another channel tab shows "Sent to X". `SelectGuard` keeps a late
+  server state from flipping a fresh switch back. Mention jumps reveal the right tab (All when it shows the line),
+  and a mention no tab can show is marked seen instead of pinning the pill.
+- **Closed chat**: follows the active tab, plus unseen mention lines from other channels (so a ping is never only a
+  sound — the 2026-10-12 complaint).
+- **Keys**: Ctrl+Tab / Ctrl+Shift+Tab cycle every visible tab; a bare Shift+Tab goes back only on an empty line with no
+  suggestion list (so `@name` completion is safe); PageUp/PageDown page by the capped frame. Switching slides the rows
+  ±14 with a fade over 220 ms (plate, queue box and thumb stay).
+- **Tab menu** (`TabMenu`, via 4b's `ChatCanvas`): the channel rows (Mute ▸, Notifications ▸, Mark as read) plus Hide
+  tab / Show tab, Show hidden tabs ▸, Discord in Global, System lines in tabs, Mark all read, Chat settings.
+- **Settings**: `chat_all_tab` and `chat_system_in_tabs` (unmarked lines only; deaths/advancements keep their own
+  switches) on the ChatFlags known bits; shown in the new look when the server knows them.
+- **Old look** unchanged: pips, input shift, System pip, Ctrl+Tab cycling the typing channel, "Only the selected
+  channel", hand-drawn menus, the `[tag]` round trip (`ChatFilterEquivalenceTest` still passes).
+- **Tests**: 137 JUnit (tabs/mode/visibility, SelectGuard, tab spec rules, layout/hit/slide, tab menu entries,
+  tooltip widths in en/uk measured with vanilla's glyphs, flags, HUD mention lines).
+- **Not yet tested in game** (the owner was playing; RAM was short).
+
 ### Phase 6 — Eden 1.3.2: closed-chat toasts that fold into pills, and the editor (4 d)
 
 **Files:**

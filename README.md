@@ -863,8 +863,8 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
   - **Ignored players** — everyone you ignore, each with *Stop ignoring* (the way back to someone
     offline and not your friend). See [Ignoring players](#ignoring-players).
 - **Chat**
-  - **New chat look** — the rounded chat panels in your hub theme's colors, with smooth motion (default on); off
-    brings back the 1.2 chat. It applies the next time you open chat. See [Chat](#chat).
+  - **New chat look** — the rounded chat panels in your hub theme's colors, with smooth motion and channel tabs
+    (default on); off brings back the 1.2 chat (its pips). It applies the next time you open chat. See [Chat](#chat).
   - **Closed chat lines** (with the new look) — *Rounded strips* (default): while the chat is closed, each message
     sits on its own rounded strip in your theme's plate color, as strong as *Text Background Opacity* sets it;
     *Classic*: the previous band. Applies at once. (Without the rounded-box shader the classic band is used.)
@@ -874,10 +874,18 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
   - **Death messages** / **Advancement messages** — see *Everyone's* (default), only your
     *Party & guild's* (and your own), or *Nobody's*.
   - **Channels** — show or hide Global, Local, Party and Guild chat, and Discord messages, in
-    your chat; or **Only the selected channel** — the chat shows just the channel you type into
-    (Discord counts as Global), switching with it. Your own messages always show; the hub's
-    Party and Guild tabs keep their chat. Discord lines are recognized by
-    `chat.discord_line_marker` (`[Discord]`, Minestar's default format).
+    your chat; with the new look a hidden channel also loses its tab (it shows again while it's
+    the one you type into, e.g. after `/ch` or a click on its `[tag]`). Your own messages always
+    show; the hub's Party and Guild tabs keep their chat. Discord lines are recognized by
+    `chat.discord_line_marker` (`[Discord]`, Minestar's default format). With the new look, on
+    servers that keep them (Eden 1.3.1+):
+    - **All tab** — the tab with every channel together, first in the chat's tabs (default on).
+    - **System messages in channel tabs** — the server's and other mods' lines also show in the
+      Global, Local, Party and Guild tabs (default on); All and System always have them. Deaths and
+      advancements follow their own settings above in every tab.
+
+    With the 1.2 look (*New chat look* off): **Only the selected channel** — the chat shows just the
+    channel you type into (Discord counts as Global), switching with it.
   - Hiding is done by your client: every line still arrives (marked with its kind by an
     invisible piece of text), hidden ones are just left out of the chat window — turn a kind
     back on and what you missed shows again (up to the chat's history size).
@@ -1026,10 +1034,9 @@ narrator, other mods). What it adds:
   set the chat's colors in a `chat` block of their `theme.json` (`plate`, `plate_input`, `border`, `focus_border`,
   `ink`, `ink_dim`, `hover`, `unread`, `accent`; `glass`: `auto`, `on` or `off`). Settings → Chat → **New chat look**
   turns it off (the 1.2 look).
-  - **Menus** in the same style: right-click a channel chip for **Mute ▸** (5, 15 min, 1 h, 24 h, until you turn
-    it back on; muted shows *Muted until …* and **Unmute**), **Notifications ▸** (the current level checked), *Mark
-    as read* and *Chat settings*; right-click a message (or its ⋯) for Reply, Copy text, Open profile, Ignore and,
-    for staff, Moderate. Submenus open on a short rest or a click; one Esc closes them all.
+  - **Menus** in the same style: right-click a tab (see *Tabs* below) or a message (or its ⋯: Reply, Copy text,
+    Open profile, Ignore and, for staff, Moderate). Submenus open on a short rest or a click; one Esc closes them
+    all.
   - **The emoji picker** is the hub's: a tab grid, search (Enter inserts the first match), Shift+click to pick
     several, right-click to star an emoji or save/drop a sticker; it slides up beside the emoji button and one Esc
     closes it. Typing goes back to the chat line after a pick (Shift-picks while searching keep the search).
@@ -1046,25 +1053,51 @@ narrator, other mods). What it adds:
 | **Party** | your party (needs one) | `[Party]` | ✘ |
 | **Guild** | your guild (needs one) | `[Guild]` | ✘ |
 
-- **Click a channel tag** in chat (`[Local]`, `[Party]`…) to switch straight to that channel.
-- **Channel pips** left of the chat input ([docs/PLAN-chat-activity.md](docs/PLAN-chat-activity.md)): one per
-  channel you can use (Party and Guild while you're in one); the one you type into shows its name, the others a
-  letter. **Click** one to switch — also to a channel switched off in Settings → Chat (its lines show while it's
-  selected); **Ctrl+Tab** (Shift+Ctrl+Tab: back) cycles, skipping switched-off channels. The choice is remembered.
-  The input starts right after the pips. Without the Eden client: `/ch <global|local|party|guild>`.
-- **System** (the **S** pip after the channels): only system lines — the server's messages, deaths and advancements
-  (by their own settings). Your messages still go to the channel you type into; a channel pip or Ctrl+Tab goes back.
-- **What you missed**: a dot on a pip means lines there you haven't seen yet (seen = shown in the open chat);
-  **@N** counts mentions of you. A line that mentions you gets a stripe and a tint in your notification color
-  (Settings → Notifications), "You were mentioned" on hover, and stays on screen 30 s instead of 10.
-  **↓ Mentions** above the input jumps to the oldest one you haven't seen (switching channel when needed); clicking
-  a pip with @N does the same for that channel.
-- **Per channel** (right-click a pip, Discord style): **Mute** for 5 or 15 minutes, 1 or 24 hours, or until you turn
-  it back on (no dot, no "all messages" sound; mentions still count); **Notifications**: All messages (a soft sound
-  for every line), Only @mentions (default: the ping and @N), Nothing; **Mark as read**; **Chat settings** opens the
-  hub on Settings → Chat, which has the same per channel. Kept on the server with the other hub settings.
+- **Tabs** (the new look, 1.3.1, [docs/PLAN-chat-v2.md](docs/PLAN-chat-v2.md) phase 5) in a row above the open chat:
+  **All** (every channel together; Settings → Chat → *All tab* turns it off), **Global**, **Local**, **Party** and
+  **Guild** (while you're in one), and **System** (the server's messages, deaths and advancements). The row wraps
+  into a second one on a narrow chat; the chat then keeps its full height (a short screen shows a line or two
+  fewer), so the tabs never move.
+  - **A channel's tab is where you write**: clicking Local reads Local and sends your messages there. All and System
+    keep the channel you write in, shown by the **sign left of the input line** (G, L, P, Gd — in Ukrainian З, П,
+    Гр, Гд — in the channel's color; a typed `!l ` turns it to L, a `/` command to a dim "/"). **Click the sign** for
+    the next channel (Shift+click: back), right-click it for that channel's menu. It pops when the channel changes.
+  - **Switching**: click a tab (a channel's tab also jumps to its oldest mention you haven't seen), **Ctrl+Tab** /
+    **Ctrl+Shift+Tab** for the next / previous tab, or **Shift+Tab** alone on an empty line (with text, Shift+Tab
+    stays Minecraft's). The lit plate glides to the new tab and the lines slide in from its side; a new tab starts at
+    its newest line. Page Up / Page Down page by the lines shown. The tab lasts until you quit the game.
+  - **Hidden channels** (Settings → Chat → *Channels*, or *Hide tab*) have no tab and leave All; a hidden channel's
+    tab still shows while it's the tab you're on (`/ch` or a `[tag]` click on a channel's tab moves you there),
+    marked so in its tooltip. Ways back: *Show hidden tabs ▸* in any tab's menu, Settings → Chat,
+    `/ch`, a `[tag]`, or `!x` for one message.
+  - **Right-click a tab**: on a channel, its menu (below), plus **Discord messages** (Global: show or hide the
+    Discord lines), **Hide tab** (never the last of All and the channels) or *Show tab* on a hidden one, **Show
+    hidden tabs ▸**, and *Chat settings*. System: *Mark as read*, **Also in channel tabs** (the server's lines in the
+    channel tabs too). All: **Mark all as read**, *Hide tab*.
+  - **The closed chat** shows the tab you were on, plus mentions of you from other tabs you haven't seen yet.
+- **Click a channel tag** in chat (`[Local]`, `[Party]`…) to switch straight to that channel. In the new look it
+  switches at once, with no "Chat channel" line: on a channel's tab the tab moves, on All or System the sign turns
+  and the bar above the hotbar says so.
+- **Channel pips** (the 1.2 look, *New chat look* off; [docs/PLAN-chat-activity.md](docs/PLAN-chat-activity.md))
+  left of the chat input: one per channel you can use (Party and Guild while you're in one); the one you type into
+  shows its name, the others a letter. **Click** one to switch — also to a channel switched off in Settings → Chat
+  (its lines show while it's selected); **Ctrl+Tab** (Shift+Ctrl+Tab: back) cycles, skipping switched-off channels.
+  The input starts right after the pips. **System** (the **S** pip after the channels): only system lines — the
+  server's messages, deaths and advancements (by their own settings); a channel pip or Ctrl+Tab goes back.
+- The channel you write in is remembered. Without the Eden client: `/ch <global|local|party|guild>`.
+- **What you missed**: a dot on a tab (or pip) means lines there you haven't seen yet (seen = shown in the open
+  chat); **@N** counts mentions of you. A muted channel's tab (or one set to Nothing) is struck through. A line that
+  mentions you gets a stripe and a tint in your notification color (Settings → Notifications), "You were mentioned"
+  on hover, and stays on screen 30 s instead of 10. **↓ Mentions** jumps to the oldest one you haven't seen
+  (switching channel and tab when needed; one no tab can show any more, e.g. from a party you left, is skipped);
+  clicking a tab or pip with @N does the same for that channel.
+- **Per channel** (right-click its tab or pip, Discord style): **Mute** for 5 or 15 minutes, 1 or 24 hours, or until
+  you turn it back on (no dot, no "all messages" sound; mentions still count); **Notifications**: All messages (a soft
+  sound for every line), Only @mentions (default: the ping and @N), Nothing; **Mark as read**; **Chat settings** opens
+  the hub on Settings → Chat, which has the same per channel. Kept on the server with the other hub settings.
 - **One message elsewhere**: start it with `!g`, `!l`, `!p` or `!gd` (global, local, party,
-  guild) — e.g. `!p on my way`. That channel's pip lights up while you type it.
+  guild) — e.g. `!p on my way`. The sign left of the input (the 1.2 look: that channel's pip) shows it while you type;
+  sent from another channel's tab, the bar above the hotbar says where it went.
 - `/p`, `/g`, `/l <message>` and the hub's party/guild chat panels post to the same channels.
   Party and guild messages typed in normal chat also land in the hub panels' history. They follow typed chat's
   rules: no `§` or control characters, at most 256 characters, nothing while muted in BanHammer (its database is
@@ -1475,7 +1508,7 @@ is the player's name.
 | `/emojis bonus add <players> <emojis\|stickers> <amount> [duration]` | `eden_ld.admin.emojis`, console | Extra favorite / saved-sticker slots, permanent or for a time (`30d`, `12h`); grants stack. |
 | `/emojis bonus clear <players> [emojis\|stickers]` | `eden_ld.admin.emojis`, console | Removes bonus grants. |
 | `/emojis bonus list <players>` | `eden_ld.admin.emojis`, console | Lists active grants and time left. |
-| `/ch <global\|local\|party\|guild>` | any player | Switches your chat channel (a click on its pip in chat does the same). |
+| `/ch <global\|local\|party\|guild>` | any player | Switches your chat channel (a click on its tab or pip in chat does the same). |
 | `/guild-admin list` | `eden_ld.admin.guilds` | Lists every guild: tag, name, size, leader. |
 | `/guild-admin disband <tag>` | `eden_ld.admin.guilds` | Disbands a guild by tag (works with every member offline). |
 | `/guild-admin xp <tag> add\|set <amount>` | `eden_ld.admin.guilds` | Adds or sets a guild's XP (levels follow; bonuses and messages as for a real level-up). |

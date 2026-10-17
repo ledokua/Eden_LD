@@ -74,8 +74,10 @@ class ChatFilterEquivalenceTest {
     private static boolean newHidden(ChatMarker.Mark mark, boolean systemView, Settings settings, Channel selected) {
         ChatTabSpec tab = systemView ? ChatTabSpec.SYSTEM
                 : settings != null && settings.focus() && selected != null ? ChatTabSpec.of(selected) : ChatTabSpec.ALL;
+        // The 1.2 look (and 1.2.x) always had system lines in a channel's view: chat_system_in_tabs reads on there.
         ChatRules rules = settings == null ? ChatRules.none(ME, IGNORED, selected)
-                : new ChatRules(ME, IGNORED, settings.hidden(), settings.deaths(), settings.advancements(), selected);
+                : new ChatRules(ME, IGNORED, settings.hidden(), settings.deaths(), settings.advancements(), selected,
+                        true);
         return !tab.shows(mark, rules);
     }
 

@@ -154,11 +154,21 @@ public final class ChannelMenu {
     }
 
     /**
-     * The new look's rows: the channel's name; Mute ▸, or (muted) the muted line and Unmute; Notifications ▸ with the
-     * level dim after it (a submenu row has no secondary text); Mark as read (greyed when nothing is unread); a line;
-     * Chat settings.
+     * The new look's rows: {@link #core}, a line, Chat settings.
      */
     public static List<ContextMenu.Entry> entries(Spec spec, Actions actions) {
+        List<ContextMenu.Entry> entries = core(spec, actions);
+        entries.add(new ContextMenu.Separator());
+        entries.add(new ContextMenu.Item(tr("settings"), actions::settings, true));
+        return entries;
+    }
+
+    /**
+     * The channel's own rows, which a channel tab's menu ({@code TabMenu}) begins with too: the channel's name; Mute ▸,
+     * or (muted) the muted line and Unmute; Notifications ▸ with the level dim after it (a submenu row has no
+     * secondary text); Mark as read (greyed when nothing is unread). A list the caller may add to.
+     */
+    public static List<ContextMenu.Entry> core(Spec spec, Actions actions) {
         List<ContextMenu.Entry> entries = new ArrayList<>();
         entries.add(new ContextMenu.Header(spec.title(), spec.titleColor()));
         if (spec.mutedLine() == null) {
@@ -171,8 +181,6 @@ public final class ChannelMenu {
                 .append(Component.literal("  ").append(notifyLabel(spec.level())).withColor(spec.inkDim() & 0xFFFFFF));
         entries.add(new ContextMenu.Submenu(notify, () -> ChatMenus.build(notifyEntries(spec.level(), actions)), true));
         entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
-        entries.add(new ContextMenu.Separator());
-        entries.add(new ContextMenu.Item(tr("settings"), actions::settings, true));
         return entries;
     }
 

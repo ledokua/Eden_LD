@@ -11,9 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The ChatFlags word: switches in the low half, what the server knows in the high half (HubPayloads.ChatFlags). */
 class ChatFlagBitsTest {
 
-    /** {@code HubPayloads.ChatFlags.NEW_LOOK} and {@code HUD_STRIPS} (bits 0 and 1 of HubSettings' CHAT_FLAGS). */
+    /**
+     * {@code HubPayloads.ChatFlags.NEW_LOOK}, {@code HUD_STRIPS}, {@code SYSTEM_IN_TABS} and {@code ALL_TAB} (bits 0 to
+     * 3 of HubSettings' CHAT_FLAGS).
+     */
     private static final int NEW_LOOK = 1;
     private static final int HUD_STRIPS = 2;
+    private static final int SYSTEM_IN_TABS = 4;
+    private static final int ALL_TAB = 8;
 
     @Test
     void aPackedWordIsNeverTheUnsentMark() {
@@ -64,6 +69,42 @@ class ChatFlagBitsTest {
             assertFalse(ChatFlagBits.known(flags, 4), "a third switch is news to this server");
             assertTrue(ChatFlagBits.on(flags, 4));
         }
+    }
+
+    @Test
+    void fourSwitchesRoundTrip() {
+        int[] bits = {NEW_LOOK, HUD_STRIPS, SYSTEM_IN_TABS, ALL_TAB};
+        for (int mask = 0; mask < 16; mask++) {
+            boolean[] values = new boolean[bits.length];
+            for (int i = 0; i < bits.length; i++) {
+                values[i] = (mask & bits[i]) != 0;
+            }
+            int flags = ChatFlagBits.pack(values);
+            assertEquals(mask | 15 << ChatFlagBits.KNOWN_SHIFT, flags);
+            for (int i = 0; i < bits.length; i++) {
+                assertEquals(values[i], ChatFlagBits.on(flags, bits[i]), mask + " bit " + i);
+                assertTrue(ChatFlagBits.known(flags, bits[i]));
+            }
+            assertFalse(ChatFlagBits.known(flags, 16), "a fifth switch is news to this server");
+        }
+    }
+
+    @Test
+    void aOneThreeZeroServerKnowsNeitherTabSwitch() {
+        // Eden 1.3.0: the new look and the strips only. The tab switches read on, their options stay hidden.
+        int flags = ChatFlagBits.pack(new boolean[]{true, false});
+        for (int bit : new int[]{SYSTEM_IN_TABS, ALL_TAB}) {
+            assertTrue(ChatFlagBits.on(flags, bit));
+            assertFalse(ChatFlagBits.known(flags, bit));
+        }
+        // Nothing sent at all (a 1.2.x server): on and unknown too.
+        assertTrue(ChatFlagBits.on(ChatFlagBits.UNSENT, ALL_TAB));
+        assertFalse(ChatFlagBits.known(ChatFlagBits.UNSENT, SYSTEM_IN_TABS));
+        // This server, both turned off.
+        int off = ChatFlagBits.pack(new boolean[]{true, true, false, false});
+        assertFalse(ChatFlagBits.on(off, SYSTEM_IN_TABS));
+        assertFalse(ChatFlagBits.on(off, ALL_TAB));
+        assertTrue(ChatFlagBits.on(off, HUD_STRIPS));
     }
 
     @Test

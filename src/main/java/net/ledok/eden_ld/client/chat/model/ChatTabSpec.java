@@ -8,8 +8,9 @@ import java.util.Locale;
 
 /**
  * One view of the chat ({@code docs/PLAN-chat-v2.md}): a channel's lines, the system lines, or everything — and which
- * lines it shows under the player's chat settings ({@link #shows}). Until the tab strip (phase 5) the chat window has one
- * view, picked by the pips: System, the selected channel with "only the selected channel" on, else All.
+ * lines it shows under the player's chat settings ({@link #shows}). The new look picks it with its tab strip
+ * ({@link ChatTabs}, phase 5); the 1.2 look with its pips: System, the selected channel with "only the selected
+ * channel" on, else All.
  *
  * @param channel the channel of a {@link Kind#CHANNEL} tab (null for the others)
  * @param color   ARGB, as the channel's tags in chat
@@ -28,8 +29,10 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
     }
 
     public static final ChatTabSpec SYSTEM = new ChatTabSpec("system", Kind.SYSTEM, null,
-            "chat.eden_ld.pip.system.name", 0xFFAAAAAA);
+            "chat.eden_ld.badge.system", 0xFFAAAAAA);
     public static final ChatTabSpec ALL = new ChatTabSpec("all", Kind.ALL, null, "chat.eden_ld.tab.all", 0xFFFFFFFF);
+    /** Staff spy copies (phase 10): its place in the strip is kept, but nothing shows it yet. */
+    public static final ChatTabSpec SPY = new ChatTabSpec("spy", Kind.SPY, null, "chat.eden_ld.tab.spy", 0xFFE5534B);
     private static final ChatTabSpec[] CHANNELS = new ChatTabSpec[Channel.values().length];
 
     static {
@@ -57,12 +60,17 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
 
     /**
      * Whether this view shows a line with this marker. Unmarked lines (the server's, other mods') show everywhere but
-     * Spy and PM; an ignored player's lines nowhere, the player's own aside; deaths and advancements by their own
-     * settings; a channel's lines unless switched off in Settings → Chat — the channel typed into always shows its own,
-     * and the player's lines ignore the switches. Discord lines have their own switch (bit 4), even in Global.
+     * Spy and PM — in a channel's tab only while {@link ChatRules#systemInTabs()}; an ignored player's lines nowhere,
+     * the player's own aside; deaths and advancements by their own settings, in every tab; a channel's lines unless
+     * switched off in Settings → Chat — the channel typed into always shows its own, and the player's lines ignore the
+     * switches. Discord lines have their own switch (bit 4), even in Global.
      */
     public boolean shows(@Nullable ChatMarker.Mark mark, ChatRules rules) {
         if (kind == Kind.SPY || kind == Kind.PM) {
+            return false;
+        }
+        // chat_system_in_tabs only takes lines away: with it on, the rules below run as they always did.
+        if (kind == Kind.CHANNEL && mark == null && !rules.systemInTabs()) {
             return false;
         }
         if (mark == null) {

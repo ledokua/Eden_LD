@@ -56,7 +56,8 @@ public final class ChatEntry {
         fontEpoch++;
     }
 
-    static int fontEpoch() {
+    /** Bumped on every font reload: text measured before it changes is stale (the tab strip's widths key on it too). */
+    public static int fontEpoch() {
         return fontEpoch;
     }
 

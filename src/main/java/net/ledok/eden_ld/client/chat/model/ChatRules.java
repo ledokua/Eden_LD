@@ -15,13 +15,15 @@ import java.util.function.Predicate;
  * @param switchedOff  channels hidden in Settings → Chat (bit per channel; bit 4 = Discord)
  * @param deaths       a {@link HubSettings.MessagesFrom} ordinal
  * @param advancements a {@link HubSettings.MessagesFrom} ordinal
+ * @param systemInTabs unmarked lines (the server's, other mods') show in channel tabs too ({@code chat_system_in_tabs};
+ *                     always on with the 1.2 look)
  */
 public record ChatRules(@Nullable UUID self, Predicate<UUID> ignored, int switchedOff, int deaths, int advancements,
-                        @Nullable Channel typing) {
+                        @Nullable Channel typing, boolean systemInTabs) {
 
     /** No settings yet: everything shows. */
     public static ChatRules none(@Nullable UUID self, Predicate<UUID> ignored, @Nullable Channel typing) {
-        return new ChatRules(self, ignored, 0, 0, 0, typing);
+        return new ChatRules(self, ignored, 0, 0, 0, typing, true);
     }
 
     public boolean ignores(@Nullable UUID player) {

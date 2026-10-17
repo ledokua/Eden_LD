@@ -2428,6 +2428,10 @@ public final class HubPayloads {
         public static final int NEW_LOOK = 1;
         /** The closed chat's lines as rounded strips (with the new look); off = the classic band. */
         public static final int HUD_STRIPS = 1 << 1;
+        /** Unmarked lines (the server's, other mods') in the new look's channel tabs too (1.3.1+). */
+        public static final int SYSTEM_IN_TABS = 1 << 2;
+        /** The new look's All tab (1.3.1+). */
+        public static final int ALL_TAB = 1 << 3;
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

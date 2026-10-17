@@ -121,6 +121,18 @@ class MenuEntriesTest {
     }
 
     @Test
+    void aChannelsOwnRowsAreItsMenuWithoutTheTail() {
+        Recorder actions = new Recorder();
+        for (Component muted : new Component[]{null, MUTED}) {
+            List<ContextMenu.Entry> core = ChannelMenu.core(channel(muted, true), actions);
+            List<ContextMenu.Entry> all = ChannelMenu.entries(channel(muted, true), actions);
+            assertEquals(kinds(all).subList(0, all.size() - 2), kinds(core));
+            assertInstanceOf(ContextMenu.Item.class, core.get(core.size() - 1), "Mark as read last");
+            assertEquals("chat.eden_ld.menu.read", key(((ContextMenu.Item) core.get(core.size() - 1)).label()));
+        }
+    }
+
+    @Test
     void markAsReadIsGreyedWithNothingUnread() {
         ContextMenu.Item read = (ContextMenu.Item) ChannelMenu.entries(channel(null, false), new Recorder()).get(3);
         assertFalse(read.enabled());

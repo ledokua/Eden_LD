@@ -46,6 +46,22 @@ class ChatLayoutTest {
     }
 
     @Test
+    void theOpenChatGivesUpLinesOnlyWhereTheTabStripNeedsThem() {
+        // 426×240 (GUI 3 at 1280×720): the newest line's bottom at 200, 20 lines a page, 9 a line.
+        double oneRow = 18 + 8;
+        double twoRows = 37 + 8;
+        assertEquals(19, ChatLayout.capLines(20, 200, oneRow, 9, 1.0));
+        assertEquals(17, ChatLayout.capLines(20, 200, twoRows, 9, 1.0));
+        // 455×256: room for all 20.
+        assertEquals(20, ChatLayout.capLines(20, 216, oneRow, 9, 1.0));
+        // Chat scale 0.5: half-height lines, the page is the limit.
+        assertEquals(20, ChatLayout.capLines(20, 200, oneRow, 9, 0.5));
+        // Never fewer than one line, however short the screen.
+        assertEquals(1, ChatLayout.capLines(20, 20, twoRows, 9, 1.0));
+        assertEquals(1, ChatLayout.capLines(20, -5, oneRow, 9, 1.0));
+    }
+
+    @Test
     void aDroppedWindowAnchorsToTheNearestCornerAndComesBackInPlace() {
         Rect dropped = new Rect(400, 250, 200, 100);
         ChatLayout layout = ChatLayout.of(dropped, 125, 640, 360);

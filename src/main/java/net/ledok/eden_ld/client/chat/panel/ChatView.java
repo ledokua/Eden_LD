@@ -1,11 +1,13 @@
 package net.ledok.eden_ld.client.chat.panel;
 
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
+import net.ledok.eden_ld.client.chat.ChatActivity;
 import net.ledok.eden_ld.client.chat.ChatFilter;
 import net.ledok.eden_ld.client.chat.ClientChatChannel;
 import net.ledok.eden_ld.client.chat.model.ChatLayout;
 import net.ledok.eden_ld.client.chat.model.ChatRules;
 import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
+import net.ledok.eden_ld.client.chat.model.ChatTabs;
 import net.ledok.eden_ld.client.chat.model.ChatViewport;
 import net.ledok.eden_ld.client.chat.model.ChatWindow;
 import net.ledok.eden_ld.client.chat.ui.ChatLook;
@@ -41,7 +43,9 @@ import java.util.UUID;
  * stripe and tint in the notification color (it stays on the HUD longer); with the new look, the closed chat puts each
  * message on its own rounded strip ({@link HudStrips}) unless the player picked Classic. It answers what the open
  * chat asks: the message, style and tag under the mouse, the hover toolbar, scrolling. The main window
- * ({@link ChatViews#main()}) sits where vanilla's chat does; {@link ChatPanel} hands vanilla's questions to it.
+ * ({@link ChatViews#main()}) sits where vanilla's chat does; {@link ChatPanel} hands vanilla's questions to it. With the
+ * new look its tab comes from its {@link ChatTabs} (the tab strip, phase 5), and the closed chat also shows the unseen
+ * mentions of other tabs; switching tabs starts at the newest line.
  */
 public final class ChatView {
 
@@ -88,6 +92,10 @@ public final class ChatView {
 
     private final ChatWindow window;
     private final ChatViewport viewport = new ChatViewport();
+    /** The new look's tabs: which one this view shows. */
+    private final ChatTabs tabs = new ChatTabs();
+    /** Room kept free above the open chat's history plate (GUI units; the new look's tab strip), 0 = none. */
+    private float reserve;
     private final List<ToolButton> toolbar = new ArrayList<>();
     /** A HUD strip's and a message's band rects, filled per message ({@link HudStrips}): nothing allocated per frame. */
     private final float[] strip = new float[4];
@@ -111,6 +119,9 @@ public final class ChatView {
     @Nullable
     private ChatTabSpec builtTab;
     private String builtSearch = "";
+    /** Built for the open chat (else the closed one, which adds other tabs' unseen mentions in the new look). */
+    private boolean builtFocused;
+    private boolean builtNewLook;
 
     ChatView(ChatWindow window) {
         this.window = window;
@@ -124,9 +135,31 @@ public final class ChatView {
         return viewport;
     }
 
-    /** The tab this view shows (until the tab strip: the pips' choice — see {@link ChatFilter#currentTab()}). */
+    /** The new look's tabs (the strip's state; the view shows {@link ChatTabs#active}). */
+    public ChatTabs tabs() {
+        return tabs;
+    }
+
+    /**
+     * The tab this view shows: with the new look ({@link ChatFilter#newLook()}) its tabs' active one, else the 1.2
+     * pips' choice ({@link ChatFilter#currentTab()}).
+     */
     public ChatTabSpec tab() {
-        return ChatFilter.currentTab();
+        return tab(ChatFilter.newLook());
+    }
+
+    private ChatTabSpec tab(boolean newLook) {
+        return newLook ? tabs.active(ClientChatChannel.current(), HubState.chatAllTab(), false)
+                : ChatFilter.currentTab();
+    }
+
+    /**
+     * Room the open chat keeps free above its history plate, in GUI units: the new look's host sets it every frame
+     * (its tab strip and the badges over it; 0 = none). The open frame shows fewer lines when the screen is too short
+     * for both ({@link ChatLayout#capLines}); the closed chat's frame never changes.
+     */
+    public void reserve(float units) {
+        reserve = units;
     }
 
     private static Minecraft minecraft() {
@@ -141,14 +174,32 @@ public final class ChatView {
         return (int) (9.0 * (minecraft().options.chatLineSpacing().get() + 1.0));
     }
 
+    /**
+     * The open history plate's right edge (GUI units), which the new look's tab strip wraps before: the chat's width
+     * — as its frame, without asking how many lines fit (the strip's height decides that).
+     */
+    public float plateRight() {
+        if (window.layout() != null) {
+            Frame frame = frame();
+            return (float) (frame.left() + (frame.boxWidth() + 12) * frame.scale());
+        }
+        ChatComponent chat = chat();
+        double scale = chat.getScale();
+        return (float) ((Mth.ceil(chat.getWidth() / scale) + 12) * scale);
+    }
+
     /** Where the view is now: vanilla's chat place and size, or where the window was moved to. */
     public Frame frame() {
         ChatComponent chat = chat();
         int guiHeight = minecraft().getWindow().getGuiScaledHeight();
         ChatLayout layout = window.layout();
         if (layout == null) {
-            return new Frame(0.0, guiHeight - 40.0, chat.getScale(), chat.getWidth(), chat.getLinesPerPage(),
-                    lineHeight(), chat.isChatFocused());
+            int lines = chat.getLinesPerPage();
+            boolean open = chat.isChatFocused();
+            if (open && reserve > 0 && ChatLook.open() != null) {
+                lines = ChatLayout.capLines(lines, guiHeight - 40.0, reserve, lineHeight(), chat.getScale());
+            }
+            return new Frame(0.0, guiHeight - 40.0, chat.getScale(), chat.getWidth(), lines, lineHeight(), open);
         }
         ChatLayout.Rect rect = layout.place(minecraft().getWindow().getGuiScaledWidth(), guiHeight);
         double scale = chat.getScale() * ChatLayout.clampZoom(layout.zoom()) / 100.0;
@@ -166,18 +217,25 @@ public final class ChatView {
         int width = frame.textWidth();
         Object settings = HubState.settingsData;
         Channel typing = ClientChatChannel.current();
-        ChatTabSpec tab = tab();
+        boolean newLook = ChatFilter.newLook();
+        ChatTabSpec tab = tab(newLook);
+        boolean focused = frame.open();
         String search = viewport.search();
         if (builtRules != ChatViews.rulesEpoch() || builtVersion != ChatStore.version() || builtWidth != width
                 || builtFonts != ChatEntry.fontEpoch() || builtSettings != settings || builtTyping != typing
-                || builtTab != tab || !builtSearch.equals(search)) {
+                || builtTab != tab || !builtSearch.equals(search) || builtFocused != focused
+                || builtNewLook != newLook) {
             Font font = minecraft().font;
             ChatRules rules = ChatFilter.rules();
+            // The new look's closed chat follows the tab, plus the mentions of other tabs not seen yet (a ping says
+            // where it came from); they leave once the chat opens.
+            boolean mentions = newLook && !focused;
             List<Row> built = new ArrayList<>();
             List<ChatEntry> entries = ChatStore.entries();
             for (int i = entries.size() - 1; i >= 0; i--) {
                 ChatEntry entry = entries.get(i);
-                if (!tab.shows(entry.mark, rules) || !search.isEmpty() && !entry.plain().contains(search)) {
+                if (!tab.shows(entry.mark, rules) && !(mentions && ChatActivity.unseenMention(entry, rules))
+                        || !search.isEmpty() && !entry.plain().contains(search)) {
                     continue;
                 }
                 int indent = entry.sender() != null ? HEAD : 0;
@@ -187,6 +245,10 @@ public final class ChatView {
                 }
             }
             rows = built;
+            if (newLook && builtTab != null && builtTab != tab) {
+                // Another tab starts at its newest line (a mention jump centers its line after this).
+                viewport.reset();
+            }
             builtRules = ChatViews.rulesEpoch();
             builtVersion = ChatStore.version();
             builtWidth = width;
@@ -195,6 +257,8 @@ public final class ChatView {
             builtTyping = typing;
             builtTab = tab;
             builtSearch = search;
+            builtFocused = focused;
+            builtNewLook = newLook;
             viewport.clamp(rows.size(), frame.lines());
         }
         return rows;
@@ -242,6 +306,16 @@ public final class ChatView {
         graphics.pose().translate((float) frame.left(), 0.0F, 0.0F);
         graphics.pose().scale((float) scale, (float) scale, 1.0F);
         graphics.pose().translate(4.0F, 0.0F, 0.0F);
+        // A tab switch slides the lines (their marks and toolbar too) in from the new tab's side, fading in (phase 5):
+        // in a pose of their own, so the plate, the Chat Delay box and the scroll bar stay put. Hit tests keep using
+        // where the lines end up.
+        float slideDx = look != null ? look.slideDx() : 0f;
+        float slide = look != null ? look.slideAlpha() : 1f;
+        boolean sliding = slideDx != 0f;
+        if (sliding) {
+            graphics.pose().pushPose();
+            graphics.pose().translate((float) (slideDx / scale), 0.0F, 0.0F);
+        }
         // Opening: the strips the HUD showed fade out while the plate fades in (no blink).
         boolean handing = look != null && chrome < 1f && hudStrips();
         float gap = strips || handing ? HudStrips.gap(minecraft.getWindow().getGuiScale(), scale) : 0f;
@@ -250,7 +324,8 @@ public final class ChatView {
                 drawHudStrips(graphics, rows, scroll, shown, base, lineHeight, width, tickCount, opacity,
                         backgroundOpacity, gap, theme, accent, 1f - chrome, 1f - chrome);
             }
-            drawEntryChrome(graphics, rows, scroll, shown, base, lineHeight, width, hovered, theme, chrome, accent);
+            drawEntryChrome(graphics, rows, scroll, shown, base, lineHeight, width, hovered, theme, chrome * slide,
+                    accent);
         } else if (strips) {
             // The marks at full through a close: the panels fading out never draw them (only the strips hand over).
             drawHudStrips(graphics, rows, scroll, shown, base, lineHeight, width, tickCount, opacity,
@@ -268,8 +343,8 @@ public final class ChatView {
             }
             double fade = focused ? 1.0 : timeFactor(age);
             if (look != null) {
-                // Lines the HUD was showing stay as they were; older ones come in with the panels.
-                fade = age < VISIBLE ? Math.max(timeFactor(age), chrome) : chrome;
+                // Lines the HUD was showing stay as they were; older ones come in with the panels (and a slide).
+                fade = (age < VISIBLE ? Math.max(timeFactor(age), chrome) : chrome) * slide;
             }
             int alpha = (int) (255.0 * fade * opacity);
             int backgroundAlpha = (int) (255.0 * fade * backgroundOpacity);
@@ -316,6 +391,9 @@ public final class ChatView {
             if (focused) {
                 entry.markSeen();
             }
+        }
+        if (sliding) {
+            graphics.pose().popPose();
         }
 
         long queued = minecraft.getChatListener().queueSize();
@@ -367,13 +445,14 @@ public final class ChatView {
 
     /**
      * The open chat's history plate, in GUI units so its border and corners keep their size at any chat scale: docked
-     * to the screen's left edge, around the shown lines, ending above the hearts (and above the bed's Leave Bed
-     * button). With nothing to show, one empty row saying so.
+     * to the screen's left edge, as tall as the frame's lines (phase 5: whatever the tab shows, so the tab strip on it
+     * never moves; a quiet tab's lines sit at its bottom), ending above the hearts (and above the bed's Leave Bed
+     * button). With nothing to show, its bottom row says so.
      */
     private void drawPlate(GuiGraphics graphics, Frame frame, int base, int shown, int lineHeight, ChatTheme theme,
                            float chrome, Font font) {
         double scale = frame.scale();
-        int rowsTall = Math.max(1, shown);
+        int rowsTall = Math.max(1, frame.lines());
         float x0 = (float) frame.left();
         float x1 = (float) (frame.left() + (frame.boxWidth() + 12) * scale);
         float bottom = (float) (base * scale);

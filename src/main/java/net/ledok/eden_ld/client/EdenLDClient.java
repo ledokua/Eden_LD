@@ -89,6 +89,8 @@ public class EdenLDClient implements ClientModInitializer {
                     HubScreen.open();
                 }
             }
+            // A chat channel held back after a pick applies once its hold runs out (ChatChannelState).
+            net.ledok.eden_ld.client.chat.ClientChatChannel.tick();
         });
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -289,6 +291,9 @@ public class EdenLDClient implements ClientModInitializer {
         net.ledok.eden_ld.client.theme.HubThemes.initialize();
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ChatFlags.TYPE, (payload, context) -> {
             HubState.chatFlags = payload.flags();
+            // The tabs' switches (All tab, system lines in channel tabs) apply at once.
+            net.ledok.eden_ld.client.chat.ChatFilter.refresh();
+            net.ledok.eden_ld.client.chat.ChatTabActions.refresh();
             if (context.client().screen instanceof HubScreen screen) {
                 screen.onSettingsData();
             }

@@ -31,7 +31,11 @@ public final class HubSettings {
     public static final String CHAT_HIDE_PARTY = "chat_hide_party";
     public static final String CHAT_HIDE_GUILD = "chat_hide_guild";
     public static final String CHAT_HIDE_DISCORD = "chat_hide_discord";
-    /** Only the channel the player types into shows in their chat (Discord counts as Global). */
+    /**
+     * Only the channel the player types into shows in their chat (Discord counts as Global). Read by the 1.2 look
+     * ({@link #CHAT_NEW_LOOK} off) and 1.2.x clients only — the new look's tab strip is its view; goes with the
+     * {@code chat_new_look} hatch (the {@code SettingsData} field stays: 1.2.x wire).
+     */
     public static final String CHAT_FOCUS = "chat_focus";
     /**
      * How loud the ping is when someone @mentions the player, 0-100 (0 = no ping). The client
@@ -62,10 +66,18 @@ public final class HubSettings {
     /** How the closed chat's lines look with the new look: on = a rounded strip per message, off = the classic band. */
     public static final String CHAT_HUD_STYLE = "chat_hud_style";
     /**
+     * The new look's channel tabs also show unmarked lines (the server's, other mods'); All and System always do.
+     * Deaths and advancements follow their own switches in every tab.
+     */
+    public static final String CHAT_SYSTEM_IN_TABS = "chat_system_in_tabs";
+    /** The new look's All tab (every channel together, first in the strip); off = no All tab. */
+    public static final String CHAT_ALL_TAB = "chat_all_tab";
+    /**
      * The chat switches that are on until the player turns them off, and their bits in {@link #chatFlags}. Append
      * only: a client reads them by bit ({@code HubPayloads.ChatFlags}).
      */
-    private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK, CHAT_HUD_STYLE);
+    private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK, CHAT_HUD_STYLE,
+            CHAT_SYSTEM_IN_TABS, CHAT_ALL_TAB);
     /** The longest timed mute the client may ask for (24 hours). */
     private static final int MAX_MUTE_MINUTES = 24 * 60;
     /** How hub tabs show news: badges, a glow, or both ({@link NotifyStyle} ordinal). */
@@ -131,9 +143,11 @@ public final class HubSettings {
         ALL_MESSAGES,
         NOTHING;
 
+        /** Made once: the chat's tab strip reads every channel's level every frame. */
+        private static final ChannelNotify[] VALUES = values();
+
         public static ChannelNotify of(int value) {
-            ChannelNotify[] values = values();
-            return value >= 0 && value < values.length ? values[value] : ONLY_MENTIONS;
+            return value >= 0 && value < VALUES.length ? VALUES[value] : ONLY_MENTIONS;
         }
 
         /** This channel's level in the packed setting. */

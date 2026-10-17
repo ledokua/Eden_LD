@@ -2,7 +2,11 @@ package net.ledok.eden_ld.client.chat;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
+import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
+import net.ledok.eden_ld.client.chat.model.SelectGuard;
+import net.ledok.eden_ld.client.chat.panel.ChatViews;
 import net.ledok.eden_ld.hub.HubPayloads;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
@@ -11,7 +15,8 @@ import java.util.Locale;
 /**
  * The client's view of its chat channel (the server decides; see ChatChannels): which one the
  * player types into and which are open. Drives the chat screen's badge. Unknown (null) until
- * an Eden server tells us — the badge then stays hidden.
+ * an Eden server tells us — the badge then stays hidden. A pick is shown at once; a state the
+ * server sent before it handled the pick can't flip it back ({@link SelectGuard}).
  */
 public final class ClientChatChannel {
 
@@ -23,20 +28,53 @@ public final class ClientChatChannel {
     private static boolean moderate;
     /** The System pip: the chat shows only system lines (the server's, deaths, advancements); typing is unchanged. */
     private static boolean systemView;
+    private static final SelectGuard GUARD = new SelectGuard();
+    /** Bumped whenever the typing channel changes ({@link #typingEpoch}). */
+    private static int typingEpoch;
 
     private ClientChatChannel() {
     }
 
     public static void onState(HubPayloads.ChatChannelState state) {
-        Channel before = channel;
-        channel = Channel.of(state.channel());
-        if (before != channel) {
-            refreshFocus(before);
-        }
         party = state.party();
         guild = state.guild();
         emojiPicker = state.emojiPicker();
         moderate = state.moderate();
+        Channel server = Channel.of(state.channel());
+        // A state built before the server handled our pick names the old channel: held back (the rest applies).
+        int picked = GUARD.pending();
+        boolean pickedOpen = picked < 0 || open(Channel.of(picked));
+        if (GUARD.accept(server.ordinal(), pickedOpen, System.currentTimeMillis())) {
+            apply(server);
+        }
+        ChatTabActions.refresh();
+    }
+
+    /** Every client tick: a channel held back by the guard applies once its hold runs out. */
+    public static void tick() {
+        int held = GUARD.expire(System.currentTimeMillis());
+        if (held >= 0 && Channel.of(held) != channel) {
+            apply(Channel.of(held));
+            ChatTabActions.refresh();
+        }
+    }
+
+    /** The server's channel becomes the one typed into. */
+    private static void apply(Channel server) {
+        Channel before = channel;
+        channel = server;
+        if (before != server) {
+            typingEpoch++;
+            refreshFocus(before);
+        }
+    }
+
+    /**
+     * Changes whenever the channel typed into does — a pick, {@code /ch}, a [tag], the server's fallback: the new
+     * look's input glyph pops when it differs from the frame before (one int compared, nothing allocated).
+     */
+    public static int typingEpoch() {
+        return typingEpoch;
     }
 
     /** The System view: only system lines show. */
@@ -66,6 +104,8 @@ public final class ClientChatChannel {
         channel = null;
         systemView = false;
         switchedOffBefore = -1;
+        GUARD.reset();
+        typingEpoch++;
     }
 
     @Nullable
@@ -121,14 +161,21 @@ public final class ClientChatChannel {
             return;
         }
         channel = target;
+        typingEpoch++;
+        GUARD.selected(target.ordinal(), System.currentTimeMillis());
         refreshFocus(from);
         ClientPlayNetworking.send(new HubPayloads.ChatChannelSelect(target.ordinal()));
+        ChatTabActions.refresh();
     }
 
     /** The channels switched off in Settings → Chat at the last settings update (bits; -1 none yet this session). */
     private static int switchedOffBefore = -1;
 
-    /** Settings changed: a channel the player just switched off stops being the one they write in. */
+    /**
+     * Settings changed: a channel the player just switched off stops being the one they write in. With the new look,
+     * hiding the channel tab being viewed moves the view to All first (as the tab's own "Hide tab" does), when the
+     * player keeps the All tab; without it the view follows the typing channel to the next one.
+     */
     public static void onSettings() {
         HubPayloads.SettingsData settings = net.ledok.eden_ld.client.hub.HubState.settingsData;
         int switchedOff = settings == null ? 0 : settings.chatHidden();
@@ -136,8 +183,10 @@ public final class ClientChatChannel {
         switchedOffBefore = switchedOff;
         Channel now = current();
         if (now != null && (justOff & 1 << now.ordinal()) != 0) {
+            ChatTabActions.leaving(now);
             cycle(false);
         }
+        ChatTabActions.refresh();
     }
 
     /**
@@ -169,7 +218,20 @@ public final class ClientChatChannel {
             return message;
         }
         ClientPlayNetworking.send(new HubPayloads.ChatOneShot(typed.ordinal()));
+        sentElsewhere(typed);
         return rest;
+    }
+
+    /**
+     * The new look on another channel's tab: a one-shot to {@code typed} lands in a tab not on screen (the chat, and
+     * the closed chat with it, follow the tab), so the action bar says where it went.
+     */
+    private static void sentElsewhere(Channel typed) {
+        ChatTabSpec tab = ChatViews.main().tab();
+        if (ChatFilter.newLook() && tab.kind() == ChatTabSpec.Kind.CHANNEL && tab.channel() != typed) {
+            Minecraft.getInstance().gui.setOverlayMessage(Component.translatable("chat.eden_ld.sent_to",
+                    Component.translatable(ChatTabSpec.of(typed).labelKey()).withColor(color(typed) & 0xFFFFFF)), false);
+        }
     }
 
     /** The channel a message typed so far will go to: a "!x " prefix, else the chosen one. */
@@ -187,8 +249,21 @@ public final class ClientChatChannel {
         return Component.translatable("chat.eden_ld.badge." + channel.name().toLowerCase(Locale.ROOT));
     }
 
+    /** The new look's input glyphs, made once (a translatable follows the language by itself). */
+    private static final Component[] GLYPHS = new Component[Channel.values().length];
+
+    /** The new look's input glyph for a channel: a letter or two (G, L, P, Gd), in the channel's color when drawn. */
+    public static Component glyphLabel(Channel channel) {
+        Component label = GLYPHS[channel.ordinal()];
+        if (label == null) {
+            label = Component.translatable("chat.eden_ld.glyph." + channel.name().toLowerCase(Locale.ROOT));
+            GLYPHS[channel.ordinal()] = label;
+        }
+        return label;
+    }
+
     /** Badge text color, matching the channel tags in chat. */
     public static int color(Channel channel) {
-        return net.ledok.eden_ld.client.chat.model.ChatTabSpec.color(channel);
+        return ChatTabSpec.color(channel);
     }
 }

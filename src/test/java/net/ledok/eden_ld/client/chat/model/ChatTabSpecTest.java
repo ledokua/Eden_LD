@@ -19,8 +19,12 @@ class ChatTabSpecTest {
     private static final UUID TROLL = UUID.fromString("00000000-0000-0000-0000-000000000003");
 
     private static ChatRules rules(int switchedOff, Channel typing) {
+        return rules(switchedOff, typing, true);
+    }
+
+    private static ChatRules rules(int switchedOff, Channel typing, boolean systemInTabs) {
         return new ChatRules(ME, Set.of(TROLL)::contains, switchedOff, MessagesFrom.EVERYONE.ordinal(),
-                MessagesFrom.EVERYONE.ordinal(), typing);
+                MessagesFrom.EVERYONE.ordinal(), typing, systemInTabs);
     }
 
     private static ChatMarker.Mark line(Kind kind, UUID sender) {
@@ -34,6 +38,8 @@ class ChatTabSpecTest {
         assertTrue(ChatTabSpec.SYSTEM.shows(null, rules));
         assertTrue(ChatTabSpec.of(Channel.PARTY).shows(null, rules));
         assertFalse(new ChatTabSpec("spy", ChatTabSpec.Kind.SPY, null, "x", 0).shows(null, rules));
+        assertFalse(ChatTabSpec.SPY.shows(null, rules));
+        assertFalse(ChatTabSpec.SPY.shows(line(Kind.GLOBAL, BOB), rules));
         assertFalse(new ChatTabSpec("pm", ChatTabSpec.Kind.PM, null, "x", 0).shows(null, rules));
     }
 
@@ -52,7 +58,7 @@ class ChatTabSpecTest {
         ChatRules rules = rules(0, Channel.GLOBAL);
         assertFalse(ChatTabSpec.ALL.shows(line(Kind.GLOBAL, TROLL), rules));
         assertFalse(ChatTabSpec.ALL.shows(line(Kind.DEATH, TROLL), rules));
-        ChatRules ignoringSelf = new ChatRules(ME, id -> true, 0, 0, 0, Channel.GLOBAL);
+        ChatRules ignoringSelf = new ChatRules(ME, id -> true, 0, 0, 0, Channel.GLOBAL, true);
         assertTrue(ChatTabSpec.ALL.shows(line(Kind.GLOBAL, ME), ignoringSelf));
     }
 
@@ -89,10 +95,40 @@ class ChatTabSpecTest {
     @Test
     void deathsAndAdvancementsFollowTheirSettingsForEveryone() {
         ChatRules team = new ChatRules(ME, id -> false, 0, MessagesFrom.TEAM.ordinal(), MessagesFrom.NOBODY.ordinal(),
-                Channel.GLOBAL);
+                Channel.GLOBAL, true);
         assertTrue(ChatTabSpec.ALL.shows(new ChatMarker.Mark(Kind.DEATH, true, BOB), team));
         assertFalse(ChatTabSpec.ALL.shows(new ChatMarker.Mark(Kind.DEATH, false, BOB), team));
         assertFalse(ChatTabSpec.ALL.shows(new ChatMarker.Mark(Kind.ADVANCEMENT, true, ME), team));
+    }
+
+    @Test
+    void systemLinesInChannelTabsFollowTheSwitchAllAndSystemKeepThem() {
+        ChatTabSpec global = ChatTabSpec.of(Channel.GLOBAL);
+        assertTrue(global.shows(null, rules(0, Channel.GLOBAL, true)));
+        assertFalse(global.shows(null, rules(0, Channel.GLOBAL, false)));
+        assertFalse(ChatTabSpec.of(Channel.PARTY).shows(null, rules(0, Channel.GLOBAL, false)));
+        ChatRules off = rules(0, Channel.GLOBAL, false);
+        assertTrue(ChatTabSpec.ALL.shows(null, off));
+        assertTrue(ChatTabSpec.SYSTEM.shows(null, off));
+        // Only unmarked lines: the channel's own lines stay.
+        assertTrue(global.shows(line(Kind.GLOBAL, BOB), off));
+        assertTrue(global.shows(line(Kind.DISCORD, null), off));
+    }
+
+    @Test
+    void deathsAndAdvancementsInChannelTabsFollowOnlyTheirOwnSwitches() {
+        ChatTabSpec local = ChatTabSpec.of(Channel.LOCAL);
+        for (boolean systemInTabs : new boolean[]{true, false}) {
+            ChatRules everyone = rules(0, Channel.LOCAL, systemInTabs);
+            assertTrue(local.shows(line(Kind.DEATH, BOB), everyone), "switch " + systemInTabs);
+            assertTrue(local.shows(line(Kind.ADVANCEMENT, BOB), everyone), "switch " + systemInTabs);
+            // An ignored player's death: hidden whatever the switch says.
+            assertFalse(local.shows(line(Kind.DEATH, TROLL), everyone), "switch " + systemInTabs);
+            ChatRules nobody = new ChatRules(ME, Set.of(TROLL)::contains, 0, MessagesFrom.NOBODY.ordinal(),
+                    MessagesFrom.NOBODY.ordinal(), Channel.LOCAL, systemInTabs);
+            assertFalse(local.shows(line(Kind.DEATH, BOB), nobody), "switch " + systemInTabs);
+            assertFalse(local.shows(line(Kind.ADVANCEMENT, ME), nobody), "switch " + systemInTabs);
+        }
     }
 
     @Test

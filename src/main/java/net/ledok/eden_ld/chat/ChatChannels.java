@@ -58,17 +58,24 @@ public final class ChatChannels {
             this.prefix = prefix;
         }
 
+        /** Longest prefix first: "!gd" before "!g". */
+        private static final Channel[] BY_PREFIX = {GUILD, GLOBAL, LOCAL, PARTY};
+        private static final Channel[] VALUES = values();
+
         public static Channel of(int ordinal) {
-            return ordinal >= 0 && ordinal < values().length ? values()[ordinal] : GLOBAL;
+            return ordinal >= 0 && ordinal < VALUES.length ? VALUES[ordinal] : GLOBAL;
         }
 
-        /** The channel a typed "!x message" asks for; null without a prefix. */
+        /**
+         * The channel a typed "!x message" asks for (the prefix in any case, then a space); null without a prefix.
+         * Allocates nothing: the chat's input glyph asks every frame.
+         */
         @Nullable
         public static Channel byPrefix(String text) {
-            String lower = text.toLowerCase(Locale.ROOT);
-            // Longest first: "!gd" before "!g".
-            for (Channel channel : List.of(GUILD, GLOBAL, LOCAL, PARTY)) {
-                if (lower.startsWith(channel.prefix + " ")) {
+            for (Channel channel : BY_PREFIX) {
+                int length = channel.prefix.length();
+                if (text.length() > length && text.charAt(length) == ' '
+                        && text.regionMatches(true, 0, channel.prefix, 0, length)) {
                     return channel;
                 }
             }

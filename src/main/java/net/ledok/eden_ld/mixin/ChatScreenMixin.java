@@ -27,20 +27,23 @@ import java.util.List;
 /**
  * Eden's additions to the chat screen:
  * <ul>
- *   <li>channel pips left of the input (docs/PLAN-chat-activity.md) — one per channel the player can use, the one
- *   the message goes to with its name (a typed "!l " prefix previews its channel), a dot for lines not seen yet,
- *   @N for mentions; a click switches (also to a channel switched off in Settings), Ctrl+Tab (Shift: back) cycles
- *   the others, a right-click opens the channel's menu (mute, notifications); "!x message" is sent once to that
- *   channel with the prefix stripped client side; "↓ Mentions" jumps to the oldest unseen mention;</li>
+ *   <li>with the 1.2 look, channel pips left of the input (docs/PLAN-chat-activity.md) — one per channel the player
+ *   can use, the one the message goes to with its name (a typed "!l " prefix previews its channel), a dot for lines
+ *   not seen yet, @N for mentions; a click switches (also to a channel switched off in Settings), Ctrl+Tab (Shift:
+ *   back) cycles the others, a right-click opens the channel's menu (mute, notifications); "↓ Mentions" jumps to the
+ *   oldest unseen mention;</li>
+ *   <li>in either look, "!x message" is sent once to that channel with the prefix stripped client side;</li>
  *   <li>for players with {@code eden_ld.emoji_picker}, an emoji button right of the input that
  *   opens tabs — favorites, the server's (Minestar) emojis, Discord's categories; a click inserts the emoji,
  *   a right-click (also on emojis in chat, guests included) stars or unstars it;</li>
  *   <li>a completed {@code :name:} turns into the emoji as you type;</li>
  *   <li>the GIF viewer (a [GIF] link clicked — ScreenMixin) sits over the chat.</li>
  * </ul>
- * Only on servers running Eden (nothing shows elsewhere). The new look ({@code docs/PLAN-chat-v2.md}, phase 4) hands
+ * Only on servers running Eden (nothing shows elsewhere). The new look ({@code docs/PLAN-chat-v2.md}, phases 4–5) hands
  * the menus and the picker to its host's {@link net.ledok.eden_ld.client.chat.ui.ChatCanvas}, which gets the screen's
- * input first; with the new look off, everything below runs as in 1.2.x.
+ * input first, and has no pips: its host draws the tab strip above the history and a channel glyph left of the input
+ * ({@link net.ledok.eden_ld.client.chat.ui.EdenChatUi}), and takes Ctrl+Tab. With the new look off, everything below
+ * runs as in 1.2.x.
  */
 @Mixin(ChatScreen.class)
 public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_ld.client.chat.ui.EdenChatHost {
@@ -55,7 +58,10 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
     @Shadow
     protected EditBox input;
 
-    /** The room the channel pips take left of the input (0 = none on this server). */
+    /**
+     * The room the 1.2 look's channel pips take left of the input (0 = none: not an Eden server, or the new look, whose
+     * tabs sit above the history and whose glyph has a fixed room).
+     */
     @Unique
     private int eden_ld$badge;
     @Unique
@@ -98,13 +104,24 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
         if (ClientChatChannel.current() == null) {
             return;
         }
+        if (eden_ld$newLook) {
+            // No pips: the tabs sit above the history (ChatTabStrip), and left of the line only the channel glyph — a
+            // fixed room, so the line never moves when the channel changes. Clear of the emoji button and the plate's
+            // right edge.
+            int glyph = net.ledok.eden_ld.client.chat.ui.EdenChatUi.glyphWidth(font);
+            input.setX(input.getX() + glyph);
+            input.setWidth(input.getWidth() - glyph - (eden_ld$emojiButton ? EMOJI_BUTTON + 4 : 4));
+            if (eden_ld$ui != null) {
+                // Set up again (resized, or shown again after a screen over it): what changed meanwhile doesn't slide.
+                eden_ld$ui.reinit();
+            }
+            return;
+        }
         eden_ld$badge = eden_ld$pipsWidth();
         input.setX(input.getX() + eden_ld$badge);
-        // The new look keeps the line inside its plate: clear of the emoji button, and of the plate's right edge.
-        int rightRoom = eden_ld$newLook ? (eden_ld$emojiButton ? EMOJI_BUTTON + 4 : 4) : (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0);
-        input.setWidth(input.getWidth() - eden_ld$badge - rightRoom);
+        input.setWidth(input.getWidth() - eden_ld$badge - (eden_ld$emojiButton ? EMOJI_BUTTON + 2 : 0));
         // The new look's picker has its own search (no vanilla EditBox for Debugify's first-character drop to hit).
-        if (eden_ld$emojiButton && !eden_ld$newLook) {
+        if (eden_ld$emojiButton) {
             eden_ld$search = new EditBox(font, 0, 0, COLUMNS * CELL - 2, 12, Component.translatable("chat.eden_ld.emoji.search"));
             eden_ld$search.setHint(Component.translatable("chat.eden_ld.emoji.search").withStyle(ChatFormatting.DARK_GRAY));
             eden_ld$search.setMaxLength(40);
@@ -499,9 +516,23 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
         // above it (150), or chat lines under them would show through (command suggestions stay on top, 200). The new
         // look's canvas is drawn last, at 300 (ChatCanvas).
         if (host != null) {
-            host.drawPills(graphics, font, mouseX, mouseY, commandSuggestions != null && commandSuggestions.isVisible(),
-                    host.canvas().menuOpen(), host.canvas().pickerRect(),
-                    net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height));
+            boolean suggestions = commandSuggestions != null && commandSuggestions.isVisible();
+            int[] picker = host.canvas().pickerRect();
+            int[] gif = net.ledok.eden_ld.client.chat.GifViewer.bounds(width, height);
+            host.drawPills(graphics, font, mouseX, mouseY, suggestions, host.canvas().menuOpen(), picker, gif);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0.0F, 0.0F, 150.0F);
+            // The tab strip and the input glyph first: the GIF viewer, at the same z and drawn after, covers them.
+            host.drawStrip(graphics, font, mouseX, mouseY, suggestions, picker, gif);
+            host.drawGlyph(graphics, font, input, mouseX, mouseY);
+            net.ledok.eden_ld.client.chat.GifViewer.render(graphics, font, width, height, mouseX, mouseY);
+            if (eden_ld$emojiButton) {
+                eden_ld$drawEmojiButton(graphics, mouseX, mouseY);
+            }
+            eden_ld$toolTooltip(graphics, mouseX, mouseY);
+            graphics.pose().popPose();
+            host.canvas().render(graphics, mouseX, mouseY, partialTick);
+            return;
         }
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 150.0F);
@@ -517,15 +548,18 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
         }
         ChannelMenu.render(graphics, font, mouseX, mouseY, width, height);
         net.ledok.eden_ld.client.chat.MessageMenu.render(graphics, font, mouseX, mouseY, width, height);
+        eden_ld$toolTooltip(graphics, mouseX, mouseY);
+        graphics.pose().popPose();
+    }
+
+    /** The hovered line's toolbar button says what it does (not while a menu has the pointer). */
+    @Unique
+    private void eden_ld$toolTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
         net.ledok.eden_ld.client.chat.panel.ChatPanel.Tool tool = net.ledok.eden_ld.client.chat.ui.ChatMenus.open()
                 ? null : net.ledok.eden_ld.client.chat.panel.ChatPanel.toolAt(mouseX, mouseY);
         if (tool != null) {
             graphics.renderTooltip(font, Component.translatable("chat.eden_ld.action."
                     + tool.name().toLowerCase(java.util.Locale.ROOT)), mouseX, mouseY);
-        }
-        graphics.pose().popPose();
-        if (host != null) {
-            host.canvas().render(graphics, mouseX, mouseY, partialTick);
         }
     }
 
@@ -547,15 +581,9 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
         boolean command = input.getValue().startsWith("/");
         int y0 = height - 14;
         int y1 = height - 2;
-        var host = eden_ld$host();
         // No pip lights or explains itself while a menu has the pointer.
-        Channel hovered = (host != null ? host.canvas().menuOpen() : ChannelMenu.isOpen()) ? null
-                : eden_ld$pipAt(mouseX, mouseY);
+        Channel hovered = ChannelMenu.isOpen() ? null : eden_ld$pipAt(mouseX, mouseY);
         int accent = net.ledok.eden_ld.client.hub.HubNotifications.color();
-        if (host != null) {
-            eden_ld$drawChips(graphics, mouseX, mouseY, host, current, target, command, hovered);
-            return;
-        }
         for (int[] pip : eden_ld$pipBounds(current)) {
             Channel channel = Channel.of(pip[0]);
             int x0 = pip[1];
@@ -618,92 +646,6 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
         if (hovered != null) {
             graphics.renderComponentTooltip(font, eden_ld$pipTooltip(hovered, current), mouseX, mouseY);
         }
-    }
-
-    /**
-     * The new look's pips: rounded chips inside the input plate (rows h-13..h-3), rising and fading in with it — the
-     * channel typed into lit with a foot line in its color, a dot for unseen lines, the @N badge ringed by the plate.
-     */
-    @Unique
-    private void eden_ld$drawChips(GuiGraphics graphics, int mouseX, int mouseY,
-                                   net.ledok.eden_ld.client.chat.ui.EdenChatUi host, Channel current, Channel target,
-                                   boolean command, Channel hovered) {
-        var theme = net.ledok.eden_ld.client.chat.ui.ChatTheme.current();
-        float fade = net.ledok.eden_ld.client.chat.ui.ChatLook.chrome();
-        int y0 = height - 13;
-        int chipHeight = 10;
-        int badgeColor = net.ledok.eden_ld.client.hub.HubNotifications.color();
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, host.rise(), 0);
-        for (int[] pip : eden_ld$pipBounds(current)) {
-            Channel channel = Channel.of(pip[0]);
-            int x0 = pip[1];
-            int x1 = pip[2];
-            boolean on = !ClientChatChannel.systemView() && channel == target;
-            boolean dim = net.ledok.eden_ld.client.chat.ChatFilter.channelSwitchedOff(channel)
-                    || net.ledok.eden_ld.client.chat.ChatActivity.muted(channel);
-            int color = command && on ? 0xFF808080 : ClientChatChannel.color(channel);
-            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, y0, x1 - x0, chipHeight,
-                    channel == hovered ? theme.pipHover : on ? theme.pipLit : theme.pip, fade, false);
-            if (on) {
-                net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0 + 2, y0 + chipHeight - 1, x1 - x0 - 4, 1,
-                        theme.fill(color | 0xFF000000), fade, false);
-            }
-            if (net.ledok.eden_ld.client.chat.ChatActivity.unseen(channel)) {
-                net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x1 - 4, y0 + 1, 3, 3, theme.dot, fade, false);
-            }
-            int text = on ? color : (dim ? 0x70000000 : 0xB0000000) | color & 0xFFFFFF;
-            text = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(text, fade);
-            if (text != 0) {
-                graphics.drawString(font, eden_ld$pipLabel(channel, channel == current), x0 + 3, height - 12, text, false);
-            }
-            int mentions = net.ledok.eden_ld.client.chat.ChatActivity.mentions(channel);
-            if (mentions > 0) {
-                // Above the label (h-12), border included.
-                eden_ld$drawBadge(graphics, theme, badgeColor, "@" + (mentions > 9 ? "9+" : mentions), x1 + 2, y0 - 9, fade);
-            }
-        }
-        int[] system = eden_ld$systemPip();
-        boolean systemOn = ClientChatChannel.systemView();
-        boolean systemHovered = !host.canvas().menuOpen() && eden_ld$overSystemPip(mouseX, mouseY);
-        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[0], y0, system[1] - system[0], chipHeight,
-                systemHovered ? theme.pipHover : systemOn ? theme.pipLit : theme.pip, fade, false);
-        if (systemOn) {
-            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[0] + 2, y0 + chipHeight - 1,
-                    system[1] - system[0] - 4, 1, theme.fill(0xFFAAAAAA), fade, false);
-        } else if (net.ledok.eden_ld.client.chat.ChatActivity.unseenSystem()) {
-            net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, system[1] - 4, y0 + 1, 3, 3, theme.dot, fade, false);
-        }
-        int systemText = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(systemOn ? 0xFFAAAAAA : 0xB0AAAAAA, fade);
-        if (systemText != 0) {
-            graphics.drawString(font, eden_ld$systemLabel(systemOn), system[0] + 3, height - 12, systemText, false);
-        }
-        graphics.pose().popPose();
-        if (systemHovered) {
-            graphics.renderComponentTooltip(font, List.of(Component.translatable("chat.eden_ld.pip.system.name"),
-                    Component.translatable("chat.eden_ld.pip.system.hint").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
-        }
-        if (hovered != null) {
-            graphics.renderComponentTooltip(font, eden_ld$pipTooltip(hovered, current), mouseX, mouseY);
-        }
-    }
-
-    /** "@N" in the notification color (text black or white, whichever reads), its right end at {@code right}. */
-    @Unique
-    private void eden_ld$drawBadge(GuiGraphics graphics, net.ledok.eden_ld.client.chat.ui.ChatTheme theme, int color,
-                                   String text, int right, int top, float fade) {
-        int w = font.width(text) + 4;
-        // On the first chip it would start left of the screen: kept on it, its ring included.
-        int x0 = Math.max(1, right - w);
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 10);
-        net.ledok.vectorlib.client.canvas.RoundedBox.draw(graphics, x0, top, w, 9, theme.badge(color), fade, false);
-        int ink = net.ledok.eden_ld.client.chat.ui.ChatLook.textColor(
-                net.ledok.eden_ld.client.chat.ui.ChatLook.textOn(color), fade);
-        if (ink != 0) {
-            graphics.drawString(font, text, x0 + 2, top + 1, ink, false);
-        }
-        graphics.pose().popPose();
     }
 
     @Unique
@@ -874,11 +816,9 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
     private void eden_ld$keys(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         var host = eden_ld$host();
         if (host != null) {
-            // The new look: the menus, the GIF viewer and the picker first (ChatCanvas), then Ctrl+Tab.
-            if (host.canvas().keyPressed(keyCode, scanCode, modifiers)) {
-                cir.setReturnValue(true);
-            } else if (eden_ld$badge > 0 && keyCode == GLFW.GLFW_KEY_TAB && Screen.hasControlDown()) {
-                ClientChatChannel.cycle(Screen.hasShiftDown());
+            // The new look: the menus, the GIF viewer and the picker first (ChatCanvas), then the tabs' keys, paging.
+            if (host.canvas().keyPressed(keyCode, scanCode, modifiers) || host.keyPressed(keyCode,
+                    commandSuggestions != null && commandSuggestions.isVisible(), input.getValue().isEmpty())) {
                 cir.setReturnValue(true);
             }
             return;
@@ -950,7 +890,9 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
             cir.setReturnValue(true);
             return;
         }
-        if (host != null && host.clicked(mouseX, mouseY, button)) {
+        // The pills, the tab strip, the input glyph.
+        if (host != null && host.clicked(mouseX, mouseY, button,
+                commandSuggestions != null && commandSuggestions.isVisible())) {
             cir.setReturnValue(true);
             return;
         }
@@ -966,11 +908,7 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
             if (button == 1) {
                 for (int[] bounds : eden_ld$pipBounds(ClientChatChannel.current())) {
                     if (bounds[0] == pip.ordinal()) {
-                        if (host != null) {
-                            host.canvas().openChannelMenu(pip, bounds[1]);
-                        } else {
-                            ChannelMenu.open(pip, bounds[1], height - 14);
-                        }
+                        ChannelMenu.open(pip, bounds[1], height - 14);
                     }
                 }
             } else {

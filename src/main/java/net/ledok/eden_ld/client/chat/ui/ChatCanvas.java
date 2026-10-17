@@ -1,9 +1,9 @@
 package net.ledok.eden_ld.client.chat.ui;
 
-import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.client.chat.ChannelMenu;
 import net.ledok.eden_ld.client.chat.GifViewer;
 import net.ledok.eden_ld.client.chat.MessageMenu;
+import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.mixin.ChatScreenAccessor;
 import net.ledok.vectorlib.client.canvas.Animation;
@@ -28,11 +28,13 @@ import java.util.List;
 
 /**
  * The new look's VectorLib canvas on one chat screen ({@code docs/PLAN-chat-v2.md}, phase 4b), owned by its
- * {@link EdenChatUi}: the channel and message menus ({@link ChannelMenu}, {@link MessageMenu} as the canvas' popups)
- * and the emoji picker ({@link EmojiPicker}, a panel in its tree). It covers the screen down to the input row — (0, 0)
- * to (w, h-16): the pips, the emoji button and the input stay hand-drawn below it, so clicks there never reach it —
- * at z 300: over the history and its toolbar (≤ 120), the pills (150) and command suggestions (200), under the
- * screen's tooltips (400–550); the menus, lifted 300 more by VectorLib's popup layer, cover those too.
+ * {@link EdenChatUi}: the tab and message menus ({@link TabMenu} — a channel tab's starts with {@link ChannelMenu}'s
+ * rows — and {@link MessageMenu}, as the canvas' popups) and the emoji picker ({@link EmojiPicker}, a panel in its
+ * tree). It covers the screen down to the input row — (0, 0) to (w, h-16): the input glyph, the emoji button and the
+ * input stay hand-drawn below it, so clicks there never reach it. The tab strip (phase 5) and the pills lie inside
+ * its rect but are drawn by hand under it, at z 150. The canvas is at z 300: over the history and its toolbar
+ * (≤ 120), the strip and the pills (150) and command suggestions (200), under the screen's tooltips (400–550); the
+ * menus, lifted 300 more by VectorLib's popup layer, cover those too.
  * <p>
  * ChatScreenMixin hands it the screen's input first, and each call says whether the canvas took it: a menu takes
  * every click while it is open (off it, the click only closes it), the picker takes what lands on it, and the empty
@@ -281,16 +283,26 @@ public final class ChatCanvas {
 
     // ---------------------------------------------------------------- menus
 
-    /** A right-click on a channel's pip: its menu, opening upward from the pip ({@code pipX}: its left edge). */
-    public void openChannelMenu(Channel channel, float pipX) {
+    /**
+     * A right-click on a tab of the strip ({@link TabMenu}): its menu at {@code x}, 1 below the anchor (the chip,
+     * {@code anchorTop}..{@code anchorBottom}) when it fits, else ending 1 above it — the input glyph's opens upward
+     * from the canvas' bottom ({@code anchorTop} = {@code anchorBottom} = its height).
+     */
+    public void openTabMenu(ChatTabSpec tab, float x, float anchorTop, float anchorBottom) {
         if (theme == null) {
             return;
         }
         closeMenus();
-        // At the canvas' bottom: ContextMenu clamps it to end there, on the input row.
-        ChatMenus.build(ChannelMenu.entries(ChannelMenu.spec(channel, theme.tokens.inkDim()),
-                ChannelMenu.actions(channel))).open(canvas, pipX, canvas.height());
+        List<ContextMenu.Entry> entries = TabMenu.entries(TabMenu.spec(tab, theme.tokens.inkDim(),
+                theme.canvas.danger()), TabMenu.actions(tab));
+        float menuHeight = Math.min(ChatMenus.height(entries), canvas.height());
+        ChatMenus.build(entries).open(canvas, x, ChatMenus.below(anchorTop, anchorBottom, menuHeight, canvas.height()));
         touched();
+    }
+
+    /** The canvas' height: its bottom is the input row's top (the glyph's menu opens upward from there). */
+    public float height() {
+        return canvas.height();
     }
 
     /** A right-click on a message (or its toolbar's ⋯): its menu, ending at the pointer (below it near the top). */

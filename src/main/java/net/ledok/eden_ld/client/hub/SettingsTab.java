@@ -157,10 +157,27 @@ final class SettingsTab {
         settings.heading(tr("section.notifications"));
         settings.add(mentionVolume(data));
         settings.heading(tr("section.channels"));
-        settings.add(Option.toggle(tr("channel.focus"), data.chatFocus(),
-                        on -> send(HubSettings.CHAT_FOCUS, on ? 1 : 0))
-                .text(tr("channel.focus.toggle")).hint(tr("channel.focus.hint")).defaultValue(false));
-        // A channel shown or hidden in the game's chat (the player's own lines always show).
+        if (HubState.chatNewLook()) {
+            // The new look's tabs: each switch only where the server keeps it (Eden 1.3.1+).
+            if (HubState.chatFlagKnown(HubPayloads.ChatFlags.ALL_TAB)) {
+                settings.add(Option.toggle(tr("chat_all_tab"), HubState.chatAllTab(),
+                                on -> send(HubSettings.CHAT_ALL_TAB, on ? 1 : 0))
+                        .text(tr("channel.focus.toggle")).hint(tr("chat_all_tab.hint")).defaultValue(true)
+                        .keywords("chat", "tab", "all", "channels"));
+            }
+            if (HubState.chatFlagKnown(HubPayloads.ChatFlags.SYSTEM_IN_TABS)) {
+                settings.add(Option.toggle(tr("chat_system_in_tabs"), HubState.chatSystemInTabs(),
+                                on -> send(HubSettings.CHAT_SYSTEM_IN_TABS, on ? 1 : 0))
+                        .text(tr("channel.focus.toggle")).hint(tr("chat_system_in_tabs.hint")).defaultValue(true)
+                        .keywords("chat", "tab", "system", "server", "messages"));
+            }
+        } else {
+            // The 1.2 look's view; the new look's is its tab strip.
+            settings.add(Option.toggle(tr("channel.focus"), data.chatFocus(),
+                            on -> send(HubSettings.CHAT_FOCUS, on ? 1 : 0))
+                    .text(tr("channel.focus.toggle")).hint(tr("channel.focus.hint")).defaultValue(false));
+        }
+        // A channel shown or hidden in the game's chat (the player's own lines always show); with the new look, its tab.
         String[] keys = {HubSettings.CHAT_HIDE_GLOBAL, HubSettings.CHAT_HIDE_LOCAL, HubSettings.CHAT_HIDE_PARTY,
                 HubSettings.CHAT_HIDE_GUILD, HubSettings.CHAT_HIDE_DISCORD};
         String[] names = {"global", "local", "party", "guild", "discord"};

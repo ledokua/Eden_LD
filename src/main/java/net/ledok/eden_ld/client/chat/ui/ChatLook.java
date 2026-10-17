@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.client.chat.ui;
 
 import net.ledok.eden_ld.client.chat.ClientChatChannel;
+import net.ledok.eden_ld.client.chat.model.ChatTabs;
 import net.ledok.eden_ld.client.hub.HubState;
 import net.ledok.vectorlib.client.canvas.BoxStyle;
 import net.ledok.vectorlib.client.canvas.Motion;
@@ -13,7 +14,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Eden's new chat look as a whole ({@code docs/PLAN-chat-v2.md}, phase 4): whether it's on, the chat screen showing it
- * ({@link EdenChatUi}), and the one motion its panels share — they fade in when a chat opens and out when it closes.
+ * ({@link EdenChatUi}), and the one motion its panels share — they fade in when a chat opens and out when it closes
+ * (the history and input plates, and the tab strip's boxes).
  * The close is decided where the screen changes ({@link #screenChanging}): back to the game fades the panels out
  * (drawn from the HUD chat for those 140 ms), another chat screen (bed → chat) keeps them, any other screen covers the
  * chat at once. Reopening mid-fade continues from where the fade was.
@@ -31,6 +33,19 @@ public final class ChatLook {
     private static boolean inputShown;
     private static @Nullable BoxStyle historyStyle;
     private static @Nullable BoxStyle inputStyle;
+    /**
+     * Last frame's tab strip (phase 5), for the close fade too: its chips (x0, y0, x1, y1 each) and how strong each was
+     * drawn, the lit plate and its foot line. Filled in place every frame, so nothing is allocated.
+     */
+    private static final float[] CHIPS = new float[ChatTabs.SLOTS * 4];
+    private static final float[] CHIP_ALPHA = new float[ChatTabs.SLOTS];
+    private static int chips;
+    private static final float[] LIT = new float[4];
+    private static final float[] FOOT = new float[4];
+    private static boolean litShown;
+    private static @Nullable BoxStyle chipStyle;
+    private static @Nullable BoxStyle litStyle;
+    private static @Nullable BoxStyle footStyle;
 
     private ChatLook() {
     }
@@ -46,6 +61,8 @@ public final class ChatLook {
             open = ui;
             historyShown = false;
             inputShown = false;
+            chips = 0;
+            litShown = false;
         }
         CHROME.set(true);
     }
@@ -101,11 +118,40 @@ public final class ChatLook {
         inputStyle = style;
     }
 
+    /** The tab strip starts its frame: its chips in {@code style} (null: no strip drawn this frame). */
+    static void strip(@Nullable BoxStyle style) {
+        chipStyle = style;
+        chips = 0;
+        litShown = false;
+    }
+
+    /** A chip of the strip, drawn at {@code alpha} (before the open fade). */
+    static void stripChip(float x0, float y0, float x1, float y1, float alpha) {
+        if (chips < CHIP_ALPHA.length) {
+            set(CHIPS, chips * 4, x0, y0, x1, y1);
+            CHIP_ALPHA[chips++] = alpha;
+        }
+    }
+
+    /** The strip's lit plate ({@code plate}) and its foot line ({@code line}), as drawn this frame. */
+    static void stripLit(float x0, float y0, float x1, float y1, BoxStyle plate, float footTop, float footBottom,
+                         BoxStyle line) {
+        set(LIT, 0, x0, y0, x1, y1);
+        set(FOOT, 0, x0, footTop, x1, footBottom);
+        litStyle = plate;
+        footStyle = line;
+        litShown = true;
+    }
+
     private static void set(float[] rect, float x0, float y0, float x1, float y1) {
-        rect[0] = x0;
-        rect[1] = y0;
-        rect[2] = x1;
-        rect[3] = y1;
+        set(rect, 0, x0, y0, x1, y1);
+    }
+
+    private static void set(float[] rect, int at, float x0, float y0, float x1, float y1) {
+        rect[at] = x0;
+        rect[at + 1] = y0;
+        rect[at + 2] = x1;
+        rect[at + 3] = y1;
     }
 
     /**
@@ -124,6 +170,19 @@ public final class ChatLook {
         if (inputShown && inputStyle != null) {
             RoundedBox.draw(graphics, INPUT[0], INPUT[1], INPUT[2] - INPUT[0], INPUT[3] - INPUT[1], inputStyle, alpha,
                     false);
+        }
+        // The tab strip's boxes fade with the plates (its labels, dots and badges go with the screen, as the input's
+        // text does).
+        if (chipStyle != null) {
+            for (int i = 0; i < chips; i++) {
+                int at = i * 4;
+                RoundedBox.draw(graphics, CHIPS[at], CHIPS[at + 1], CHIPS[at + 2] - CHIPS[at],
+                        CHIPS[at + 3] - CHIPS[at + 1], chipStyle, alpha * CHIP_ALPHA[i], false);
+            }
+        }
+        if (litShown && litStyle != null && footStyle != null) {
+            RoundedBox.draw(graphics, LIT[0], LIT[1], LIT[2] - LIT[0], LIT[3] - LIT[1], litStyle, alpha, false);
+            RoundedBox.draw(graphics, FOOT[0], FOOT[1], FOOT[2] - FOOT[0], FOOT[3] - FOOT[1], footStyle, alpha, false);
         }
     }
 

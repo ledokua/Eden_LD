@@ -114,6 +114,16 @@ public final class HubState {
         return chatFlag(HubPayloads.ChatFlags.HUD_STRIPS);
     }
 
+    /** The new look's channel tabs show the server's and other mods' lines too (on unless the player turned it off). */
+    public static boolean chatSystemInTabs() {
+        return chatFlag(HubPayloads.ChatFlags.SYSTEM_IN_TABS);
+    }
+
+    /** The new look's All tab (on unless the player hid it). */
+    public static boolean chatAllTab() {
+        return chatFlag(HubPayloads.ChatFlags.ALL_TAB);
+    }
+
     /** Whether the player ignores {@code uuid}: their lines hide, and lists put them last. */
     public static boolean ignores(java.util.UUID uuid) {
         return uuid != null && ignored.containsKey(uuid);

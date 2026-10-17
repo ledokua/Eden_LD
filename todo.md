@@ -97,7 +97,11 @@ needs a README pass too.
         GUI 1–4, all four themes, NCR/owo/Debugify (pack jars in the dev client) and noSdf checked. **1.3.0 = commit
         0443107+docs**, ready for the owner's server test with players; not deployed (needs VectorLib 0.7.2 in the pack
         and live). Phase 5 (tab strip) goes on top as 1.3.1 (owner, 2026-10-17: closed chat follows the active tab
-        until Phase 6 toasts; CHAT_FOCUS stays for the old look; All tab first). Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        until Phase 6 toasts; CHAT_FOCUS stays for the old look; All tab first).
+        **Phase 5 built (Eden 1.3.1, 2026-10-17)**: tab strip above a fixed-height plate, typing glyph, tab menu,
+        hidden tabs, client-side `[tag]` switch, SelectGuard, closed chat follows the tab + other channels' unseen
+        mentions, `chat_all_tab` / `chat_system_in_tabs`. 137 tests; agent review (3 fixed). **Not tested in game yet**
+        (see the plan's Built (5) note for the checklist). Not deployed. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2
