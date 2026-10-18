@@ -86,3 +86,6 @@ How it works:
   marked seen and skipped, so it can't hold the pill.
 - A `[tag]` click switches at once in the new look (no "Chat channel: Local" line in every tab; on All or System the
   action bar says it), and a `!x` one-shot sent from another channel's tab says where it went.
+- **System-only lines** (1.3.2: other admins' command echoes, routine game and mod notices; README → Chat) show in
+  System alone and arrive seen: no System dot, no S pip dot (the 1.2 look still shows the lines), no *Mark as read*,
+  no sound; a ×N repeat stays seen.

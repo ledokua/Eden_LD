@@ -90,6 +90,12 @@ changes. `/gamerule` and `/difficulty` themselves stay server-wide.
   players' pets (players can't hurt each other's pets there); arrows and spell projectiles fly through
   other players. A running **Duels** match still fights in a dimension with PvP off (Duels keeps
   outsiders out itself). With `pvp=false` in `server.properties`, the same holds everywhere.
+  Where PvP is **on**, everyone outside your party and guild (other guilds and guildless players alike) can be
+  hit by **area** spells and Better Combat sweeps too. That part is the two mods' server config, not Eden's
+  (Fallen Eden, 2026-10-19): Spell Engine `player_relations` `"minecraft:player": "NEUTRAL"` (area damage hits,
+  area heals and buffs reach only allies, direct heals still work; Paladin's Holy Beam damages them instead
+  of healing) and Better Combat `"minecraft:player": "HOSTILE"`. Players on the same scoreboard team with friendly
+  fire off (Arenas run teams, a Duels 2v2 side) protect each other's pets and summons too.
 - **Difficulty** — `/eden difficulty <dimension> peaceful|easy|normal|hard|reset`: mob damage, hunger,
   local difficulty and monster spawning there. **Peaceful** spawns no monsters and clears the ones
   there, as vanilla Peaceful does; a dimension on Easy or harder still spawns them while the server is on
@@ -881,8 +887,9 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
     servers that keep them (Eden 1.3.1+):
     - **All tab** — the tab with every channel together, first in the chat's tabs (default on).
     - **System messages in channel tabs** — the server's and other mods' lines also show in the
-      Global, Local, Party and Guild tabs (default on); All and System always have them. Deaths and
-      advancements follow their own settings above in every tab.
+      Global, Local, Party and Guild tabs (default on); All and System always have them (system-only
+      lines: only System, see [Chat](#chat)). Deaths and advancements follow their own settings above in
+      every tab.
 
     With the 1.2 look (*New chat look* off): **Only the selected channel** — the chat shows just the
     channel you type into (Discord counts as Global), switching with it.
@@ -1075,6 +1082,18 @@ narrator, other mods). What it adds:
     hidden tabs ▸**, and *Chat settings*. System: *Mark as read*, **Also in channel tabs** (the server's lines in the
     channel tabs too). All: **Mark all as read**, *Hide tab*.
   - **The closed chat** shows the tab you were on, plus mentions of you from other tabs you haven't seen yet.
+  - **System-only lines** (1.3.2): routine lines go to the **System** tab alone. They don't show in All, the channel
+    tabs, or the closed chat (unless System is your tab), and they never light a dot.
+    - **Moved**: other admins', command blocks' and the console's command echoes (`[Name: …]`; your own commands'
+      replies stay where they are), and game and mod notices: *Respawn point set*, F3 shortcuts (`[Debug]: …`),
+      *Saved screenshot as …*, shader toggles, login tips (Observable, Axiom, Simple Voice Chat), ModBeacon's update
+      list (its restart countdown stays), *Activated Waystone*, your grave's location, claim refusals (*(Main Hand) You are not allowed to interact
+      with this block…*), and CraftTweaker's `/reload` lines.
+    - **Unchanged**: player chat, Discord, deaths and advancements, joins and leaves, `/say` and announcements, and
+      Eden's own messages.
+    - The server adds or keeps lines in `chat_system_only.json` ([Configuration](#configuration)). At most 200 are
+      kept, so they never push your chat history out.
+    - The 1.2 look shows them as before and keeps all of them (its S pip dot ignores them).
 - **Click a channel tag** in chat (`[Local]`, `[Party]`…) to switch straight to that channel. In the new look it
   switches at once, with no "Chat channel" line: on a channel's tab the tab moves, on All or System the sign turns
   and the bar above the hotbar says so.
@@ -1106,7 +1125,8 @@ narrator, other mods). What it adds:
   (6) in a row, as many again every `chat.rate_limit_seconds` (5); 0 turns it off. Guild names and MOTDs, party
   names, bank tab names and Wardrobe gift notes refuse `§` and control characters too; a muted player can't set a
   MOTD or add a gift note.
-- Local chat tells you when no one was close enough to hear.
+- Local chat tells you when no one was close enough to hear. Spectators nearby still hear it but don't count, so
+  the notice never gives away that someone is spectating you.
 - Only Global reaches the **Minestar Discord bridge** (it listens to Fabric's chat event, which
   Eden fires for Global only).
 - Typed chat stays signed player chat (reportable, "secure chat" compatible).
@@ -1323,9 +1343,9 @@ Back up or move the folder as a whole, with the server stopped.
 
 Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section**:
 `minestar.json`, `liquid_mana.json`, `flight.json`, `hub.json`, `combat.json`, `dailies.json`,
-`guilds.json`, `activities.json`, `chat.json`, `tab_list.json`, `profile.json`, `commands.json` — plus `emoji.json`,
-`dimensions.json` (each dimension's own gamerules, PvP, difficulty and border, see [World rules](#world-rules)) and the
-`daily_quests/`, `guild_quests/` and `lang/` folders.
+`guilds.json`, `activities.json`, `chat.json`, `chat_system_only.json`, `tab_list.json`, `profile.json`,
+`commands.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP, difficulty and border, see
+[World rules](#world-rules)) and the `daily_quests/`, `guild_quests/` and `lang/` folders.
 Missing files and settings are created with their defaults on launch (new settings appear by
 themselves after an update); a file that can't be read keeps its defaults and says so in the log.
 The old single `eden_ld.json` is no longer read (the log warns while it's there: copy what you
@@ -1421,6 +1441,11 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     "rate_limit_messages": 6,
     "rate_limit_seconds": 5
   },
+  "chat_system_only": {
+    "keys": [],
+    "text": [],
+    "keep": []
+  },
   "tab_list": {
     "enabled": true,
     "header": ["", "&#00c8c9&lFallen&#f5c542&lEden", "&8&m            &r &8[ &f{online}&7/&f{max} &8] &8&m            ", ""],
@@ -1475,6 +1500,19 @@ one shows as level 2).
 **`commands.busy_blocked`** — other mods' commands a busy player (a duel, a dungeon run, the tutorial) can't run:
 paying, taking coins out, kits. Every subcommand is covered; the command stays visible and says why. Applied at
 start and on `/reload`.
+
+**`chat_system_only`** (1.3.2) — lines that show only in the chat's System tab (the new look), on top of Eden's own
+list (see [Chat](#chat) → *System-only lines*). Re-read on `/reload` and applied to everyone online at once, lines
+already in their chat included. An entry no rule allows is left out, and the log says why; each list keeps at most
+256 entries of up to 256 characters.
+- **`keys`** — translation keys: the line's own, or a part's inside an empty wrapper (as F3's `[Debug]:` prefix).
+  A trailing `*` makes a prefix (at least 3 characters before it): `"chat.waystones.*"`. Find a key with Inspector's
+  `translate`, or in the mod's `en_us.json`.
+- **`text`** — how a line's text starts (leading spaces and `§` codes skipped; case counts), at least 3 characters:
+  `"[DataRewriter]"`; `#` stands for a number (`"[ModBeacon] # update"` matches *[ModBeacon] 8 updates available:*). Only for mods that send plain text — a translated line's text depends on the reader's language.
+- **`keep`** — keys or text starts that stay where they are, over every rule: it switches off one of Eden's
+  (`"gui.xaero_claims_protection_*"` brings the claim refusals back), and keeps one kind of admin echo by the echoed
+  command's key (`"commands.ban.success"`).
 
 **`tutorial`** — see [Tutorial](#tutorial). Spots are `"x y z"` or `"x y z yaw pitch"`; `{player}` in the commands
 is the player's name.

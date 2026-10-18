@@ -17,13 +17,27 @@ import java.util.function.Predicate;
  * @param advancements a {@link HubSettings.MessagesFrom} ordinal
  * @param systemInTabs unmarked lines (the server's, other mods') show in channel tabs too ({@code chat_system_in_tabs};
  *                     always on with the 1.2 look)
+ * @param systemOnly   system-only lines (1.3.2, {@code SystemOnlyRules}) show in the System tab alone: the new look
+ *                     (the 1.2 look shows them as before)
  */
 public record ChatRules(@Nullable UUID self, Predicate<UUID> ignored, int switchedOff, int deaths, int advancements,
-                        @Nullable Channel typing, boolean systemInTabs) {
+                        @Nullable Channel typing, boolean systemInTabs, boolean systemOnly) {
+
+    /** As before system-only lines (1.2.x, the 1.2 look): they show as other unmarked lines do. */
+    public ChatRules(@Nullable UUID self, Predicate<UUID> ignored, int switchedOff, int deaths, int advancements,
+                     @Nullable Channel typing, boolean systemInTabs) {
+        this(self, ignored, switchedOff, deaths, advancements, typing, systemInTabs, false);
+    }
 
     /** No settings yet: everything shows. */
     public static ChatRules none(@Nullable UUID self, Predicate<UUID> ignored, @Nullable Channel typing) {
-        return new ChatRules(self, ignored, 0, 0, 0, typing, true);
+        return none(self, ignored, typing, false);
+    }
+
+    /** As {@link #none(UUID, Predicate, Channel)}; {@code systemOnly}: system-only lines in System alone (new look). */
+    public static ChatRules none(@Nullable UUID self, Predicate<UUID> ignored, @Nullable Channel typing,
+                                 boolean systemOnly) {
+        return new ChatRules(self, ignored, 0, 0, 0, typing, true, systemOnly);
     }
 
     public boolean ignores(@Nullable UUID player) {

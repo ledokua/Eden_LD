@@ -98,6 +98,10 @@ public class EdenLDClient implements ClientModInitializer {
             ClientCombatTag.reset();
             net.ledok.eden_ld.client.hub.PlayerNames.reset();
             net.ledok.eden_ld.client.chat.ClientChatChannel.reset();
+            // Only the new look keeps system-only lines apart (the System tab), so only it caps them.
+            net.ledok.eden_ld.client.chat.panel.ChatStore.capSystemOnly(net.ledok.eden_ld.client.chat.ui.ChatLook::enabled);
+            // Eden's own system-only rules until this server sends its list (a 1.3.1 or older one never does).
+            net.ledok.eden_ld.client.chat.panel.ChatStore.rules(net.ledok.eden_ld.chat.SystemOnlyRules.BUILT_IN);
             net.ledok.eden_ld.client.chat.ClientTabList.clear();
             net.ledok.eden_ld.client.chat.EmojiFont.reset();
             net.ledok.eden_ld.client.hub.RemoteImages.clear();
@@ -297,6 +301,12 @@ public class EdenLDClient implements ClientModInitializer {
             if (context.client().screen instanceof HubScreen screen) {
                 screen.onSettingsData();
             }
+        });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ChatSystemOnly.TYPE, (payload, context) -> {
+            // The server's system-only list on top of Eden's: lines already in the chat are filed again at once.
+            net.ledok.eden_ld.client.chat.panel.ChatStore.rules(net.ledok.eden_ld.chat.SystemOnlyRules.of(
+                    payload.keys(), payload.text(), payload.keep()));
+            net.ledok.eden_ld.client.chat.ChatFilter.refresh();
         });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.SettingsData.TYPE, (payload, context) -> {
             int languageBefore = HubState.settingsData == null ? 0 : HubState.settingsData.hubLanguage();

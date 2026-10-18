@@ -210,7 +210,7 @@ public final class ChatView {
 
     /** Whether the tab shows the message (search aside). */
     public boolean shows(ChatEntry entry) {
-        return tab().shows(entry.mark, ChatFilter.rules());
+        return tab().shows(entry.mark, entry.systemOnly, ChatFilter.rules());
     }
 
     private List<Row> rows(Frame frame) {
@@ -234,7 +234,8 @@ public final class ChatView {
             List<ChatEntry> entries = ChatStore.entries();
             for (int i = entries.size() - 1; i >= 0; i--) {
                 ChatEntry entry = entries.get(i);
-                if (!tab.shows(entry.mark, rules) && !(mentions && ChatActivity.unseenMention(entry, rules))
+                if (!tab.shows(entry.mark, entry.systemOnly, rules)
+                        && !(mentions && ChatActivity.unseenMention(entry, rules))
                         || !search.isEmpty() && !entry.plain().contains(search)) {
                     continue;
                 }

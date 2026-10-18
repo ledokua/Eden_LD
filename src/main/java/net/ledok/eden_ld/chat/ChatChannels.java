@@ -98,6 +98,9 @@ public final class ChatChannels {
     private static final Map<UUID, java.util.concurrent.CompletableFuture<Void>> WAITING = new ConcurrentHashMap<>();
     /** Set while Eden re-broadcasts a join/leave message it restyled. */
     private static boolean announcing;
+    /** The server's own system-only rules, cleaned once (on start and /reload) for every join to send. */
+    private static HubPayloads.ChatSystemOnly systemOnly = new HubPayloads.ChatSystemOnly(List.of(), List.of(),
+            List.of());
 
     private ChatChannels() {
     }
@@ -125,6 +128,16 @@ public final class ChatChannels {
             ONE_SHOT.remove(handler.getPlayer().getUUID());
             WAITING.remove(handler.getPlayer().getUUID());
         });
+        // System-only lines (chat_system_only.json): sent at once on join, ahead of other mods' join lines where it
+        // can be, and to everyone again on /reload.
+        loadSystemOnly();
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> pushSystemOnly(handler.getPlayer()));
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
+                (server, resources, success) -> {
+                    EdenLD.CONFIG.reloadSystemOnly();
+                    loadSystemOnly();
+                    server.getPlayerList().getPlayers().forEach(ChatChannels::pushSystemOnly);
+                });
         // Granting or revoking the emoji picker applies live.
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 LuckPermsCompat.onUserDataChange(() -> started.execute(() -> pushStateAll(started))));
@@ -176,6 +189,32 @@ public final class ChatChannels {
     /** Party or guild membership changed somewhere: everyone's open channels may have. */
     public static void pushStateAll(MinecraftServer server) {
         server.getPlayerList().getPlayers().forEach(ChatChannels::pushState);
+    }
+
+    // ---------------------------------------------------------------- system-only lines
+
+    /**
+     * Tells the client the server's own system-only rules, on top of its built-in ones (1.3.2+ clients: older ones
+     * don't know the payload, and nothing else changed for them).
+     */
+    public static void pushSystemOnly(ServerPlayer player) {
+        if (!player.hasDisconnected() && ServerPlayNetworking.canSend(player, HubPayloads.ChatSystemOnly.TYPE)) {
+            ServerPlayNetworking.send(player, systemOnly);
+        }
+    }
+
+    /** Cleans chat_system_only.json's lists once, saying in the log what it leaves out and why. */
+    private static void loadSystemOnly() {
+        net.ledok.eden_ld.config.EdenConfig.SystemOnly lists = EdenLD.CONFIG.chat_system_only;
+        systemOnly = new HubPayloads.ChatSystemOnly(cleanSystemOnly(lists.keys, SystemOnlyRules.Part.KEYS),
+                cleanSystemOnly(lists.text, SystemOnlyRules.Part.TEXT),
+                cleanSystemOnly(lists.keep, SystemOnlyRules.Part.KEEP));
+    }
+
+    private static List<String> cleanSystemOnly(List<String> list, SystemOnlyRules.Part part) {
+        String name = part.name().toLowerCase(Locale.ROOT);
+        return SystemOnlyRules.clean(list, part, (entry, why) ->
+                EdenLD.LOGGER.warn("[Chat] chat_system_only.json: ignoring \"{}\" in {} ({})", entry, name, why));
     }
 
     // ---------------------------------------------------------------- sending
@@ -353,7 +392,7 @@ public final class ChatChannels {
                 }
             }
         }
-        if (channel == Channel.LOCAL && recipients.size() <= 1) {
+        if (channel == Channel.LOCAL && !heardByPlayer(sender, recipients)) {
             sender.sendSystemMessage(Component.translatable("chat.eden_ld.local.nobody").withStyle(ChatFormatting.GRAY));
         }
         String senderName = sender.getGameProfile().getName();
@@ -370,6 +409,19 @@ public final class ChatChannels {
             GuildServer.broadcastChatLine(server, guild, line);
         }
         return null;
+    }
+
+    /**
+     * Whether a Local line reached anyone but its sender. Spectators still hear it but don't count: "No one is close
+     * enough to hear you" must not give away that someone is spectating nearby.
+     */
+    private static boolean heardByPlayer(ServerPlayer sender, List<ServerPlayer> recipients) {
+        for (ServerPlayer recipient : recipients) {
+            if (recipient != sender && !recipient.isSpectator()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void addOnline(MinecraftServer server, Iterable<UUID> members, List<ServerPlayer> into) {

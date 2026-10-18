@@ -422,6 +422,28 @@ refuted). Owner answers (2026-10-17): version 1.3.1; the closed chat follows the
   tooltip widths in en/uk measured with vanilla's glyphs, flags, HUD mention lines).
 - **Not yet tested in game** (the owner was playing; RAM was short).
 
+**1.3.2 (2026-10-19): System-only lines.** The owner tested 1.3.1 ("everything seems to work fine") and asked to
+"move some useless system messages into only the System tab". Other admins' command echoes and routine game and mod
+notices now show only in System (the session's `sysonly/design.md`, §§1–5):
+- `SystemOnlyRules` (common, pure) reads each unmarked line once, when it arrives (`ChatStore.add`): by translation
+  key (the line's own, a part's inside an empty wrapper — F3, Simple Voice Chat — and, for keep rules only, the echoed
+  command's inside `chat.type.admin`) or by how its text starts (mods that send plain text: Axiom tips, ModBeacon).
+  Built-ins: `chat.type.admin`, set_spawn, screenshot, `debug.prefix` (F3 + Q's header and the crash warnings kept),
+  Iris's shader toggles, Observable, Waystones' activation, YIGD's grave location, OPAC's claim refusals
+  (`gui.xaero_claims_protection_*`), CraftTweaker's `/reload` lines; text `[Axiom] Tip:`, `[ModBeacon] # update` (`#` = a number; its restart countdown stays),
+  `▸ [MR]`/`[CF]`/`[PIN]`, `[Simple Voice Chat]`.
+- The rules are Eden's built-ins plus the server's `config/eden_ld/chat_system_only.json` (`keys`, `text`, `keep`;
+  cleaned and logged once, sent in the new S2C `ChatSystemOnly` on join and `/reload`). New rules re-file the stored
+  lines (`ChatStore.rules`), so a join line that came before the payload still moves.
+- The lines arrive seen (no dot, no count, no sound; a ×N repeat stays seen) and, in the new look only, are capped at
+  200 in the store, oldest first, so hidden echoes never push the chat's history out (the 1.2 look keeps them all).
+- `ChatTabSpec.shows(mark, systemOnly, rules)`; `ChatRules.systemOnly` is the new look (`ChatFilter.rules`), so the
+  1.2 look displays them as before (`ChatFilterEquivalenceTest` unchanged); its S pip dot no longer lights for them.
+- Tests: `SystemOnlyRulesTest` (each case first rendered to the sample line verbatim), `ChatStoreTest` and
+  `ChatTabSpecTest` additions.
+
+**Phase 6 and later each move up one patch version** (toasts → 1.3.3, …).
+
 ### Phase 6 — Eden 1.3.2: closed-chat toasts that fold into pills, and the editor (4 d)
 
 **Files:**

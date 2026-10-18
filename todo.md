@@ -105,7 +105,17 @@ needs a README pass too.
         (owner asked; pack f7107b5, pushed; 1.2.5 to removed-mods-2026-10-18). Bundles VectorLib 0.7.2 — japicmp:
         binary compatible with 0.6.2, so the pack's other mods (Arenas, Economy, Kits, NPCs, Duels, DeathsHelper,
         PuffishSkillsAdditions) are fine. **Live still runs 1.2.5** (not uploaded): pack clients on 1.3.1 join it fine
-        (no new registry content; ChatFlags never sent → new look on, its toggles hidden) until live gets 1.3.1. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
+        (no new registry content; ChatFlags never sent → new look on, its toggles hidden) until live gets 1.3.1.
+        **1.3.2 built (2026-10-19)**, after the owner's player test of 1.3.1 ("everything seems to work fine"):
+        system-only lines (other admins' command echoes and game/mod notices → System tab only; server
+        `chat_system_only.json` synced by the new `ChatSystemOnly` payload; ModBeacon's restart countdown stays);
+        Local ignores spectators for "No one is close enough to hear you" (they still hear it); pets/summons count as on
+        their owner's scoreboard team (Arenas run teams, Duels 2v2) in `CombatTeamsCompat`. 161 tests; agent review
+        (2 real findings, fixed). Dev-tested: echoes only in System, `/say` + chat in All, Local spectator notice.
+        Not deployed. Same day, live config (not Eden): Spell Engine `minecraft:player` FRIENDLY→NEUTRAL, Better Combat
+        NEUTRAL→HOSTILE (AOE/sweeps hit non-party/guild players where PvP is on; originals in live
+        backup/old-configs-2026-10-19); needs the owner's restart. Arenas_LD 4.6.2 (wave-arena run team) built by its
+        session, not deployed. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
   - [ ] "Not a string" ERROR logged on each player login (before "logged in"; another mod reading player data).
         Not seen on Evora's login after the 2026-10-13 12:02 restart.
   - [ ] **Hub tab tours** (owner, 2026-10-11): ▶ in the help window's title bar (VectorLib 0.6.2

@@ -212,7 +212,7 @@ public final class ChatTabActions {
     public static boolean reveal(ChatEntry entry) {
         Channel channel = entry.channel();
         ChatTabs.Mode mode = ChatTabs.revealMode(
-                HubState.chatAllTab() && ChatTabSpec.ALL.shows(entry.mark(), ChatFilter.rules()),
+                HubState.chatAllTab() && ChatTabSpec.ALL.shows(entry.mark(), entry.systemOnly(), ChatFilter.rules()),
                 channel != null && channel == ClientChatChannel.current());
         if (mode == null) {
             entry.markSeen();

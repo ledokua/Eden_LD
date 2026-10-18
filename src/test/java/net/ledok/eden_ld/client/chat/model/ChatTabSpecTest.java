@@ -6,9 +6,12 @@ import net.ledok.eden_ld.chat.ChatMarker.Kind;
 import net.ledok.eden_ld.hub.HubSettings.MessagesFrom;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -128,6 +131,78 @@ class ChatTabSpecTest {
                     MessagesFrom.NOBODY.ordinal(), Channel.LOCAL, systemInTabs);
             assertFalse(local.shows(line(Kind.DEATH, BOB), nobody), "switch " + systemInTabs);
             assertFalse(local.shows(line(Kind.ADVANCEMENT, ME), nobody), "switch " + systemInTabs);
+        }
+    }
+
+    // ---------------------------------------------------------------- system-only lines (1.3.2)
+
+    /** The new look's rules: system-only lines in System alone. */
+    private static ChatRules newLook(int switchedOff, Channel typing, boolean systemInTabs) {
+        return new ChatRules(ME, Set.of(TROLL)::contains, switchedOff, MessagesFrom.EVERYONE.ordinal(),
+                MessagesFrom.EVERYONE.ordinal(), typing, systemInTabs, true);
+    }
+
+    private static List<ChatTabSpec> everyTab() {
+        List<ChatTabSpec> tabs = new ArrayList<>(List.of(ChatTabSpec.ALL, ChatTabSpec.SYSTEM, ChatTabSpec.SPY,
+                new ChatTabSpec("pm", ChatTabSpec.Kind.PM, null, "x", 0)));
+        for (Channel channel : Channel.values()) {
+            tabs.add(ChatTabSpec.of(channel));
+        }
+        return tabs;
+    }
+
+    @Test
+    void systemOnlyLinesShowInSystemAloneWithTheNewLook() {
+        for (boolean systemInTabs : new boolean[]{true, false}) {
+            ChatRules rules = newLook(0, Channel.GLOBAL, systemInTabs);
+            assertTrue(ChatTabSpec.SYSTEM.shows(null, true, rules), "switch " + systemInTabs);
+            assertFalse(ChatTabSpec.ALL.shows(null, true, rules), "switch " + systemInTabs);
+            for (Channel channel : Channel.values()) {
+                assertFalse(ChatTabSpec.of(channel).shows(null, true, rules), channel + ", switch " + systemInTabs);
+            }
+            assertFalse(ChatTabSpec.SPY.shows(null, true, rules));
+            assertFalse(new ChatTabSpec("pm", ChatTabSpec.Kind.PM, null, "x", 0).shows(null, true, rules));
+            // Other unmarked lines as before.
+            assertTrue(ChatTabSpec.ALL.shows(null, false, rules));
+            assertEquals(systemInTabs, ChatTabSpec.of(Channel.GLOBAL).shows(null, false, rules));
+        }
+        ChatRules none = ChatRules.none(ME, Set.of(TROLL)::contains, Channel.GLOBAL, true);
+        assertTrue(ChatTabSpec.SYSTEM.shows(null, true, none));
+        assertFalse(ChatTabSpec.ALL.shows(null, true, none));
+    }
+
+    @Test
+    void theOldLookShowsSystemOnlyLinesAsBefore() {
+        for (ChatTabSpec tab : everyTab()) {
+            for (boolean systemInTabs : new boolean[]{true, false}) {
+                ChatRules rules = rules(0, Channel.GLOBAL, systemInTabs);
+                assertEquals(tab.shows(null, rules), tab.shows(null, true, rules),
+                        tab.id() + ", switch " + systemInTabs);
+            }
+            ChatRules none = ChatRules.none(ME, Set.of(TROLL)::contains, Channel.GLOBAL);
+            assertEquals(tab.shows(null, none), tab.shows(null, true, none), tab.id());
+        }
+    }
+
+    @Test
+    void theFlagMeansNothingOnMarkedLines() {
+        UUID[] senders = {null, ME, BOB, TROLL};
+        for (ChatTabSpec tab : everyTab()) {
+            for (boolean newLook : new boolean[]{true, false}) {
+                for (boolean systemInTabs : new boolean[]{true, false}) {
+                    ChatRules rules = newLook ? newLook(0, Channel.LOCAL, systemInTabs)
+                            : rules(0, Channel.LOCAL, systemInTabs);
+                    for (Kind kind : Kind.values()) {
+                        for (boolean team : new boolean[]{true, false}) {
+                            for (UUID sender : senders) {
+                                ChatMarker.Mark mark = new ChatMarker.Mark(kind, team, sender);
+                                assertEquals(tab.shows(mark, false, rules), tab.shows(mark, true, rules),
+                                        tab.id() + " " + kind + " " + sender);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

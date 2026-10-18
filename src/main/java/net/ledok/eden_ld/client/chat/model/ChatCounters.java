@@ -59,7 +59,10 @@ public final class ChatCounters {
         return mentions[channel.ordinal()];
     }
 
-    /** Lines of no channel not seen yet (the server's, other mods', deaths, advancements). */
+    /**
+     * Lines of no channel not seen yet (the server's, other mods', deaths, advancements). System-only lines arrive seen
+     * (ChatStore): never counted.
+     */
     public int unseenSystem() {
         return unseenSystem;
     }

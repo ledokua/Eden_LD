@@ -31,7 +31,13 @@ public final class ChatEntry {
     /** The player wrote it (their own lines always show and never count as unseen). */
     final boolean own;
     final boolean mention;
-    /** The open chat has drawn it (or it never needed seeing: own, ignored, muted). */
+    /**
+     * Shows in the System tab alone (new look, {@link net.ledok.eden_ld.chat.SystemOnlyRules}): another admin's
+     * command echo or a routine notice. Read when it arrives, and again only when the rules change
+     * ({@link ChatStore#rules(net.ledok.eden_ld.chat.SystemOnlyRules)}).
+     */
+    boolean systemOnly;
+    /** The open chat has drawn it (or it never needed seeing: own, ignored, muted, system-only). */
     private boolean seen;
     /** How many times it came in a row (spam protection: one line, "×N"). */
     int count = 1;
@@ -43,12 +49,13 @@ public final class ChatEntry {
     private String plain;
 
     ChatEntry(GuiMessage message, @Nullable ChatMarker.Mark mark, @Nullable Channel channel, boolean own,
-              boolean mention) {
+              boolean mention, boolean systemOnly) {
         this.message = message;
         this.mark = mark;
         this.channel = channel;
         this.own = own;
         this.mention = mention;
+        this.systemOnly = systemOnly;
     }
 
     /** Fonts were reloaded: lines are wrapped again when next drawn. */
@@ -97,6 +104,11 @@ public final class ChatEntry {
         return own;
     }
 
+    /** Whether it shows in the System tab alone (new look): another admin's command echo or a routine notice. */
+    public boolean systemOnly() {
+        return systemOnly;
+    }
+
     public boolean seen() {
         return seen;
     }
@@ -132,14 +144,17 @@ public final class ChatEntry {
         });
     }
 
-    /** The same message again: one more on the count, and it's new again (the HUD shows it, unseen). */
+    /**
+     * The same message again: one more on the count, and it's new again (the HUD shows it, unseen) — but for the
+     * player's own lines and system-only ones, which stay seen.
+     */
     void repeat(GuiMessage again) {
         message = again;
         count++;
         time = System.currentTimeMillis();
         lines.clear();
         plain = null;
-        if (!own) {
+        if (!own && !systemOnly) {
             seen(false);
         }
     }

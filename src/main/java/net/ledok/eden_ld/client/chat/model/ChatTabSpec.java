@@ -19,7 +19,7 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
 
     public enum Kind {
         CHANNEL,
-        /** The server's lines, other mods', deaths and advancements: no chat. */
+        /** The server's lines, other mods', deaths and advancements: no chat. The only tab of system-only lines. */
         SYSTEM,
         ALL,
         /** Staff spy copies (phase 10): nothing is filed here yet. */
@@ -58,16 +58,27 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
         };
     }
 
+    /** As {@link #shows(ChatMarker.Mark, boolean, ChatRules)} for a line that isn't system-only. */
+    public boolean shows(@Nullable ChatMarker.Mark mark, ChatRules rules) {
+        return shows(mark, false, rules);
+    }
+
     /**
      * Whether this view shows a line with this marker. Unmarked lines (the server's, other mods') show everywhere but
-     * Spy and PM — in a channel's tab only while {@link ChatRules#systemInTabs()}; an ignored player's lines nowhere,
-     * the player's own aside; deaths and advancements by their own settings, in every tab; a channel's lines unless
-     * switched off in Settings → Chat — the channel typed into always shows its own, and the player's lines ignore the
-     * switches. Discord lines have their own switch (bit 4), even in Global.
+     * Spy and PM — in a channel's tab only while {@link ChatRules#systemInTabs()}, and in System alone when they're
+     * system-only ({@code systemOnly}: other admins' command echoes, routine notices) under
+     * {@link ChatRules#systemOnly()}; an ignored player's lines nowhere, the player's own aside; deaths and
+     * advancements by their own settings, in every tab; a channel's lines unless switched off in Settings → Chat — the
+     * channel typed into always shows its own, and the player's lines ignore the switches. Discord lines have their
+     * own switch (bit 4), even in Global.
      */
-    public boolean shows(@Nullable ChatMarker.Mark mark, ChatRules rules) {
+    public boolean shows(@Nullable ChatMarker.Mark mark, boolean systemOnly, ChatRules rules) {
         if (kind == Kind.SPY || kind == Kind.PM) {
             return false;
+        }
+        // A system-only line lives in System alone with the new look; the 1.2 look shows it as before.
+        if (systemOnly && mark == null && rules.systemOnly()) {
+            return kind == Kind.SYSTEM;
         }
         // chat_system_in_tabs only takes lines away: with it on, the rules below run as they always did.
         if (kind == Kind.CHANNEL && mark == null && !rules.systemInTabs()) {

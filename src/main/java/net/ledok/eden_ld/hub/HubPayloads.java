@@ -2439,6 +2439,30 @@ public final class HubPayloads {
         }
     }
 
+    /**
+     * S2C (1.3.2+): the server's own system-only rules ({@code config/eden_ld/chat_system_only.json}, cleaned), on top
+     * of the client's ({@link net.ledok.eden_ld.chat.SystemOnlyRules}): translation keys, text starts and keep entries.
+     * Sent on join and /reload only to clients that know it; the built-ins are never sent (each client has its own).
+     */
+    public record ChatSystemOnly(List<String> keys, List<String> text, List<String> keep)
+            implements CustomPacketPayload {
+        public static final Type<ChatSystemOnly> TYPE = new Type<>(id("chat_system_only"));
+        private static final int MAX = net.ledok.eden_ld.chat.SystemOnlyRules.MAX_LENGTH;
+        public static final StreamCodec<RegistryFriendlyByteBuf, ChatSystemOnly> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    writeList(buf, p.keys, (b, entry) -> b.writeUtf(entry, MAX));
+                    writeList(buf, p.text, (b, entry) -> b.writeUtf(entry, MAX));
+                    writeList(buf, p.keep, (b, entry) -> b.writeUtf(entry, MAX));
+                },
+                buf -> new ChatSystemOnly(readList(buf, b -> b.readUtf(MAX)), readList(buf, b -> b.readUtf(MAX)),
+                        readList(buf, b -> b.readUtf(MAX))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: pick a hub theme (must be free or unlocked for the player). */
     public record ThemeSelect(String theme) implements CustomPacketPayload {
         public static final Type<ThemeSelect> TYPE = new Type<>(id("theme_select"));
@@ -3085,6 +3109,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(TourStart.TYPE, TourStart.CODEC);
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatFlags.TYPE, ChatFlags.CODEC);
+        PayloadTypeRegistry.playS2C().register(ChatSystemOnly.TYPE, ChatSystemOnly.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsData.TYPE, DuelsData.CODEC);

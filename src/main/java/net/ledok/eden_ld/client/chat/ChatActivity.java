@@ -191,7 +191,7 @@ public final class ChatActivity {
     public static boolean unseenMention(ChatEntry entry, ChatRules rules) {
         Channel channel = entry.channel();
         return entry.mention() && !entry.seen() && channel != null && notify(channel) != ChannelNotify.NOTHING
-                && ChatTabSpec.ALL.shows(entry.mark(), rules);
+                && ChatTabSpec.ALL.shows(entry.mark(), entry.systemOnly(), rules);
     }
 
     /** Muting clears the dot (mentions stay). */

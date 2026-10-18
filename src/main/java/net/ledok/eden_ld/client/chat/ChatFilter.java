@@ -15,8 +15,9 @@ import java.util.UUID;
  * What the chat window shows (Settings → Chat): lines the server marked ({@link ChatMarker}) of a hidden kind are left
  * out of the window but kept, so turning the kind back on — or switching channel with "only the selected channel" —
  * brings them back. Lines from (or, for deaths and advancements, about) an ignored player hide the same way. Unmarked
- * lines always show, but in the new look's channel tabs only with {@code chat_system_in_tabs} on. The rules themselves
- * are {@link ChatTabSpec#shows}; this class hands them the player's state.
+ * lines always show, but in the new look's channel tabs only with {@code chat_system_in_tabs} on, and system-only ones
+ * (other admins' command echoes, routine notices: {@link net.ledok.eden_ld.chat.SystemOnlyRules}) in its System tab
+ * alone. The rules themselves are {@link ChatTabSpec#shows}; this class hands them the player's state.
  */
 public final class ChatFilter {
 
@@ -51,12 +52,14 @@ public final class ChatFilter {
         UUID self = minecraft.player == null ? null : minecraft.player.getUUID();
         ChatChannels.Channel typing = ClientChatChannel.current();
         HubPayloads.SettingsData settings = HubState.settingsData;
+        // System-only lines go to the System tab alone with the new look; the 1.2 look shows them as before.
+        boolean newLook = newLook();
         if (settings == null) {
-            return ChatRules.none(self, HubState::ignores, typing);
+            return ChatRules.none(self, HubState::ignores, typing, newLook);
         }
         // The 1.2 look's channel view ("only the selected channel") always had the system lines.
         return new ChatRules(self, HubState::ignores, settings.chatHidden(), settings.chatDeaths(),
-                settings.chatAdvancements(), typing, !newLook() || HubState.chatSystemInTabs());
+                settings.chatAdvancements(), typing, !newLook || HubState.chatSystemInTabs(), newLook);
     }
 
     /** Whether the player hid this channel (Settings → Chat): cycling skips it. */

@@ -58,6 +58,11 @@ public final class CombatTeamsCompat {
         if (a == null || t == null || a.equals(t)) {
             return null;
         }
+        if (sameTeamNoFriendlyFire(attacker, a, t)) {
+            // A run or duel team (Arenas dungeons and raids, Duels' 2v2 sides): the players' own matcher answers for
+            // them, but their pets and summons have no team of their own.
+            return new Relation(true, false);
+        }
         if (attacker.level().isClientSide()) {
             return net.ledok.eden_ld.client.hub.ClientPartyRelation.resolve(a, t);
         }
@@ -72,6 +77,17 @@ public final class CombatTeamsCompat {
             return new Relation(true, false);
         }
         return null;
+    }
+
+    /** Whether the two sides' players are on the same scoreboard team with friendly fire off (both must be loaded). */
+    private static boolean sameTeamNoFriendlyFire(Entity context, UUID a, UUID t) {
+        Player pa = context.level().getPlayerByUUID(a);
+        Player pt = context.level().getPlayerByUUID(t);
+        if (pa == null || pt == null) {
+            return false;
+        }
+        net.minecraft.world.scores.PlayerTeam team = pa.getTeam();
+        return team != null && team == pt.getTeam() && !team.isAllowFriendlyFire();
     }
 
     /** Player uuid, or the owner's uuid for owned entities (both sides — owners are synced). */

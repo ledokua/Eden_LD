@@ -21,6 +21,7 @@ public class EdenConfig {
     public Guilds guilds = new Guilds();
     public Activities activities = new Activities();
     public Chat chat = new Chat();
+    public SystemOnly chat_system_only = new SystemOnly();
     public TabList tab_list = new TabList();
     public Profile profile = new Profile();
     public Commands commands = new Commands();
@@ -240,6 +241,36 @@ public class EdenConfig {
         public int rate_limit_messages = 6;
         /** …and as many again every this many seconds. */
         public int rate_limit_seconds = 5;
+    }
+
+    /**
+     * Lines that show only in the chat's System tab (1.3.2+, the new look), on top of Eden's own list (other admins'
+     * command echoes, "Respawn point set", F3 feedback, login tips, ModBeacon, claim refusals…; README → Chat). Sent
+     * to every player; re-read on /reload, which applies to everyone online at once.
+     */
+    public static class SystemOnly {
+        /**
+         * Translation keys of lines (find one with Inspector's translate, or in the mod's en_us.json); a trailing
+         * {@code *} makes a prefix ({@code "chat.waystones.*"}). Matches the line's own key, or a part's inside an
+         * empty wrapper.
+         */
+        public List<String> keys = new ArrayList<>();
+        /**
+         * How a line's text starts (leading spaces and § codes skipped; case counts), for mods that send plain text:
+         * a translated line's text depends on the reader's language.
+         */
+        public List<String> text = new ArrayList<>();
+        /**
+         * Keys or text starts that stay where they are, over every rule: switches off one of Eden's, or keeps one
+         * kind of admin echo by the echoed command's key ({@code "commands.ban.success"}).
+         */
+        public List<String> keep = new ArrayList<>();
+
+        void fillMissing() {
+            if (keys == null) keys = new ArrayList<>();
+            if (text == null) text = new ArrayList<>();
+            if (keep == null) keep = new ArrayList<>();
+        }
     }
 
     /**
@@ -593,6 +624,7 @@ public class EdenConfig {
         if (config.commands.busy_blocked == null) config.commands.busy_blocked = new ArrayList<>();
         config.hazards.fillMissing();
         config.tutorial.fillMissing();
+        config.chat_system_only.fillMissing();
         config.save();
         return config;
     }
@@ -650,6 +682,23 @@ public class EdenConfig {
             }
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous values.", file.getFileName(), e);
+        }
+    }
+
+    /** Re-reads {@code chat_system_only.json} (on /reload; ChatChannels sends it to everyone online). */
+    public void reloadSystemOnly() {
+        Path file = FOLDER.resolve("chat_system_only.json");
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            SystemOnly section = GSON.fromJson(Files.readString(file), SystemOnly.class);
+            if (section != null) {
+                section.fillMissing();
+                chat_system_only = section;
+            }
+        } catch (Exception e) {
+            EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous lists.", file.getFileName(), e);
         }
     }
 
