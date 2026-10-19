@@ -13,6 +13,8 @@ import net.ledok.eden_ld.compat.LuckPermsCompat;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubServer;
 import net.ledok.eden_ld.hub.HubSettings;
+import net.ledok.eden_ld.hub.activity.Activities;
+import net.ledok.eden_ld.hub.activity.ActivitySource;
 import net.ledok.eden_ld.hub.daily.DailyQuests;
 import net.ledok.eden_ld.hub.guild.Guild;
 import net.ledok.eden_ld.hub.guild.GuildManager;
@@ -39,9 +41,10 @@ import java.util.UUID;
 
 /**
  * The server side of the Moderation window's admin tools — the player page's Unlocks, Dailies,
- * Dungeons and Emojis tabs, and the Guilds, Parties and Server sections. Each area is guarded by the
- * node its command uses, and each action calls what the command calls. One request / data / action
- * payload trio serves them all; the data is NBT (components as JSON).
+ * Dungeons and Emojis tabs, and the Activities, Guilds, Parties and Server sections. Each area is guarded
+ * by the node its command uses, and each action calls what the command calls. One request / data /
+ * action payload trio serves them all; the data is NBT (components as JSON). The Activities section also
+ * polls a light live payload ({@link ActivityAdminData}).
  */
 public final class AdminTools {
 
@@ -56,6 +59,8 @@ public final class AdminTools {
                 (payload, context) -> context.server().execute(() -> send(context.player(), payload.area(), payload.target())));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.AdminAction.TYPE,
                 (payload, context) -> context.server().execute(() -> act(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLiveRequest.TYPE,
+                (payload, context) -> context.server().execute(() -> sendLive(context.player(), payload.selected())));
     }
 
     private static boolean may(ServerPlayer admin, String node) {
@@ -91,7 +96,7 @@ public final class AdminTools {
             case GUILDS -> guilds(server);
             case PARTIES -> parties(server);
             case SERVER -> serverData(admin, server);
-            case ACTIVITIES -> activities(server);
+            case ACTIVITIES -> activities(admin, server);
             case WORLD -> net.ledok.eden_ld.world.WorldAdmin.data(server);
             default -> new CompoundTag();
         };
@@ -134,19 +139,28 @@ public final class AdminTools {
         return tag;
     }
 
-    /** Every activity (shown or hidden) with its hub settings, for the Activities section. */
-    private static CompoundTag activities(MinecraftServer server) {
+    /**
+     * Every activity (shown or hidden) with its hub settings, for the Activities section; per entry the
+     * controller actions its source supports ({@code actions}, an {@code AdminAction} bitmask), and {@code op}
+     * so the window hides what only ops may do (renaming, the source's admin screen).
+     */
+    private static CompoundTag activities(ServerPlayer admin, MinecraftServer server) {
         CompoundTag tag = new CompoundTag();
+        tag.putBoolean("op", admin.hasPermissions(2));
         net.ledok.eden_ld.hub.activity.ActivitySettings settings = net.ledok.eden_ld.hub.activity.ActivitySettings.get(server);
+        java.util.Map<ResourceLocation, ActivitySource> sources = Activities.sources(server);
         ListTag list = new ListTag();
         for (net.ledok.eden_ld.hub.activity.Activity activity : net.ledok.eden_ld.hub.activity.Activities.all(server)) {
             net.ledok.eden_ld.hub.activity.ActivitySettings.Setting setting = settings.setting(activity.id().toString());
+            ActivitySource source = sources.get(activity.id());
             CompoundTag entry = new CompoundTag();
             entry.putString("id", activity.id().toString());
             entry.putInt("type", activity.type().ordinal());
             entry.putString("name", json(server, activity.name()));
-            entry.putString("source", net.ledok.eden_ld.hub.activity.Activities.sourceOf(server, activity.id()));
+            entry.putString("source", source == null ? "" : source.name());
             entry.putBoolean("visible", setting != null && setting.visible());
+            entry.putBoolean("closed", setting != null && setting.closed());
+            entry.putInt("actions", source == null ? 0 : ActivitySource.AdminAction.mask(source.adminActions()));
             entry.putString("card_art", activity.cardArt() == null ? "" : activity.cardArt().toString());
             entry.putInt("level", Math.max(0, activity.requiredLevel()));
             ListTag difficulties = new ListTag();
@@ -340,7 +354,7 @@ public final class AdminTools {
                     yield null;
                 }
                 String difficulty = args.getString("difficulty");
-                net.ledok.eden_ld.hub.activity.ActivityServer.recordRun(server, id, difficulty.isBlank() ? null : difficulty,
+                net.ledok.eden_ld.hub.activity.ActivityServer.credit(server, id, difficulty.isBlank() ? null : difficulty,
                         true, Math.max(0, args.getLong("seconds")) * 1000L, 0, List.of(target));
                 EdenLD.LOGGER.info("{} recorded a clear of {} {} for {}", name, id, difficulty, target);
                 yield Component.translatable("message.eden_ld.admin.dungeon_complete");
@@ -362,12 +376,15 @@ public final class AdminTools {
                 }
                 net.ledok.eden_ld.hub.activity.ActivitySettings.get(server).put(id.toString(),
                         new net.ledok.eden_ld.hub.activity.ActivitySettings.Setting(args.getBoolean("visible"), art,
-                                Math.max(0, Math.min(max, args.getInt("level"))), levels));
+                                Math.max(0, Math.min(max, args.getInt("level"))), levels, args.getBoolean("closed")));
                 net.ledok.eden_ld.hub.activity.Activities.changed();
                 server.getPlayerList().getPlayers().forEach(net.ledok.eden_ld.hub.activity.ActivityServer::send);
-                EdenLD.LOGGER.info("{} set up activity {} (shown: {})", name, id, args.getBoolean("visible"));
+                EdenLD.LOGGER.info("{} set up activity {} (shown: {}, closed: {})", name, id, args.getBoolean("visible"),
+                        args.getBoolean("closed"));
                 yield Component.translatable("message.eden_ld.admin.activity_saved");
             }
+            case "activities/teleport", "activities/rename", "activities/admin", "activities/force_end",
+                 "activities/forget" -> activityAction(admin, action.action(), args);
             case "dungeons/reset" -> {
                 ResourceLocation id = args.getString("id").isBlank() ? null : ResourceLocation.tryParse(args.getString("id"));
                 net.ledok.eden_ld.hub.activity.ActivityProgress.reset(server, target, id);
@@ -462,7 +479,139 @@ public final class AdminTools {
             // World settings report only what failed; the window shows a change by itself.
             notice(admin, done, !area.equals(WORLD));
         }
+        if (area.equals(ACTIVITIES)) {
+            // Teleport and the admin screen take the admin away; an ended run shows in the live data.
+            switch (action.action()) {
+                case "teleport", "admin" -> {
+                }
+                case "force_end" -> sendLive(admin, args.getString("id"));
+                default -> send(admin, area, target);
+            }
+            return;
+        }
         send(admin, area, target);
+    }
+
+    // ---------------------------------------------------------------- activities
+
+    /** The selected activity's live status and history, and every row's markers (the section polls this). */
+    private static void sendLive(ServerPlayer admin, String selected) {
+        if (!allowed(admin, ACTIVITIES) || !ServerPlayNetworking.canSend(admin, HubPayloads.ActivityLive.TYPE)) {
+            return;
+        }
+        ServerPlayNetworking.send(admin, new HubPayloads.ActivityLive(ActivityAdminData.live(admin.server, admin, selected)));
+    }
+
+    /**
+     * A controller action, through the activity's source (Arenas_LD): teleport, rename and the source's
+     * admin screen (both op only — sources accept op edits only), end a run or all, forget a lost one.
+     * Null when refused (the refusal is already shown).
+     */
+    private static Component activityAction(ServerPlayer admin, String action, CompoundTag args) {
+        MinecraftServer server = admin.server;
+        String name = admin.getGameProfile().getName();
+        ResourceLocation id = ResourceLocation.tryParse(args.getString("id"));
+        ActivitySource source = id == null ? null : Activities.sourceFor(server, id);
+        if (source == null) {
+            notice(admin, Component.translatable("message.eden_ld.activities.unknown"), false);
+            return null;
+        }
+        ActivitySource.AdminAction needed = switch (action) {
+            case "teleport" -> ActivitySource.AdminAction.TELEPORT;
+            case "rename" -> ActivitySource.AdminAction.RENAME;
+            case "admin" -> ActivitySource.AdminAction.OPEN_ADMIN;
+            case "force_end" -> ActivitySource.AdminAction.FORCE_END;
+            default -> ActivitySource.AdminAction.FORGET;
+        };
+        if (!source.adminActions().contains(needed)) {
+            notice(admin, ActivitySource.unsupported(), false);
+            return null;
+        }
+        if ((needed == ActivitySource.AdminAction.RENAME || needed == ActivitySource.AdminAction.OPEN_ADMIN)
+                && !admin.hasPermissions(2)) {
+            notice(admin, Component.translatable("message.eden_ld.admin.op_only"), false);
+            return null;
+        }
+        Component refused;
+        Component done;
+        switch (needed) {
+            case TELEPORT -> {
+                refused = source.teleport(admin, id);
+                // The window closes on Teleport: a refusal goes to chat as well.
+                if (refused != null) {
+                    admin.sendSystemMessage(refused.copy().withStyle(net.minecraft.ChatFormatting.RED));
+                } else {
+                    EdenLD.LOGGER.info("{} teleported to activity {}", name, id);
+                }
+                done = null;
+            }
+            case RENAME -> {
+                String newName = args.getString("name").strip();
+                if (newName.isEmpty() || newName.length() > 48) {
+                    notice(admin, Component.translatable("message.eden_ld.admin.activity_bad_name"), false);
+                    return null;
+                }
+                refused = source.rename(admin, id, newName);
+                if (refused == null) {
+                    Activities.changed();
+                    server.getPlayerList().getPlayers().forEach(net.ledok.eden_ld.hub.activity.ActivityServer::send);
+                    EdenLD.LOGGER.info("{} renamed activity {} to \"{}\"", name, id, newName);
+                }
+                done = Component.translatable("message.eden_ld.admin.activity_renamed", newName);
+            }
+            case OPEN_ADMIN -> {
+                refused = source.openAdmin(admin, id);
+                if (refused == null) {
+                    EdenLD.LOGGER.info("{} opened the admin screen of activity {}", name, id);
+                }
+                done = null;
+            }
+            case FORCE_END -> {
+                // No "instance" = every run; one that doesn't parse is refused, never widened to every run.
+                ActivitySource.InstanceRef instance = null;
+                if (args.contains("instance")) {
+                    instance = args.contains("instance", Tag.TAG_COMPOUND) ? instance(args.getCompound("instance")) : null;
+                    if (instance == null) {
+                        notice(admin, Component.translatable("message.eden_ld.admin.activity_bad_instance"), false);
+                        return null;
+                    }
+                }
+                refused = source.forceEnd(server, id, instance);
+                if (refused == null) {
+                    EdenLD.LOGGER.info("{} ended {} of activity {}", name,
+                            instance == null ? "every run" : "the run at " + instance.dimension() + " "
+                                    + instance.pos().toShortString(), id);
+                }
+                done = Component.translatable(instance == null ? "message.eden_ld.admin.activity_ended_all"
+                        : "message.eden_ld.admin.activity_ended");
+            }
+            default -> {
+                refused = source.forget(server, id);
+                if (refused == null) {
+                    Activities.changed();
+                    server.getPlayerList().getPlayers().forEach(net.ledok.eden_ld.hub.activity.ActivityServer::send);
+                    EdenLD.LOGGER.info("{} forgot activity {}", name, id);
+                }
+                done = Component.translatable("message.eden_ld.admin.activity_forgotten", id.toString());
+            }
+        }
+        if (refused != null) {
+            notice(admin, refused, false);
+            return null;
+        }
+        return done;
+    }
+
+    /** {@code {dim, x, y, z}} → an instance; null when any part is missing or unreadable. */
+    @org.jetbrains.annotations.Nullable
+    private static ActivitySource.InstanceRef instance(CompoundTag tag) {
+        if (!tag.contains("dim", Tag.TAG_STRING) || !tag.contains("x", Tag.TAG_INT)
+                || !tag.contains("y", Tag.TAG_INT) || !tag.contains("z", Tag.TAG_INT)) {
+            return null;
+        }
+        ResourceLocation dimension = ResourceLocation.tryParse(tag.getString("dim"));
+        return dimension == null ? null : new ActivitySource.InstanceRef(dimension,
+                new net.minecraft.core.BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")));
     }
 
     // ---------------------------------------------------------------- helpers

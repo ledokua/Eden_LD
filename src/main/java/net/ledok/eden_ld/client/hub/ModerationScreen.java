@@ -162,6 +162,19 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         Minecraft.getInstance().setScreen(screen);
     }
 
+    /**
+     * Back on the Activities section with {@code activity} picked (after a source's admin screen, see
+     * {@link ModerationReturn}); {@code parent} is where Esc goes from here (null: the game).
+     */
+    static void openActivitiesFrom(@Nullable Screen parent, String activity) {
+        ClientPlayNetworking.send(HubPayloads.ModOpen.INSTANCE);
+        ModerationScreen screen = new ModerationScreen(parent);
+        screen.section = Section.ACTIVITIES;
+        screen.activities.select(activity);
+        Minecraft.getInstance().setScreen(screen);
+        screen.activities.request();
+    }
+
     /** From the hub's Moderation tab. */
     public static void openFrom(Screen parent) {
         ClientPlayNetworking.send(HubPayloads.ModOpen.INSTANCE);
@@ -216,6 +229,8 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
 
     @Override
     public void onClose() {
+        // Left by the admin (Esc): an Admin screen still on its way isn't followed back here.
+        ModerationReturn.disarm();
         Minecraft.getInstance().setScreen(parent);
     }
 
@@ -224,7 +239,8 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     protected void onCanvasFrame(float partialTick) {
         autosave();
         customization.tick();
-        activities.tick();
+        // The live poll runs only while the section shows (and stops with the window).
+        activities.tick(section == Section.ACTIVITIES);
         if (section == Section.WORLD) {
             world.tick();
         }
@@ -349,7 +365,18 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         }
     }
 
+    /** The Activities section's live poll answer (markers, the picked activity's status and history). */
+    public static void onActivityLive(HubPayloads.ActivityLive live) {
+        if (open != null) {
+            open.activities.onLive(live.data(), open.section == Section.ACTIVITIES);
+        }
+    }
+
     public static void onNotice(HubPayloads.ModNotice notice) {
+        if (!notice.ok()) {
+            // A refused Admin screen opens nothing: don't follow the next screen the admin opens.
+            ModerationReturn.disarm();
+        }
         if (open != null) {
             Toast.text(open.canvas(), notice.message(), notice.ok() ? GOOD : BAD);
         }
@@ -405,6 +432,12 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         }
         root.item(main);
         root.layoutIn(WIDTH, HEIGHT);
+    }
+
+    /** Where Esc goes from this window. */
+    @Nullable
+    Screen parent() {
+        return parent;
     }
 
     /** The admin's rights ({@code HomeData.STAFF_*} bits). */
@@ -1282,7 +1315,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     }
 
     /** A square button with a symbol (its meaning goes in the tooltip). */
-    private static Button icon(String symbol, Runnable action) {
+    static Button icon(String symbol, Runnable action) {
         Button button = new Button(14, 14, Component.literal(symbol), action);
         button.sizing(Sizing.fixed(14), Sizing.fixed(14));
         return button;

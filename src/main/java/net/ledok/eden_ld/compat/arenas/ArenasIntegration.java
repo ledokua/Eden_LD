@@ -18,6 +18,13 @@ import java.util.List;
  * Arenas_LD behind {@link ArenasHook}: its activities as an {@link ActivitySource} (the hub card
  * opens the lobby screen), Eden's level check as its entry gate, and finished runs into the
  * activity stats and dailies. Only class-loaded when Arenas_LD is present.
+ * <p>
+ * No Moderation controller actions yet (the {@link ActivitySource} admin defaults: unsupported) — the
+ * 4.6.0 jar has no calls for them. With ArenasApi 4.7.0 this overrides {@code adminActions()} and
+ * delegates: teleport → {@code location}/{@code teleportToController}, rename → {@code rename},
+ * openAdmin → {@code openAdmin}, status → {@code status} (into {@code ActivityLiveStatus}), forceEnd →
+ * {@code forceEnd}, forget → {@code forget}; and its forced-end run reports go to
+ * {@code ActivityServer.recordRun(..., forced = true)}. See docs/PLAN-activity-admin.md.
  */
 final class ArenasIntegration implements ActivitySource {
 

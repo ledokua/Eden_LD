@@ -30,7 +30,8 @@ import java.util.Set;
  * The Activities tab: dungeons, raids and mob arenas as picture cards. Filters (All · Dungeons ·
  * Raids · Arenas · Duels) and sorting (name / required level / type, ascending or descending) on top;
  * the Duels filter (with Duels_LD) shows the duel queues, matches and top lists ({@link DuelsTab}).
- * A card shows only the picture and the name; a locked one is dimmed with the level it needs.
+ * A card shows only the picture and the name; a locked one is dimmed with the level it needs, a closed
+ * one (staff closed it for maintenance) with "Closed" — only staff may still click it.
  * Clicking an open card opens the activity's lobby screen (Arenas_LD) — everything else lives there.
  * Activities the player's level just opened glow until the tab has been seen.
  */
@@ -226,10 +227,15 @@ final class ActivitiesTab {
         return primary.thenComparing(byName);
     }
 
-    /** A picture card: name top-left; locked → dimmed with the level it needs; new → glowing frame. */
+    /**
+     * A picture card: name top-left; locked → dimmed with the level it needs; closed → dimmed with
+     * "Closed"; new → glowing frame.
+     */
     private static final class Card extends Widget {
         private final ActivityEntry entry;
         private final boolean glow;
+        /** Closed for maintenance ({@link HubPayloads.ActivitiesClosed}). */
+        private final boolean closed;
         /** Partymates below its level: a ⚠ in the corner, the names in the tooltip. */
         private final List<String> below;
 
@@ -238,10 +244,18 @@ final class ActivitiesTab {
             this.entry = entry;
             this.glow = glow;
             this.below = below;
+            this.closed = HubState.closedActivities.contains(entry.id().toString());
             sizing(Sizing.fixed(cardWidth), Sizing.fixed(CARD_H));
             tooltip(() -> {
                 List<Component> lines = new ArrayList<>();
                 lines.add(entry.name());
+                if (closed) {
+                    lines.add(tr("closed_hint"));
+                    if (HubState.closedBypass) {
+                        lines.add(tr("closed_staff").copy().withStyle(net.minecraft.ChatFormatting.GOLD));
+                    }
+                    return lines;
+                }
                 lines.add(entry.unlocked() ? tr("open_hint") : tr("min_level", entry.unlockLevel()));
                 if (!below.isEmpty()) {
                     lines.add(tr("party_below", entry.unlockLevel(), String.join(", ", below))
@@ -259,15 +273,15 @@ final class ActivitiesTab {
             } else {
                 add(Shapes.rect(0, 0, width, height).fill(EdenParchment.ROW_BG_ALT));
             }
-            if (!entry.unlocked()) {
+            if (!entry.unlocked() || closed) {
                 add(Shapes.rect(0, 0, width, height).fill(0xB0000000));
             } else if (hovered) {
                 add(Shapes.rect(0, 0, width, height).fill(0x22FFFFFF));
             }
-            int frame = glow ? HubNotifications.color() : hovered && entry.unlocked() ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
+            int frame = glow ? HubNotifications.color() : hovered && clickable() ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
             add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(frame, glow ? 2 : 1)));
             // Light text with a shadow over pictures and the dark lock; theme ink on the plain card.
-            boolean light = art || !entry.unlocked();
+            boolean light = art || !entry.unlocked() || closed;
             add(TextNode.of(entry.name()).at(5, 5).maxWidth((int) width - 10).ellipsis(true)
                     .color(light ? 0xFFFFFFFF : EdenParchment.INK).shadow(light));
             if (!below.isEmpty()) {
@@ -279,7 +293,14 @@ final class ActivitiesTab {
                             .color(0xFFF2C94C).shadow(true));
                 }
             }
-            if (!entry.unlocked()) {
+            if (closed) {
+                add(TextNode.of(tr("closed")).at(width / 2, height / 2 - 6)
+                        .align(TextNode.Align.CENTER).maxWidth((int) width - 8).ellipsis(true)
+                        .color(0xFFE6DCC8).shadow(true));
+                add(TextNode.of(tr("closed_hint")).at(width / 2, height / 2 + 5)
+                        .align(TextNode.Align.CENTER).maxWidth((int) width - 8).ellipsis(true)
+                        .color(0xFFE6DCC8).shadow(true).scale(0.8f));
+            } else if (!entry.unlocked()) {
                 // Two lines, so the level is never cut off.
                 add(TextNode.of(tr("locked")).at(width / 2, height / 2 - 6)
                         .align(TextNode.Align.CENTER).maxWidth((int) width - 8).ellipsis(true)
@@ -292,7 +313,7 @@ final class ActivitiesTab {
 
         @Override
         public boolean onMouseDown(float x, float y, int button) {
-            if (button != 0 || !entry.unlocked()) {
+            if (button != 0 || !clickable()) {
                 return false;
             }
             UiSounds.click();
@@ -303,7 +324,12 @@ final class ActivitiesTab {
 
         @Override
         public Cursor cursor() {
-            return entry.unlocked() ? Cursor.HAND : Cursor.DEFAULT;
+            return clickable() ? Cursor.HAND : Cursor.DEFAULT;
+        }
+
+        /** Open, and not closed for maintenance (staff may still enter a closed one, to test it). */
+        private boolean clickable() {
+            return entry.unlocked() && (!closed || HubState.closedBypass);
         }
     }
 

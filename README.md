@@ -565,11 +565,17 @@ on top. **Duels** (with Duels_LD) shows the [duel queues and top lists](#duels) 
   brings the hub back on this tab.
 - **Partymates below the level:** a ⚠ in the card's corner; its tooltip names who (online
   partymates, against the level the card opens at).
+- **Closed for maintenance** (set in the Moderation window): the card is dimmed with "Closed" and
+  can't be clicked, and nobody can enter — not the card, not a lobby block (Eden's entry gate refuses
+  first, before the level). Staff with `eden_ld.admin.dungeons` still can, to test it; runs already
+  going finish normally.
 - **Set up in the Moderation window** (Activities section, `eden_ld.admin.dungeons`): every activity
-  from every source is listed with whether the hub **shows** it, its **card art** (any profile
-  background) and the **level** each difficulty needs (one level for arenas). **New activities are
-  hidden** until turned on there; hidden ones aren't on the tab and give no unlock notice (their
-  lobby block, if any, still works). Changes save themselves and reach players at once.
+  from every source is listed with whether the hub **shows** it, whether it's **closed for
+  maintenance**, its **card art** (any profile background) and the **level** each difficulty needs
+  (one level for arenas). **New activities are hidden** until turned on there; hidden ones aren't on
+  the tab and give no unlock notice (their lobby block, if any, still works). Changes save themselves
+  and reach players at once. The section also shows live runs and the run history — see
+  [Moderation window](#moderation-window).
 - **Levels** come from a Pufferfish Skills tree: config `activities.level_category` (a category id,
   e.g. `puffish_skills:combat`). While it's empty nothing is locked (the log says so once).
   Each difficulty needs its own level, and **every party member** must have it — Arenas_LD asks Eden
@@ -580,6 +586,10 @@ on top. **Duels** (with Duels_LD) shows the [duel queues and top lists](#duels) 
   Notifications → "New activities" turns the badge and card off.
 - **Stats** per player and difficulty (clears, best time; best wave for arenas) are kept in the world
   and shown in the Moderation window; won runs count for the `complete_dungeon` daily objective.
+  Every finished run is also recorded once server-wide (`data/eden_ld/activity_history.dat`): the last
+  50 runs of each activity and per difficulty its runs, wins, best clear and the last 200 clear times
+  (for a median). A run staff ended is listed there but counts for nothing (no stats, no progress, no
+  daily); staff recording a clear (Complete, `/activities complete`) adds player stats only.
 
 **Where activities come from**: **Arenas_LD** 4.6.0+ (its `ArenasApi`: every dungeon, raid and
 arena with its id, name and difficulties; the card opens its lobby screen from anywhere; Eden is its
@@ -750,6 +760,22 @@ the sections you may use:
   LuckPerms groups** (checkboxes; members through other groups count too), **hidden while locked**
   (on: players who can't use it don't see it; off: they see it locked), and a **price** in LC (0: not
   for sale). Changes save themselves. See [Profile](#profile).
+- **Activities** (`eden_ld.admin.dungeons`): every dungeon, raid and arena from every source, each in
+  the list with its type, shown or hidden, the level it opens at and live markers — ▶ runs going,
+  ⌛ instances cooling down, ⚠ setup warnings, **Closed**. For the one picked: the card preview;
+  **Shown in the hub** and **Closed for maintenance** (see [Activities](#activities)); the required
+  levels and card art; and, where its source supports them (Arenas_LD 4.7.0+; datapack activities have
+  none), **Teleport** (to its controller; the window closes), **Admin screen** and **✎** rename (ops
+  only — Arenas accepts op edits only; Esc on the admin screen comes back here), a **Live** block —
+  every instance with a Free / Running / Cooldown chip and the cooldown left, the runs in progress
+  (difficulty, phase, time and time left, players) each with **End run**, **End all runs**, open lobbies
+  and the queue — and **Warnings** in words (no id given, no name, no difficulties, no instances,
+  instances pending removal, controller gone — **Forget** drops a lost one). Ending a run asks first;
+  its players leave as on a loss and nothing counts. **Run history** (every source): per difficulty
+  "Normal · 34 runs · 62% won · median 8:12 · best 5:40" (best wave for arenas) and the last 10 runs
+  (when, difficulty, won / lost / ended by staff, time or wave, players). While the section is open it
+  refreshes about every 2 s (light: markers and the picked activity only). Every action is logged with
+  who did it.
 - **Players**: search anyone who has joined — with nothing typed, who's online and then the 30 most
   recently active ("3 h ago") — and open their page. Its tabs, each for staff with its node:
   - **Punish** (with [BanHammer](https://modrinth.com/mod/banhammer)): **Ban, IP ban, Mute, Warn** —
@@ -1632,7 +1658,9 @@ Other mods can register flight rules and read cached Minestar profiles — see [
   for guild-owned claims (see Guilds → Guild claims). Claims stay protected from mob griefing in a
   dimension that changes mobGriefing (see [World rules](#world-rules)).
 - **Arenas_LD** (4.6.0+) — optional; its dungeons, raids and mob arenas fill the Activities tab,
-  and Eden's level check is its entry gate (see Eden Hub → Activities).
+  and Eden's level check (and the maintenance lock) is its entry gate (see Eden Hub → Activities). The
+  Moderation window's controller actions and live status wait for ArenasApi 4.7.0 (not wired yet,
+  `docs/PLAN-activity-admin.md`).
 - **Duels_LD** (1.4.0+) — optional; the Duels tab (see Eden Hub → Duels). Duels uses Eden's parties
   for 2v2.
 - **Kits_LD** (0.2.0+) — optional; the Kits tab and `/kits` (see Eden Hub → Kits).

@@ -147,9 +147,14 @@ Component refused = EdenActivityApi.check(player, activityId, "hard");   // null
 EdenActivityApi.reportRun(server, activityId, "hard", won, runMillis, 0, participantUuids);
 ```
 
-- `check(player, id, null)` asks about the activity itself (its first difficulty's level).
+- `check(player, id, null)` asks about the activity itself (its first difficulty's level). Since 1.3.5 it
+  also refuses with "Closed for maintenance" while staff have the activity closed (Moderation →
+  Activities); staff with `eden_ld.admin.dungeons` pass, to test.
 - `reportRun` keeps each player's clears and best time per difficulty (best wave for arenas), and
-  a win counts for the `complete_dungeon` daily objective.
+  a win counts for the `complete_dungeon` daily objective. Since 1.3.5 it also writes one entry to the
+  server's run history (Moderation → Activities: runs, win rate, median and best per difficulty), so
+  call it **once per run with every participant** — not once per player, which would count the run
+  that many times.
 
 ## Guilds
 

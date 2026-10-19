@@ -241,6 +241,8 @@ public class EdenLDClient implements ClientModInitializer {
                 (payload, context) -> net.ledok.eden_ld.client.hub.ModerationScreen.onPage(payload));
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.AdminData.TYPE,
                 (payload, context) -> net.ledok.eden_ld.client.hub.ModerationScreen.onAdminData(payload));
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLive.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.hub.ModerationScreen.onActivityLive(payload));
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.PunishLog.TYPE,
                 (payload, context) -> net.ledok.eden_ld.client.hub.ModerationScreen.onPunishLog(payload));
 
@@ -257,6 +259,14 @@ public class EdenLDClient implements ClientModInitializer {
             if (context.client().screen instanceof HubScreen screen) {
                 screen.onDailiesData();
             }
+        });
+
+        // Comes right before ActivitiesData; the cards rebuild when that arrives.
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesClosed.TYPE, (payload, context) -> {
+            java.util.Set<String> closed = new java.util.HashSet<>();
+            payload.ids().forEach(id -> closed.add(id.toString()));
+            HubState.closedActivities = java.util.Set.copyOf(closed);
+            HubState.closedBypass = payload.bypass();
         });
 
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesData.TYPE, (payload, context) -> {
@@ -299,6 +309,7 @@ public class EdenLDClient implements ClientModInitializer {
         });
 
         net.ledok.eden_ld.client.hub.ActivityReturn.initialize();
+        net.ledok.eden_ld.client.hub.ModerationReturn.initialize();
         net.ledok.eden_ld.client.theme.HubThemes.initialize();
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ChatFlags.TYPE, (payload, context) -> {
             HubState.chatFlags = payload.flags();

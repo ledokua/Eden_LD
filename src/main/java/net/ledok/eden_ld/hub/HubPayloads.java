@@ -1574,6 +1574,39 @@ public final class HubPayloads {
         }
     }
 
+    /**
+     * C2S (1.3.5+): the Moderation window's Activities section polls this about every 2 s while it's open — compact
+     * summaries of every activity, plus the live status and run history of {@code selected} ("" = none). Light on
+     * purpose: the full list ({@link AdminData}, area {@code activities}) is only sent on opening and after edits.
+     * The client sends it only when the server knows it ({@code ClientPlayNetworking.canSend}).
+     */
+    public record ActivityLiveRequest(String selected) implements CustomPacketPayload {
+        public static final Type<ActivityLiveRequest> TYPE = new Type<>(id("activity_live_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLiveRequest> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeUtf(p.selected, 256), buf -> new ActivityLiveRequest(buf.readUtf(256)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * S2C (1.3.5+): the answer to {@link ActivityLiveRequest} (NBT, see {@code ActivityAdminData}): {@code rows} —
+     * per activity {@code id, running, cooldown, lobbies, queued, warnings} (bitmask), {@code closed}; {@code detail}
+     * — the selected one's {@code status} (when its source reports one) and {@code history}, player names resolved.
+     */
+    public record ActivityLive(net.minecraft.nbt.CompoundTag data) implements CustomPacketPayload {
+        public static final Type<ActivityLive> TYPE = new Type<>(id("activity_live"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLive> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeNbt(p.data), buf -> new ActivityLive(buf.readNbt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     // ---------------------------------------------------------------- punishments (BanHammer)
 
     /**
@@ -2147,6 +2180,28 @@ public final class HubPayloads {
                 (buf, p) -> writeList(buf, p.names, (b, name) ->
                         net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(b, name)),
                 buf -> new ActivityUnlocks(readList(buf, net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC::decode)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * S2C (1.3.5+): the shown activities staff closed for maintenance — their cards are dimmed with "Closed" and
+     * can't be clicked; {@code bypass}: this player is staff ({@code eden_ld.admin.dungeons}) and may still enter
+     * to test. Sent right before every {@link ActivitiesData}, only to clients that know it ({@code ActivitiesData}
+     * itself is unchanged, so an older client simply shows the cards open and the server refuses on entry).
+     */
+    public record ActivitiesClosed(List<net.minecraft.resources.ResourceLocation> ids, boolean bypass)
+            implements CustomPacketPayload {
+        public static final Type<ActivitiesClosed> TYPE = new Type<>(id("activities_closed"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivitiesClosed> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    writeList(buf, p.ids, (b, id) -> b.writeResourceLocation(id));
+                    buf.writeBoolean(p.bypass);
+                },
+                buf -> new ActivitiesClosed(readList(buf, b -> b.readResourceLocation()), buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -3186,6 +3241,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(ChatSystemOnly.TYPE, ChatSystemOnly.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);
+        PayloadTypeRegistry.playS2C().register(ActivitiesClosed.TYPE, ActivitiesClosed.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsData.TYPE, DuelsData.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsStatus.TYPE, DuelsStatus.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsAlert.TYPE, DuelsAlert.CODEC);
@@ -3209,6 +3265,8 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(AdminRequest.TYPE, AdminRequest.CODEC);
         PayloadTypeRegistry.playS2C().register(AdminData.TYPE, AdminData.CODEC);
         PayloadTypeRegistry.playC2S().register(AdminAction.TYPE, AdminAction.CODEC);
+        PayloadTypeRegistry.playC2S().register(ActivityLiveRequest.TYPE, ActivityLiveRequest.CODEC);
+        PayloadTypeRegistry.playS2C().register(ActivityLive.TYPE, ActivityLive.CODEC);
         PayloadTypeRegistry.playC2S().register(LookRuleSave.TYPE, LookRuleSave.CODEC);
         PayloadTypeRegistry.playC2S().register(LookBuy.TYPE, LookBuy.CODEC);
         PayloadTypeRegistry.playC2S().register(LookGift.TYPE, LookGift.CODEC);

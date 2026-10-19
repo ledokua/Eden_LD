@@ -4,6 +4,8 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.ledok.eden_ld.EdenLD;
+import net.ledok.eden_ld.command.EdenPermissions;
+import net.ledok.eden_ld.compat.LuckPermsCompat;
 import net.ledok.eden_ld.compat.arenas.ArenasHook;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.daily.DailyQuests;
@@ -28,7 +30,8 @@ import java.util.UUID;
  * Server side of the Activities tab: its data, opening an activity (the level checked first),
  * new-unlock notices (a periodic check of online players: an activity their level opened that they
  * haven't seen gives a chat line once, the tab badge and a Home card until they open the tab), and
- * recording finished runs (stats, the {@code complete_dungeon} daily objective).
+ * recording finished runs (the server's run history, player stats, the {@code complete_dungeon} daily
+ * objective).
  */
 public final class ActivityServer {
 
@@ -159,6 +162,17 @@ public final class ActivityServer {
                 }
             }
         }
+        // Closed ones first, so the cards are dimmed when the data arrives (an older client has no use for it).
+        if (ServerPlayNetworking.canSend(player, HubPayloads.ActivitiesClosed.TYPE)) {
+            List<ResourceLocation> closed = new ArrayList<>();
+            for (Activity activity : Activities.visible(server)) {
+                if (Activities.closed(server, activity.id())) {
+                    closed.add(activity.id());
+                }
+            }
+            ServerPlayNetworking.send(player, new HubPayloads.ActivitiesClosed(closed,
+                    LuckPermsCompat.hasPermission(player, EdenPermissions.DUNGEONS)));
+        }
         ServerPlayNetworking.send(player, new HubPayloads.ActivitiesData(level, gated, entries, party));
     }
 
@@ -178,11 +192,34 @@ public final class ActivityServer {
     // ---------------------------------------------------------------- runs
 
     /**
-     * A finished run (from Arenas_LD, or reported through the API): stats for every player, and
-     * a win counts for the {@code complete_dungeon} daily objective (target = the activity id).
+     * A finished run (from Arenas_LD, or reported through the API): once into the server's
+     * {@link ActivityHistory}, then stats for every player, and a win counts for the
+     * {@code complete_dungeon} daily objective (target = the activity id).
      */
     public static void recordRun(MinecraftServer server, ResourceLocation id, @Nullable String difficulty, boolean won,
                                  long durationMillis, int wave, List<UUID> players) {
+        recordRun(server, id, difficulty, won, durationMillis, wave, players, false);
+    }
+
+    /**
+     * As above; {@code forced}: staff ended the run (Moderation → End run). It's listed in the history
+     * but counts for nothing — no stats, no player progress, no daily.
+     */
+    public static void recordRun(MinecraftServer server, ResourceLocation id, @Nullable String difficulty, boolean won,
+                                 long durationMillis, int wave, List<UUID> players, boolean forced) {
+        ActivityHistory.get(server).record(id, new ActivityHistory.Run(System.currentTimeMillis() / 1000L, difficulty,
+                won && !forced, forced, Math.max(0, durationMillis), Math.max(0, wave), players));
+        if (!forced) {
+            credit(server, id, difficulty, won, durationMillis, wave, players);
+        }
+    }
+
+    /**
+     * Player progress only, without a history entry: stats for every player and the daily for a win
+     * (staff recording a clear — Moderation's Complete, {@code /activities complete}).
+     */
+    public static void credit(MinecraftServer server, ResourceLocation id, @Nullable String difficulty, boolean won,
+                              long durationMillis, int wave, List<UUID> players) {
         for (UUID uuid : players) {
             ActivityProgress.record(server, uuid, id, difficulty, won, durationMillis, wave);
             ServerPlayer online = server.getPlayerList().getPlayer(uuid);

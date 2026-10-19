@@ -6,8 +6,11 @@ import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -82,14 +85,65 @@ public final class Activities {
         return null;
     }
 
-    /** Which source has the activity ("Arenas_LD", "datapack"), for the Moderation window. */
-    public static String sourceOf(MinecraftServer server, ResourceLocation id) {
+    /** The source that has the activity (the first to report its id), or null. */
+    @Nullable
+    public static ActivitySource sourceFor(MinecraftServer server, ResourceLocation id) {
         for (ActivitySource source : SOURCES) {
             if (source.activities(server).stream().anyMatch(activity -> activity.id().equals(id))) {
-                return source.name();
+                return source;
             }
         }
-        return "";
+        return null;
+    }
+
+    /**
+     * Every activity id with the source that has it (the first to report it), in one pass over the
+     * sources — for callers that look up many ids at once (the Moderation window's list and its poll),
+     * where {@link #sourceFor} per id would walk every source's list again for each one.
+     */
+    public static Map<ResourceLocation, ActivitySource> sources(MinecraftServer server) {
+        Map<ResourceLocation, ActivitySource> sources = new HashMap<>();
+        for (ActivitySource source : SOURCES) {
+            for (Activity activity : source.activities(server)) {
+                sources.putIfAbsent(activity.id(), source);
+            }
+        }
+        return sources;
+    }
+
+    /** Which source has the activity ("Arenas_LD", "datapack"), for the Moderation window. */
+    public static String sourceOf(MinecraftServer server, ResourceLocation id) {
+        ActivitySource source = sourceFor(server, id);
+        return source == null ? "" : source.name();
+    }
+
+    /** The Moderation window's actions the activity's source supports (none for unknown ids). */
+    public static Set<ActivitySource.AdminAction> adminActions(MinecraftServer server, ResourceLocation id) {
+        ActivitySource source = sourceFor(server, id);
+        return source == null ? Set.of() : source.adminActions();
+    }
+
+    /** Whether the activity's source supports {@code action}. */
+    public static boolean supports(MinecraftServer server, ResourceLocation id, ActivitySource.AdminAction action) {
+        return adminActions(server, id).contains(action);
+    }
+
+    /** The activity's live status, when its source can tell. */
+    public static Optional<ActivityLiveStatus> status(MinecraftServer server, ResourceLocation id) {
+        return status(server, id, sourceFor(server, id));
+    }
+
+    /** {@link #status(MinecraftServer, ResourceLocation)} with the source already looked up ({@link #sources}). */
+    public static Optional<ActivityLiveStatus> status(MinecraftServer server, ResourceLocation id,
+                                                      @Nullable ActivitySource source) {
+        return source == null || !source.adminActions().contains(ActivitySource.AdminAction.STATUS)
+                ? Optional.empty() : source.status(server, id);
+    }
+
+    /** Whether staff closed the activity for maintenance (see {@link ActivityGate}). */
+    public static boolean closed(MinecraftServer server, ResourceLocation id) {
+        ActivitySettings.Setting setting = ActivitySettings.get(server).setting(id.toString());
+        return setting != null && setting.closed();
     }
 
     /** The source's activity with the staff's card art and levels over it. */
@@ -110,14 +164,7 @@ public final class Activities {
     /** Opens the activity through the source that has it. */
     static boolean open(ServerPlayer player, ResourceLocation id) {
         MinecraftServer server = player.getServer();
-        if (server == null) {
-            return false;
-        }
-        for (ActivitySource source : SOURCES) {
-            if (source.activities(server).stream().anyMatch(activity -> activity.id().equals(id))) {
-                return source.open(player, id);
-            }
-        }
-        return false;
+        ActivitySource source = server == null ? null : sourceFor(server, id);
+        return source != null && source.open(player, id);
     }
 }

@@ -18,6 +18,9 @@ public final class HubState {
     public static int chatFlags = ChatFlagBits.UNSENT;
     /** The Activities tab's cards (dungeons, raids, arenas). */
     public static HubPayloads.ActivitiesData activitiesData;
+    /** Activities closed for maintenance (dimmed, not clickable), and whether this player may enter them anyway (staff). */
+    public static java.util.Set<String> closedActivities = java.util.Set.of();
+    public static boolean closedBypass;
     public static HubPayloads.DuelsData duelsData;
     public static HubPayloads.WardrobeData wardrobeData;
     /** The player's own duel queue (the Home card), and when it arrived. */
@@ -75,6 +78,8 @@ public final class HubState {
         settingsData = null;
         chatFlags = ChatFlagBits.UNSENT;
         activitiesData = null;
+        closedActivities = java.util.Set.of();
+        closedBypass = false;
         duelsData = null;
         wardrobeData = null;
         duelsStatus = null;

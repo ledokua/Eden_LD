@@ -78,12 +78,12 @@ public class EdenCommands {
                                 })));
     }
 
-    /** /activities complete: a won run for each player (stats, the complete_dungeon daily objective). */
+    /** /activities complete: a won run for each player (stats, the complete_dungeon daily objective; not the run history). */
     private static int complete(CommandContext<CommandSourceStack> context, @org.jetbrains.annotations.Nullable String difficulty,
                                 int seconds) throws CommandSyntaxException {
         ResourceLocation id = ResourceLocationArgument.getId(context, "id");
         Collection<ServerPlayer> players = EntityArgument.getPlayers(context, "players");
-        net.ledok.eden_ld.hub.activity.ActivityServer.recordRun(context.getSource().getServer(), id, difficulty, true,
+        net.ledok.eden_ld.hub.activity.ActivityServer.credit(context.getSource().getServer(), id, difficulty, true,
                 seconds * 1000L, 0, players.stream().map(ServerPlayer::getUUID).toList());
         context.getSource().sendSuccess(() -> Component.translatable(
                 "message.eden_ld.activities.admin_completed", id.toString(), players.size()), true);

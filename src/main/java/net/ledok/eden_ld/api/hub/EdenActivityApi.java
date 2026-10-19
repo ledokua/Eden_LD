@@ -27,7 +27,11 @@ public final class EdenActivityApi {
         return ActivityLevels.level(player);
     }
 
-    /** Null when the player may enter the activity (difficulty null) or that difficulty; else the reason. */
+    /**
+     * Null when the player may enter the activity (difficulty null) or that difficulty; else the reason —
+     * "Closed for maintenance" first while staff have it closed (staff with {@code eden_ld.admin.dungeons}
+     * pass, to test).
+     */
     @Nullable
     public static Component check(ServerPlayer player, ResourceLocation activity, @Nullable String difficulty) {
         return ActivityGate.check(player, activity, difficulty);
@@ -35,7 +39,9 @@ public final class EdenActivityApi {
 
     /**
      * A finished run: every player's stats, and wins count for the {@code complete_dungeon} daily
-     * objective. {@code wave}: how far an arena run got (0 otherwise).
+     * objective. {@code wave}: how far an arena run got (0 otherwise). Also one entry in the server's run
+     * history and per-difficulty stats, so call it once per run with every participant in {@code players},
+     * never once per player.
      */
     public static void reportRun(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty,
                                  boolean won, long durationMillis, int wave, List<UUID> players) {
