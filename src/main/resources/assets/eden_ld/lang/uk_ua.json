@@ -1521,6 +1521,8 @@
   "message.eden_ld.pvp.admin_status": "%s: PvP %s (тут: %s).",
   "message.eden_ld.pvp.admin_status_cooldown": "%s: PvP %s (тут: %s), знову перемкнути можна через %s с.",
   "message.eden_ld.pvp.admin_set": "PvP %s для %s з %s гравців (решта вже мали так).",
+  "message.eden_ld.pvp.admin_set_all": "PvP %1$s для %2$s гравців.",
+  "message.eden_ld.pvp.admin_set_none": "У них PvP вже %s.",
   "gui.eden_ld.inventory.pvp": "PvP",
   "gui.eden_ld.inventory.pvp.on": "PvP: увімкнено",
   "gui.eden_ld.inventory.pvp.off": "PvP: вимкнено",

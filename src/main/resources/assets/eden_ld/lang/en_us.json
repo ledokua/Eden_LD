@@ -1521,6 +1521,8 @@
   "message.eden_ld.pvp.admin_status": "%s: PvP %s (here: %s).",
   "message.eden_ld.pvp.admin_status_cooldown": "%s: PvP %s (here: %s), can switch again in %s s.",
   "message.eden_ld.pvp.admin_set": "Turned PvP %s for %s of %s players (the rest already had it).",
+  "message.eden_ld.pvp.admin_set_all": "Turned PvP %1$s for %2$s player(s).",
+  "message.eden_ld.pvp.admin_set_none": "PvP was already %s for them.",
   "gui.eden_ld.inventory.pvp": "PvP",
   "gui.eden_ld.inventory.pvp.on": "PvP: On",
   "gui.eden_ld.inventory.pvp.off": "PvP: Off",

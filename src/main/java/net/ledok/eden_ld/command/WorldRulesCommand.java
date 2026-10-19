@@ -216,7 +216,10 @@ final class WorldRulesCommand {
             }
         }
         int count = changed;
-        source.sendSuccess(() -> Component.translatable("message.eden_ld.pvp.admin_set", onOff(on), count, players.size()), true);
+        // All of them, none of them (they already had it), or some.
+        String key = count == players.size() ? "message.eden_ld.pvp.admin_set_all"
+                : count == 0 ? "message.eden_ld.pvp.admin_set_none" : "message.eden_ld.pvp.admin_set";
+        source.sendSuccess(() -> Component.translatable(key, onOff(on), count, players.size()), true);
         return changed;
     }
 
