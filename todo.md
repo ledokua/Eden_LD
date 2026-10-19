@@ -367,3 +367,6 @@ needs a README pass too.
       pass it to the server mod. Then: look the player up by UUID (LuckPerms user loaded async when
       offline, guild + `HubSettings.showGuildTag`) and restyle the line in
       `ChatChannels.onGameMessage` before `announceDiscord`; unlinked authors keep today's look.
+- [ ] 1.3.6 (built, not deployed): tutorial phasing fixes reported by the Arenas session 2026-10-19 — items a phased
+      player drops through `ServerPlayer#drop` (a closed crafting grid, a full inventory) now land in their phase;
+      private-menu packet wrappers no longer touch the shared scope counter on the network thread. Untested in game.

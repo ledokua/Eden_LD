@@ -42,6 +42,12 @@ public abstract class PhaseGamePacketMixin {
     }
 
     private void eden_ld$inMenuScope(Runnable body) {
+        // Each handler first runs on the network thread, only to hand itself to the server thread: the scope (shared
+        // counters, the open menus) is the server thread's alone.
+        if (!player.server.isSameThread()) {
+            body.run();
+            return;
+        }
         boolean scoped = PrivateBlocks.pushMenu(player);
         try {
             PhaseContext.run(scoped ? PrivateBlocks.menuPhase(player) : null, body);
