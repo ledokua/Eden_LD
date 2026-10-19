@@ -112,7 +112,11 @@ needs a README pass too.
         Local ignores spectators for "No one is close enough to hear you" (they still hear it); pets/summons count as on
         their owner's scoreboard team (Arenas run teams, Duels 2v2) in `CombatTeamsCompat`. 161 tests; agent review
         (2 real findings, fixed). Dev-tested: echoes only in System, `/say` + chat in All, Local spectator notice.
-        Not deployed. Same day, live config (not Eden): Spell Engine `minecraft:player` FRIENDLY→NEUTRAL, Better Combat
+        **Deployed 2026-10-19 ~09:40** (owner: "deploy everything") with Arenas_LD 4.6.2 (committed 51261cf for the
+        deploy; its session had closed): Prism Client/Server (1.3.1 and Arenas 4.6.0 to removed-mods-2026-10-19), pack
+        6ac2593 (pushed; another session's staged Mobs_LD 1.4→1.5 left staged), live (Eden 1.2.5 and Arenas 4.6.0 to
+        backup/removed-mods-2026-10-19; uploads verified with cmp + unzip -t). Live from the next restart (owner's).
+        Same day, live config (not Eden): Spell Engine `minecraft:player` FRIENDLY→NEUTRAL, Better Combat
         NEUTRAL→HOSTILE (AOE/sweeps hit non-party/guild players where PvP is on; originals in live
         backup/old-configs-2026-10-19); needs the owner's restart. Arenas_LD 4.6.2 (wave-arena run team) built by its
         session, not deployed. Not deployed (needs VectorLib 0.7.2 in the pack and live). Next: 4b.
