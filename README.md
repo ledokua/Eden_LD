@@ -666,6 +666,9 @@ play and explore the world. **Everyone starts with PvP off** (new and existing p
   neutral) ones. **Duels**: two players in the same running match follow the duel's teams (opponents are
   enemies, partners friends) whatever their switches; a duelist and anyone outside the match ignore each other.
   Run teams (dungeons, raids, arenas) stay friends whatever the switches.
+- **Pets and summons** follow their owner: tamed animals, horses, dragons, Spell Engine summons, Draugr's Flame
+  Atronach and Archers Expansion's Alter Ego. Nobody can hurt a pet whose owner they may not hurt, and a pet never
+  goes after a player, pet or summon its owner may not hurt (it doesn't take them as a target at all).
 - **Hitting someone you ignore** (melee) says why in the action bar, at most every 2 seconds: "Bob has PvP off",
   "Bob is in a duel", "Your PvP is off (/pvp on)", "You're in a duel" or "PvP is off here".
 - **Nameplates**: players whose effective state is on where they stand show the crossed swords after their name

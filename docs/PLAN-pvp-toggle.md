@@ -107,3 +107,11 @@ Spell Engine / Better Combat aren't in the dev run: AOE, heals and sweeps under 
 The admin message now says all / none / some. Deployed ~12:56: Prism Client/Server (1.3.2 to removed-mods-2026-10-19),
 pack 555ac73 (pushed), live (1.3.2 to backup/removed-mods-2026-10-19; verified with cmp + unzip -t); live from the
 owner's next restart. Tutorial: hand `eden_ld:inventory/pvp_button` to the NPCs_LD session.
+
+**Pets (1.3.4, owner's request 2026-10-19).** Pets already counted as their owner through `OwnableEntity` (tamed
+animals, horses, Saint's Dragons, Spell Engine summons). Added: `CombatTeamsCompat.sideOf` also reads the owner of
+modded summons that aren't `OwnableEntity`, by class name through their public getter (Draugr's
+`FlameAtronachEntity#getOwnerUuid`, Archers Expansion's `AlterEgoEntity#getOwner`); `PetTargetPvpMixin`
+(`Mob#setTarget` HEAD) refuses a target when the relation has no friendly fire, so pets and summons don't chase
+friends or ignored sides for nothing. A pet already fighting when a world's mode changes keeps its target but its
+hits still don't land (a player can't switch while combat-tagged).

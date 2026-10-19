@@ -17,6 +17,7 @@
     "PlayerEatMixin",
     "PlayerListBorderMixin",
     "PlayerListIgnoreMixin",
+    "PetTargetPvpMixin",
     "PlayerMixin",
     "PoisonMobEffectMixin",
     "ProjectileMixin",

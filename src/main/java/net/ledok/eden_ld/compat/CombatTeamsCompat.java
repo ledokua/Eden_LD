@@ -142,7 +142,11 @@ public final class CombatTeamsCompat {
         return team != null && team == pt.getTeam() && !team.isAllowFriendlyFire();
     }
 
-    /** Player uuid, or the owner's uuid for owned entities (both sides — owners are synced). */
+    /**
+     * Player uuid, or the owner's uuid for owned entities: vanilla's {@link OwnableEntity} (tamed animals, horses,
+     * Spell Engine summons, Saint's Dragons) and the summons of mods that keep their own owner ({@link #MOD_OWNERS}).
+     * Both sides — owners are synced (the Alter Ego's only server side).
+     */
     @Nullable
     public static UUID sideOf(Entity entity) {
         if (entity instanceof Player player) {
@@ -151,7 +155,53 @@ public final class CombatTeamsCompat {
         if (entity instanceof OwnableEntity owned) {
             return owned.getOwnerUUID();
         }
-        return null;
+        return MOD_OWNERS.get(entity.getClass()).apply(entity);
+    }
+
+    /**
+     * Owned entities that aren't {@link OwnableEntity}, found by class name (no compile dependency) and read through
+     * their own public owner getter: Draugr's Flame Atronach ({@code getOwnerUuid}), Archers Expansion's Alter Ego
+     * decoy ({@code getOwner}, a living entity — a player counts). No owner for every other class; one lookup per
+     * class.
+     */
+    private static final ClassValue<java.util.function.Function<Entity, UUID>> MOD_OWNERS = new ClassValue<>() {
+        @Override
+        protected java.util.function.Function<Entity, UUID> computeValue(Class<?> type) {
+            for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+                switch (c.getName()) {
+                    case "net.mebahelcreaturesdraugr.entity.custom.FlameAtronachEntity" -> {
+                        return ownerGetter(c, "getOwnerUuid");
+                    }
+                    case "com.archers_expansion.entity.AlterEgoEntity" -> {
+                        return ownerGetter(c, "getOwner");
+                    }
+                    default -> {
+                    }
+                }
+            }
+            return NO_OWNER;
+        }
+    };
+
+    private static final java.util.function.Function<Entity, UUID> NO_OWNER = entity -> null;
+
+    /** A public no-arg getter returning the owner's uuid, or the owner (a player's uuid counts); no owner if it's missing. */
+    private static java.util.function.Function<Entity, UUID> ownerGetter(Class<?> type, String name) {
+        java.lang.invoke.MethodHandle getter;
+        try {
+            getter = java.lang.invoke.MethodHandles.publicLookup().unreflect(type.getMethod(name));
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            EdenLD.LOGGER.warn("[Party] {}#{} not found; its owner won't count for PvP.", type.getName(), name);
+            return NO_OWNER;
+        }
+        return entity -> {
+            try {
+                Object owner = getter.invoke(entity);
+                return owner instanceof UUID uuid ? uuid : owner instanceof Player player ? player.getUUID() : null;
+            } catch (Throwable e) {
+                return null;
+            }
+        };
     }
 
     private static final class SpellEngineHook {
