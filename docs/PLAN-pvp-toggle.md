@@ -99,3 +99,11 @@ Not run in game yet; `./gradlew build` green (184 tests, 23 new). Where it lives
 - **Deviations**: the action bar has three more lines besides "has PvP off" / "is in a duel" — "Your PvP is off",
   "You're in a duel", "PvP is off here" — for when the reason is the attacker or the world. `/pvp` works for any
   client (an older one just has no button). An admin's change doesn't start or reset the player's own cooldown.
+
+**Dev-tested and deployed (2026-10-19).** Dev server, LeDok + Bob: off/off and on/off hits blocked, on/on lands;
+switching blocked while combat-tagged; cooldown in `/pvp` and on the button; the button switches and dims when off;
+nameplate swords on and off; the state survives death; a splash poison skips an ignored player and lands on an enemy.
+Spell Engine / Better Combat aren't in the dev run: AOE, heals and sweeps under the new rules still need a live check.
+The admin message now says all / none / some. Deployed ~12:56: Prism Client/Server (1.3.2 to removed-mods-2026-10-19),
+pack 555ac73 (pushed), live (1.3.2 to backup/removed-mods-2026-10-19; verified with cmp + unzip -t); live from the
+owner's next restart. Tutorial: hand `eden_ld:inventory/pvp_button` to the NPCs_LD session.
