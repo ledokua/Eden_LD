@@ -105,3 +105,7 @@ stay out of the stats and player progress. Then bump the README's Arenas_LD line
 - No in-game test yet (dev client not started for this work).
 - Datapack activities support no admin actions (nothing to teleport to or end); they get the lock and history.
 - Forget leaves Eden's settings and history for the id (they return if the activity does).
+
+**Deployed (2026-10-19, 1.3.5):** Prism Client/Server (1.3.4 to removed-mods-2026-10-19), pack 0352999 (pushed),
+live (1.3.4 to backup/removed-mods-2026-10-19; cmp + unzip -t). Not run in game before the deploy (no RAM for a dev
+server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.7.0 is wired.
