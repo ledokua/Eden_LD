@@ -60,7 +60,7 @@ sits in a blocked dimension.
 
 ## World rules
 
-A dimension can have **its own gamerules, PvP, difficulty and world border**, set in **Moderation → World
+A dimension can have **its own gamerules, PvP mode, difficulty and world border**, set in **Moderation → World
 settings** (see [Moderation window](#moderation-window)) or with the commands below; the plan is
 [docs/PLAN-world-rules.md](docs/PLAN-world-rules.md).
 A dimension keeps only what it changes; everything else follows the **server-wide** value — the gamerules
@@ -82,20 +82,18 @@ changes. `/gamerule` and `/difficulty` themselves stay server-wide.
 - **Set** with `/eden gamerule <dimension> <rule> <value>` (`eden_ld.admin.world`): the server-wide
   value means "follow it" and removes the change; `… <rule> reset` does the same; `… <rule>` shows
   the value and where it comes from; `/eden gamerule <dimension>` lists what the dimension changes.
-- **PvP** — `/eden pvp <dimension> on|off|reset`: whether players can hurt each other there (melee,
-  arrows, tridents, potions, explosions they set off); party and guild friendly fire stay as they are.
-  It covers **Spell Engine** spells too (Spell Engine never asks Minecraft's PvP switch): where PvP is
-  off, other players count as allies for spells — no harmful spell lands on them, not even a slow or a
-  burn, while heals and buffs work as before — and the same goes for Better Combat sweeps and for
-  players' pets (players can't hurt each other's pets there); arrows and spell projectiles fly through
-  other players. A running **Duels** match still fights in a dimension with PvP off (Duels keeps
-  outsiders out itself). With `pvp=false` in `server.properties`, the same holds everywhere.
-  Where PvP is **on**, everyone outside your party and guild (other guilds and guildless players alike) can be
-  hit by **area** spells and Better Combat sweeps too. That part is the two mods' server config, not Eden's
-  (Fallen Eden, 2026-10-19): Spell Engine `player_relations` `"minecraft:player": "NEUTRAL"` (area damage hits,
-  area heals and buffs reach only allies, direct heals still work; Paladin's Holy Beam damages them instead
-  of healing) and Better Combat `"minecraft:player": "HOSTILE"`. Players on the same scoreboard team with friendly
-  fire off (Arenas run teams, a Duels 2v2 side) protect each other's pets and summons too.
+- **PvP** — `/eden pvp <dimension> off|toggle|on|reset`, the dimension's PvP mode (see
+  [PvP toggle](#pvp-toggle)): **off** — nobody fights there, everyone counts as PvP off (spawn); **toggle** —
+  each player's own switch (`/pvp`, the inventory button) decides; **on** — everyone counts as PvP on (a
+  forced-PvP zone). A dimension without its own mode follows `server.properties`: `pvp=true` means **toggle**,
+  `pvp=false` means **off**; `reset` (or choosing that default) makes it follow again. It covers everything
+  players do to each other — melee, arrows, tridents, potions, explosions they set off, **Spell Engine** spells
+  (which never ask Minecraft's PvP switch), Better Combat sweeps and their pets and summons. Parties, guilds and
+  run teams never hurt each other in any mode; a running **Duels** match fights in any mode (Duels keeps
+  outsiders out itself). Eden answers Spell Engine and Better Combat for every pair of players (enemies as
+  hostile — area and direct damage, no heals —, friends and ignored pairs as allies), so the two mods'
+  `"minecraft:player"` relation settings (Fallen Eden: Spell Engine `NEUTRAL`, Better Combat `HOSTILE`) no
+  longer decide anything between players.
 - **Difficulty** — `/eden difficulty <dimension> peaceful|easy|normal|hard|reset`: mob damage, hunger,
   local difficulty and monster spawning there. **Peaceful** spawns no monsters and clears the ones
   there, as vanilla Peaceful does; a dimension on Easy or harder still spawns them while the server is on
@@ -116,7 +114,8 @@ changes. `/gamerule` and `/difficulty` themselves stay server-wide.
 
 ```json
 {
-  "minecraft:overworld": { "pvp": false, "border": { "center_x": 0, "center_z": 0, "size": 30000 } },
+  "minecraft:overworld": { "pvp": "toggle", "border": { "center_x": 0, "center_z": 0, "size": 30000 } },
+  "yggdrasil:spawn_dim": { "pvp": false, "difficulty": "peaceful" },
   "minecraft:the_nether": { "difficulty": "hard", "gamerules": { "doFireTick": false, "randomTickSpeed": 6 },
                             "border": { "center_x": 0, "center_z": 0, "size": 20000 } },
   "minecells:prison": { "gamerules": { "doMobSpawning": false } }
@@ -126,6 +125,9 @@ changes. `/gamerule` and `/difficulty` themselves stay server-wide.
 **Mods.** Mods that read gamerules from the dimension follow its values with no extra work (36 of the
 pack's mods do). Open Parties and Claims keeps protecting claims from mob griefing in a dimension that
 changes mobGriefing.
+
+`"pvp"` is `false` (off), `"toggle"` or `true` (on); the file from before the toggle reads as it was written (`true`
+was "PvP on", now "on for everyone"), and Eden writes on and off the same way, so an older Eden still reads them.
 
 ## Hazards
 
@@ -198,7 +200,7 @@ Home after joining.
 The inventory has a hub button too, under the crafting grid (where the recipe book button is when Not
 Enough Recipe Book keeps one, it sits beside it). Opened from there, the inventory closes first, as E closes
 it, so nothing of it stays open behind the hub, and closing the hub goes back to the inventory. Opened with
-the key, closing it goes back to the game.
+the key, closing it goes back to the game. Right of it is the [PvP toggle](#pvp-toggle) button.
 
 **Tabs are icons**, all the same width (the open one stands taller, so no tab moves when another
 opens); each names itself on hover, and the open tab's name is the page title above its content.
@@ -263,7 +265,8 @@ the hub only — chat and nameplates keep the LuckPerms role prefixes), and a co
   and party chat, names show in their LuckPerms name color (`eden_ld.name_color`), clicking a
   name adds `@name` to your message, and Tab completes an `@` mention from the members.
 - **Friendly fire is off** between guildmates exactly as between partymates (damage,
-  projectiles, pets, Spell Engine/Better Combat) — and suspended the same way for duels.
+  projectiles, pets, Spell Engine/Better Combat) — and suspended the same way for duels. Guildmates whose
+  [PvP](#pvp-toggle) differs (one on, one off) ignore each other instead: no heals or buffs either.
 - **Guild tag**, opt-in per player (Settings → Show guild tag): the colored `[TAG]` above your
   head and before your name in [chat](#chat) (both drawn by Eden). The Placeholder API
   placeholders `%eden_ld:guild_tag%` / `%eden_ld:guild_name%` remain for other mods' formats.
@@ -632,11 +635,52 @@ With **Duels_LD** 1.4.0+ on the server, ranked duels in the hub — the **Duels*
   **Leave queue**; when your match starts, a bell and a notice in the screen corner (you may be
   looking elsewhere). Settings → Notifications → Duels turns both off.
 
+### PvP toggle
+
+Players choose whether they take part in PvP (docs/PLAN-pvp-toggle.md) — explorers who don't want it can still
+play and explore the world. **Everyone starts with PvP off** (new and existing players).
+
+- **Switching**: the button right of the hub button in the inventory (the Duels tab's crossed swords, lit while
+  on, dimmed while off, shaded while the cooldown runs; its tooltip says the state, the cooldown or combat time
+  left, and "PvP is off here" where the dimension overrides it), or `/pvp on` / `/pvp off`; `/pvp` alone shows the
+  state. After any switch the next one waits **1 minute**, both ways, across relogs and restarts; a
+  [combat-tagged](#pvp-combat-tag) player can't switch at all. Admins: `/eden pvp player <players> [on|off]` (no
+  cooldown, no combat check; the player is told). Clients older than 1.3.3 get no button and count as off unless
+  they use `/pvp`.
+- **Where it counts**: each dimension's PvP mode ([World rules](#world-rules)) — **off** (spawn: everyone counts
+  as off), **toggle** (the player's own switch; the default while `server.properties` has `pvp=true`) or **on**
+  (everyone counts as on). A player's state where they stand is their *effective* state.
+- **Who does what to whom** — between two players, their pets and summons counting as their owner. "Team" means
+  the same party or guild (unless friendly-fire protection is suspended, as for a duel), or the same scoreboard
+  team with friendly fire off (Arenas run teams, a Duels side):
+
+  | | Same team | Different or no team |
+  |---|---|---|
+  | Both on, or both off | **Friends**: heals and buffs land, no damage | both on: **enemies** (damage, no heals); both off: **ignore** |
+  | One on, one off | **Ignore** (party or guild) — a run team stays **friends** | **Ignore** |
+
+  **Ignore** means nothing lands either way: no damage, heals or buffs, no slows, pulls or knockback; area spells
+  and sweeps pass over them, they aren't spell targets or highlighted, arrows and spell projectiles fly through,
+  splash and lingering potions skip them — so a PvP-off guildmate can't heal or buff a PvP-on fighter risk-free.
+  Splash and lingering potions give friends only their beneficial effects and enemies only their harmful (and
+  neutral) ones. **Duels**: two players in the same running match follow the duel's teams (opponents are
+  enemies, partners friends) whatever their switches; a duelist and anyone outside the match ignore each other.
+  Run teams (dungeons, raids, arenas) stay friends whatever the switches.
+- **Hitting someone you ignore** (melee) says why in the action bar, at most every 2 seconds: "Bob has PvP off",
+  "Bob is in a duel", "Your PvP is off (/pvp on)", "You're in a duel" or "PvP is off here".
+- **Nameplates**: players whose effective state is on where they stand show the crossed swords after their name
+  above their head (after a guild tag and the party tint).
+- **Tutorials** can point at the button: spotlight id `eden_ld:inventory/pvp_button`.
+- **Under the hood**: the flag and the last switch time are per-player hub settings (`pvp`, `pvp_switched`); the
+  server tells each client its own state and the world's mode (`PvpState`) and everyone's switch and duel
+  (`PvpPlayers`), so Spell Engine and Better Combat target on the client as the server decides. Spell Engine's
+  relations have no "ignore", so Eden refuses ignored pairs at its action gate (`EntityRelations.actionAllowed`).
+
 ### PvP combat tag
 
 When one player's damage lands on another (melee, arrows, spells), **both** are combat-tagged
-for `combat.pvp_tag_seconds` (default 30). While tagged they can't use hub waystone teleports
-and — with `combat.pvp_tag_blocks_flight` (default on) — can't fly: elytra and wings are
+for `combat.pvp_tag_seconds` (default 30). While tagged they can't use hub waystone teleports, switch their
+[PvP](#pvp-toggle), and — with `combat.pvp_tag_blocks_flight` (default on) — can't fly: elytra and wings are
 grounded through the flight rules (a player already gliding gets Slow Falling). Hits between
 partymates never land, so they never tag anyone.
 
@@ -733,7 +777,7 @@ the sections you may use:
   doImmediateRespawn, doLimitedCrafting); **Gamerules** and **Modded** (the mods' rules), the defaults a dimension
   can set for itself — a rule some dimension does set says which, with their values ("Set differently in: Nether:
   Off").
-  A dimension: **General** (PvP, difficulty, flight), **Gamerules** (only those that can differ per
+  A dimension: **General** (PvP mode — server's, off, each player's choice, on —, difficulty, flight), **Gamerules** (only those that can differ per
   dimension; the Overworld's page also has the Overworld-only ones, which set the server-wide value),
   **Modded** and **Border**. A reset arrow takes a value back to GLOBAL's (on GLOBAL, to Minecraft's
   default); changes apply at once and are logged with who made them. A number is sent on Enter, on leaving
@@ -983,7 +1027,8 @@ logs off. Nothing is saved across restarts.
   integrated with **Spell Engine** / **Better Combat** team matchers, so spell AoE and sweep
   attacks skip partymates natively. Arrows and other projectiles fly through partymates, and
   **pets count as their owner**: partymates can't hurt each other's pets (tamed animals,
-  horses), pets can't hurt partymates, so pets never turn on the party. No PvP toggle.
+  horses), pets can't hurt partymates, so pets never turn on the party. Partymates whose
+  [PvP](#pvp-toggle) differs (one on, one off) ignore each other: no damage, and no heals or buffs either.
 - **Nameplates**: partymates' overhead names render in cyan (each player sees their own party
   tinted — parties you're not in look normal).
 - **Disconnect handling**: a disconnected member keeps their spot for a grace period (config,
@@ -1344,7 +1389,7 @@ Back up or move the folder as a whole, with the server stopped.
 Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section**:
 `minestar.json`, `liquid_mana.json`, `flight.json`, `hub.json`, `combat.json`, `dailies.json`,
 `guilds.json`, `activities.json`, `chat.json`, `chat_system_only.json`, `tab_list.json`, `profile.json`,
-`commands.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP, difficulty and border, see
+`commands.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP mode, difficulty and border, see
 [World rules](#world-rules)) and the `daily_quests/`, `guild_quests/` and `lang/` folders.
 Missing files and settings are created with their defaults on launch (new settings appear by
 themselves after an update); a file that can't be read keeps its defaults and says so in the log.
@@ -1554,7 +1599,9 @@ is the player's name.
 | `/shop-receive` | any player | Delivers pending Minestar shop purchases (registered only when Minestar is installed). |
 | `/emireload` | any player (client command, with EMI) | Reloads EMI from what the client already has — for an EMI stuck on "Reloading..." without an op's `/reload`. |
 | `/eden gamerule <dimension> <rule> <value>\|reset` | `eden_ld.admin.world` | Sets a dimension's own value of a gamerule, or (`reset`, or the server-wide value) makes it follow the server-wide one again — see [World rules](#world-rules). |
-| `/eden pvp <dimension> [on\|off\|reset]` | `eden_ld.admin.world` | Shows or sets PvP in a dimension (`reset` follows `server.properties`) — see [World rules](#world-rules). |
+| `/pvp [on\|off]` | any player | Shows or switches your own PvP (1 minute cooldown, not while combat-tagged) — see [PvP toggle](#pvp-toggle). |
+| `/eden pvp <dimension> [off\|toggle\|on\|reset]` | `eden_ld.admin.world` | Shows or sets a dimension's PvP mode (`reset` follows `server.properties`: `pvp=true` → toggle, `false` → off) — see [World rules](#world-rules). |
+| `/eden pvp player <players> [on\|off]` | `eden_ld.admin.world` | Shows or sets players' own PvP switch, skipping their cooldown and combat check. |
 | `/eden difficulty <dimension> [peaceful\|easy\|normal\|hard\|reset]` | `eden_ld.admin.world` | Shows or sets a dimension's difficulty (`reset` follows the server's). |
 | `/eden tutorial start <players>` | `eden_ld.admin.tutorial` | Puts players into the tutorial (again) — see [Tutorial](#tutorial). |
 | `/eden tutorial finish <players>` | `eden_ld.admin.tutorial`, console | Ends their tutorial: everything back, the finish spot. The guide's cleanup runs it last. |

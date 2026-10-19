@@ -10,17 +10,22 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Duels_LD behind {@link DuelsHook}: the tab's data from {@link DuelsApi}, and its queue buttons. */
 final class DuelsIntegration {
 
     private static final int HISTORY = 20;
     private static final int TOP = 20;
-    /** Players in a running match: added on match start, removed on match end (DuelsApi has no lookup). */
-    private static final Set<UUID> IN_MATCH = ConcurrentHashMap.newKeySet();
+    /**
+     * Players in a running match → that match's number (from 1): added on match start, removed on match end (DuelsApi
+     * has no lookup). Two players fight each other only within the same match (docs/PLAN-pvp-toggle.md).
+     */
+    private static final Map<UUID, Integer> IN_MATCH = new ConcurrentHashMap<>();
+    private static final AtomicInteger MATCHES = new AtomicInteger();
 
     private DuelsIntegration() {
     }
@@ -36,7 +41,8 @@ final class DuelsIntegration {
 
             @Override
             public void onMatchStart(DuelsApi.Mode mode, List<UUID> players) {
-                IN_MATCH.addAll(players);
+                int match = MATCHES.incrementAndGet();
+                players.forEach(player -> IN_MATCH.put(player, match));
                 onMatchStart.accept(mode.ordinal(), players);
                 onChange.run();
             }
@@ -51,7 +57,11 @@ final class DuelsIntegration {
     }
 
     static boolean inMatch(UUID player) {
-        return IN_MATCH.contains(player);
+        return IN_MATCH.containsKey(player);
+    }
+
+    static int match(UUID player) {
+        return IN_MATCH.getOrDefault(player, 0);
     }
 
     static HubPayloads.DuelsData data(ServerPlayer player) {
@@ -59,7 +69,7 @@ final class DuelsIntegration {
         UUID uuid = player.getUUID();
         DuelsApi.Stats stats = DuelsApi.stats(server, uuid).orElse(null);
         DuelsApi.QueueState queue = DuelsApi.queueState(uuid);
-        boolean inMatch = !queue.queued() && !queue.pending() && IN_MATCH.contains(uuid);
+        boolean inMatch = !queue.queued() && !queue.pending() && IN_MATCH.containsKey(uuid);
 
         int state = queue.pending() ? HubPayloads.DuelsData.PENDING
                 : queue.queued() ? HubPayloads.DuelsData.SEARCHING

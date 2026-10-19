@@ -83,9 +83,13 @@ public final class DuelsHub {
         });
     }
 
-    /** Something duel-related changed: every open tab is pushed at the end of this tick. */
+    /**
+     * Something duel-related changed: every open tab is pushed at the end of this tick, and who is dueling goes out
+     * with the PvP list (client-side targeting follows the duel's teams).
+     */
     private static void changed() {
         dirty = true;
+        net.ledok.eden_ld.combat.PlayerPvp.playersChanged();
     }
 
     private static void pushViewers(MinecraftServer server) {

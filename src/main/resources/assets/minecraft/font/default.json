@@ -1,6 +1,7 @@
 {
   "providers": [
     {"type": "bitmap", "file": "eden_ld:font/lc.png", "ascent": 7, "height": 8, "chars": ["󿼀"]},
-    {"type": "bitmap", "file": "eden_ld:font/hourglass.png", "ascent": 7, "height": 8, "chars": ["󿼁"]}
+    {"type": "bitmap", "file": "eden_ld:font/hourglass.png", "ascent": 7, "height": 8, "chars": ["󿼁"]},
+    {"type": "bitmap", "file": "eden_ld:gui/icons/tab_duels.png", "ascent": 7, "height": 8, "chars": ["󿼂"]}
   ]
 }

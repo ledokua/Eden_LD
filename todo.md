@@ -6,6 +6,17 @@ needs a README pass too.
 
 ## Now
 
+- [ ] **PvP toggle** (owner, 2026-10-19; `docs/PLAN-pvp-toggle.md`) — players choose PvP: `/pvp [on|off]`, the
+      inventory button right of the hub button (crossed swords, cooldown shade, tooltip), 1 min cooldown both ways
+      (survives relog), no switching while combat-tagged, admins `/eden pvp player <players> on|off`; world modes
+      off/toggle/on (`dimensions.json` `"pvp"`: false / "toggle" / true; `/eden pvp <dimension>`; World settings);
+      the relation matrix (friends / enemies / ignore) behind damage, projectiles, pets, splash and lingering
+      potions, Spell Engine (`actionAllowed` gate) and Better Combat; Duels by match; nameplate icon; action bar
+      "Bob has PvP off"; spotlight `eden_ld:inventory/pvp_button`. **Built 2026-10-19 (Eden 1.3.3)**, 184 tests
+      (23 new: matrix, cooldown/combat, mode parsing); not run in game, not committed, not deployed. Next: the
+      in-game checklist (`build/pvp-toggle-report.md`, the plan's Tests), then the NPCs_LD session's tutorial line
+      for the button. On deploy everyone starts **off** and live `dimensions.json` has only `spawn_dim` `"pvp":
+      false` (→ off), so every other dimension becomes **toggle** (`pvp=true`): no PvP anywhere until players opt in.
 - [ ] **Tutorial in Eden** (owner, 2026-10-11; `docs/PLAN-tutorial.md`) — first-join placement into `tutorial_dim`,
       phasing and private containers ported from the old tutorial mod, the busy state locking teleports, party and
       guild, getting items and spending coins; website purchases as Mail entries. Built 2026-10-11 (Eden 1.1.2) and checked in

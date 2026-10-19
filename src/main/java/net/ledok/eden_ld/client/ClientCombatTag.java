@@ -19,6 +19,11 @@ public final class ClientCombatTag {
         taggedUntil = 0;
     }
 
+    /** Milliseconds left on the local player's tag, 0 when not tagged. */
+    public static long millisLeft() {
+        return Math.max(0, taggedUntil - System.currentTimeMillis());
+    }
+
     /** Only the local player's tag is known here; other players always pass. */
     public static boolean isTagged(Player player) {
         Minecraft mc = Minecraft.getInstance();

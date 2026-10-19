@@ -22,13 +22,16 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * The hub's button in the player's inventory, under the crafting grid — where the recipe book button
  * would be; Not Enough Recipe Book removes that on Fallen Eden, and where it's kept the hub button sits
- * beside it. It opens the hub ({@link HubScreen#open}), and closing the hub comes back to the inventory.
+ * beside it. It opens the hub ({@link HubScreen#open}), and closing the hub comes back to the inventory. The PvP
+ * button ({@link InventoryPvpButton}) sits right of it where the server runs the toggle.
  */
 public final class InventoryHubButton extends AbstractButton {
 
     private static final ResourceLocation ICON = ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID,
             "textures/gui/icons/tab_home.png");
-    private static final int SIZE = 18;
+    static final int SIZE = 18;
+    /** Between this button and the PvP button. */
+    private static final int GAP = 2;
     /** Under the crafting grid's left column (in the inventory's own units). */
     private static final int X = 97;
     private static final int Y = 58;
@@ -54,7 +57,12 @@ public final class InventoryHubButton extends AbstractButton {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             // Only where the server runs Eden (elsewhere the hub would wait for data forever).
             if (screen instanceof InventoryScreen inventory && ClientPlayNetworking.canSend(HubPayloads.ProfileRequest.TYPE)) {
-                Screens.getButtons(screen).add(new InventoryHubButton(inventory, recipeBook(inventory)));
+                InventoryHubButton hub = new InventoryHubButton(inventory, recipeBook(inventory));
+                Screens.getButtons(screen).add(hub);
+                // An older Eden server has no toggle: no button (its players count as PvP off).
+                if (ClientPlayNetworking.canSend(HubPayloads.PvpToggle.TYPE)) {
+                    Screens.getButtons(screen).add(new InventoryPvpButton(inventory, hub.offsetX + SIZE + GAP, hub.offsetY));
+                }
             }
         });
         // Tutorials can point at the button like at any Hub part.

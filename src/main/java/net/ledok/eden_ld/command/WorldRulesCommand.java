@@ -4,29 +4,35 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.ledok.eden_ld.combat.PlayerPvp;
+import net.ledok.eden_ld.combat.PvpMode;
 import net.ledok.eden_ld.world.DimensionGameRules;
 import net.ledok.eden_ld.world.RuleScope;
 import net.ledok.eden_ld.world.WorldRules;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.DimensionArgument;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
 /**
  * A dimension's own settings (docs/PLAN-world-rules.md): {@code /eden gamerule <dimension> [<rule> [<value> |
  * reset]]} — only the rules that can differ per dimension are offered, {@code /gamerule} stays server-wide,
- * and without a rule it lists what the dimension changes — plus {@code /eden pvp <dimension> [on | off | reset]}
- * and {@code /eden difficulty <dimension> [peaceful | easy | normal | hard | reset]}. Without a value each
- * shows the setting and where it comes from.
+ * and without a rule it lists what the dimension changes — plus {@code /eden pvp <dimension> [off | toggle | on |
+ * reset]} (docs/PLAN-pvp-toggle.md) and {@code /eden difficulty <dimension> [peaceful | easy | normal | hard | reset]}.
+ * Without a value each shows the setting and where it comes from. {@code /eden pvp player <players> [on | off]} shows
+ * or sets players' own PvP switch, skipping their cooldown and combat check.
  */
 final class WorldRulesCommand {
 
@@ -46,12 +52,21 @@ final class WorldRulesCommand {
     }
 
     static LiteralArgumentBuilder<CommandSourceStack> pvp() {
+        RequiredArgumentBuilder<CommandSourceStack, ResourceLocation> dimension = Commands.argument("dimension",
+                        DimensionArgument.dimension())
+                .executes(context -> queryPvp(context.getSource(), level(context)))
+                .then(Commands.literal("reset").executes(context -> setPvp(context, null)));
+        for (PvpMode mode : PvpMode.values()) {
+            dimension.then(Commands.literal(mode.key).executes(context -> setPvp(context, mode)));
+        }
+        // "player" wins over a dimension of that name: Brigadier takes a literal that matches before an argument.
         return Commands.literal("pvp").requires(EdenPermissions.require(EdenPermissions.WORLD))
-                .then(Commands.argument("dimension", DimensionArgument.dimension())
-                        .executes(context -> queryPvp(context.getSource(), level(context)))
-                        .then(Commands.literal("on").executes(context -> setPvp(context, true)))
-                        .then(Commands.literal("off").executes(context -> setPvp(context, false)))
-                        .then(Commands.literal("reset").executes(context -> setPvp(context, null))));
+                .then(Commands.literal("player")
+                        .then(Commands.argument("players", EntityArgument.players())
+                                .executes(WorldRulesCommand::queryPlayerPvp)
+                                .then(Commands.literal("on").executes(context -> setPlayerPvp(context, true)))
+                                .then(Commands.literal("off").executes(context -> setPlayerPvp(context, false)))))
+                .then(dimension);
     }
 
     static LiteralArgumentBuilder<CommandSourceStack> difficulty() {
@@ -144,31 +159,65 @@ final class WorldRulesCommand {
     }
 
     private static int queryPvp(CommandSourceStack source, ServerLevel level) {
-        Boolean own = WorldRules.ownPvp(level);
-        Component server = onOff(source.getServer().isPvpAllowed());
+        PvpMode own = WorldRules.ownPvp(level);
+        Component server = mode(PvpMode.serverDefault(source.getServer().isPvpAllowed()));
         if (own != null) {
-            source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_own", name(level), onOff(own), server), false);
+            source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_own", name(level), mode(own), server), false);
         } else {
             source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_server", name(level), server), false);
         }
-        return (own != null ? own : source.getServer().isPvpAllowed()) ? 1 : 0;
+        return WorldRules.pvpMode(level).ordinal();
     }
 
-    private static int setPvp(CommandContext<CommandSourceStack> context, @Nullable Boolean pvp) throws CommandSyntaxException {
+    private static int setPvp(CommandContext<CommandSourceStack> context, @Nullable PvpMode mode) throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
         ServerLevel level = level(context);
         if (!WorldRules.writable()) {
             source.sendFailure(Component.translatable("message.eden_ld.world.file_broken"));
             return 0;
         }
-        boolean own = WorldRules.setPvp(level, pvp, source.getTextName());
-        Component server = onOff(source.getServer().isPvpAllowed());
+        boolean own = WorldRules.setPvp(level, mode, source.getTextName());
+        Component server = mode(PvpMode.serverDefault(source.getServer().isPvpAllowed()));
         if (own) {
-            source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_set", name(level), onOff(pvp), server), true);
+            source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_set", name(level), mode(mode), server), true);
         } else {
             source.sendSuccess(() -> Component.translatable("message.eden_ld.world.pvp_follows", name(level), server), true);
         }
         return 1;
+    }
+
+    /** A PvP mode's name: "off", "each player's choice", "on". */
+    private static Component mode(PvpMode mode) {
+        return Component.translatable("message.eden_ld.world.pvp_mode." + mode.key);
+    }
+
+    private static int queryPlayerPvp(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+        Collection<ServerPlayer> players = EntityArgument.getPlayers(context, "players");
+        int on = 0;
+        for (ServerPlayer player : players) {
+            boolean flag = PlayerPvp.flag(source.getServer(), player.getUUID());
+            on += flag ? 1 : 0;
+            long cooldown = PlayerPvp.cooldownLeft(source.getServer(), player.getUUID());
+            source.sendSuccess(() -> Component.translatable(cooldown > 0 ? "message.eden_ld.pvp.admin_status_cooldown"
+                            : "message.eden_ld.pvp.admin_status", player.getGameProfile().getName(), onOff(flag),
+                    mode(WorldRules.pvpMode(player.serverLevel())), cooldown), false);
+        }
+        return on;
+    }
+
+    private static int setPlayerPvp(CommandContext<CommandSourceStack> context, boolean on) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+        Collection<ServerPlayer> players = EntityArgument.getPlayers(context, "players");
+        int changed = 0;
+        for (ServerPlayer player : players) {
+            if (PlayerPvp.adminSet(source.getServer(), player.getUUID(), on, source.getTextName())) {
+                changed++;
+            }
+        }
+        int count = changed;
+        source.sendSuccess(() -> Component.translatable("message.eden_ld.pvp.admin_set", onOff(on), count, players.size()), true);
+        return changed;
     }
 
     private static int queryDifficulty(CommandSourceStack source, ServerLevel level) {

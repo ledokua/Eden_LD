@@ -127,6 +127,9 @@ public class EdenCommands {
                             }
                         }))));
 
+        // Each player's own PvP switch (docs/PLAN-pvp-toggle.md).
+        PvpCommand.register(dispatcher);
+
         dispatcher.register(Commands.literal("p")
                 .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(context -> {

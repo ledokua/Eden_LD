@@ -5,12 +5,14 @@ import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Partymates can't harm each other in vanilla's own team sense too: tamed wolves (and
- * other pets built on {@code TamableAnimal#wantsToAttack}) consult {@code canHarmPlayer}
- * before picking a player target, so pets never turn on their owner's partymates.
+ * Friends and players who ignore each other (docs/PLAN-pvp-toggle.md: partymates, guildmates, run teams, anyone with
+ * PvP off) can't harm each other in vanilla's own team sense too: tamed wolves (and other pets built on
+ * {@code TamableAnimal#wantsToAttack}) consult {@code canHarmPlayer} before picking a player target, so pets never turn
+ * on them. A player hitting someone they ignore hears why in the action bar.
  */
 @Mixin(Player.class)
 public abstract class PlayerMixin {
@@ -23,6 +25,17 @@ public abstract class PlayerMixin {
     private void eden_ld$styledName(CallbackInfoReturnable<net.minecraft.network.chat.Component> cir) {
         if ((Object) this instanceof net.minecraft.server.level.ServerPlayer player) {
             cir.setReturnValue(net.ledok.eden_ld.chat.ChatStyle.displayName(player, cir.getReturnValue()));
+        }
+    }
+
+    /**
+     * A melee attack (vanilla's, and Better Combat's, which attacks through here too) on someone the player ignores:
+     * "Bob has PvP off" in the action bar, at most every 2 seconds. The damage checks refuse the hit itself.
+     */
+    @Inject(method = "attack", at = @At("HEAD"))
+    private void eden_ld$ignoredHit(net.minecraft.world.entity.Entity target, CallbackInfo ci) {
+        if ((Object) this instanceof net.minecraft.server.level.ServerPlayer player) {
+            net.ledok.eden_ld.combat.PlayerPvp.attacking(player, target);
         }
     }
 

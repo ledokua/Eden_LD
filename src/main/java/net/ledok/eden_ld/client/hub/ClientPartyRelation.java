@@ -1,22 +1,22 @@
 package net.ledok.eden_ld.client.hub;
 
-import net.ledok.eden_ld.compat.CombatTeamsCompat;
 import net.ledok.eden_ld.hub.HubPayloads;
-import org.jetbrains.annotations.Nullable;
 
 /**
- * Client-side party relation from the synced {@link HubState#partyData} — the
- * local player's own party only. Used by combat-mod team matchers for target
- * selection and highlights; the server remains authoritative for damage.
+ * Client-side party and guild relation from the synced {@link HubState#partyData} and {@link HubState#guildData} —
+ * the local player's own party and guild only. Used by {@link ClientPvp} for the combat mods' team matchers (target
+ * selection and highlights); the server remains authoritative for damage.
  */
 public final class ClientPartyRelation {
 
     private ClientPartyRelation() {
     }
 
-    /** Partymates or guildmates (from the synced tab data), unless either is suspended. */
-    @Nullable
-    public static CombatTeamsCompat.Relation resolve(java.util.UUID a, java.util.UUID b) {
+    /**
+     * Partymates or guildmates (from the synced tab data), unless either has friendly-fire protection suspended
+     * (dueling): the client's side of {@code PartyManager.protects}.
+     */
+    public static boolean protects(java.util.UUID a, java.util.UUID b) {
         boolean inParty = false;
         HubPayloads.PartyData party = HubState.partyData;
         if (party != null && party.inParty()) {
@@ -26,7 +26,7 @@ public final class ClientPartyRelation {
                 boolean involved = member.uuid().equals(a) || member.uuid().equals(b);
                 if (involved && member.ffSuspended()) {
                     // Suspended (e.g. dueling): not a teammate for targeting purposes.
-                    return null;
+                    return false;
                 }
                 hasA |= member.uuid().equals(a);
                 hasB |= member.uuid().equals(b);
@@ -41,13 +41,13 @@ public final class ClientPartyRelation {
             for (HubPayloads.GuildMember member : guild.members()) {
                 boolean involved = member.uuid().equals(a) || member.uuid().equals(b);
                 if (involved && member.ffSuspended()) {
-                    return null;
+                    return false;
                 }
                 hasA |= member.uuid().equals(a);
                 hasB |= member.uuid().equals(b);
             }
             inGuild = hasA && hasB;
         }
-        return inParty || inGuild ? new CombatTeamsCompat.Relation(true, false) : null;
+        return inParty || inGuild;
     }
 }

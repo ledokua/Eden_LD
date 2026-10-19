@@ -87,7 +87,8 @@ Redesigned with the owner 2026-09-28 (replaces the 09-27 persistent design):
   **leader / vice-leader / member**; display name free-form and non-unique (rename by
   leader/vice); unique auto tag `<creator>_party` for admin commands. Max size (config).
 - **No allies, no PvP toggle** — friendly fire between partymates is always off (server
-  damage hook + Spell Engine / Better Combat team matchers).
+  damage hook + Spell Engine / Better Combat team matchers). *(Later: Eden 1.3.3 added a per-player PvP toggle,
+  docs/PLAN-pvp-toggle.md; partymates whose PvP differs ignore each other.)*
 - **Join modes** (settings): invite-only (default) / friends join freely (Minestar friends
   of a member) / open to everyone. Joins are instant; the join-request queue was removed.
   The no-party tab lists parties the player can join.

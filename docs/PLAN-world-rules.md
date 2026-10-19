@@ -77,7 +77,9 @@ can follow them (the page shows the server's value) or set its own.
   tridents, potions); Eden asks the dimension of the player being hurt — one hook covers every
   kind of player damage. Party friendly fire stays as it is. **Duels** rely on PvP being on, so a
   running Duels match keeps dealing damage in a dimension with PvP off (Eden follows match start
-  and end through `DuelsApi`).
+  and end through `DuelsApi`). *(Eden 1.3.3: on/off became the modes **off / toggle / on** of the per-player
+  PvP toggle, docs/PLAN-pvp-toggle.md; a dimension without its own follows `pvp=true` as toggle, `false` as off;
+  `dimensions.json` keeps `true`/`false` and adds `"toggle"`.)*
 - **Difficulty**: everything Minecraft reads from the dimension follows it — mob damage, hunger,
   local difficulty, zombies breaking doors… A **Peaceful** dimension spawns no monsters and its
   monsters despawn, as vanilla Peaceful does. Players are told their dimension's difficulty on

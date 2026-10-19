@@ -99,6 +99,14 @@ public final class HubSettings {
     public static final String HUB_LANGUAGE = "hub_language";
     public static final java.util.List<String> HUB_LANGUAGES = java.util.List.of("", "en_us", "uk_ua");
     /** The profile background the player picked. */
+    /**
+     * The player's own PvP flag (docs/PLAN-pvp-toggle.md): 1 = on; absent or 0 = off, everyone's default. Only
+     * {@code combat.PlayerPvp} writes it ({@link #setPvp}) — never the Settings tab's {@link #set}, which would skip the
+     * cooldown and the combat check.
+     */
+    public static final String PVP = "pvp";
+    /** When the player last switched their PvP themselves (epoch seconds; 0 = never): the switch cooldown. */
+    public static final String PVP_SWITCHED = "pvp_switched";
     public static final String PROFILE_BACKGROUND = "profile_background";
     /** No background: the profile, Home card and Friends card keep the hub theme's look. */
     public static final String DEFAULT_BACKGROUND = "";
@@ -363,6 +371,15 @@ public final class HubSettings {
 
     public static void setChatChannel(MinecraftServer server, UUID player, int channel) {
         settings(server, player).putInt(CHAT_CHANNEL, channel);
+    }
+
+    /** Writes the player's PvP flag, and the switch time when {@code switchedAt} isn't negative (an admin's change keeps it). */
+    public static void setPvp(MinecraftServer server, UUID player, boolean on, long switchedAt) {
+        CompoundTag settings = settings(server, player);
+        settings.putInt(PVP, on ? 1 : 0);
+        if (switchedAt >= 0) {
+            settings.putInt(PVP_SWITCHED, (int) switchedAt);
+        }
     }
 
     private static CompoundTag settings(MinecraftServer server, UUID player) {

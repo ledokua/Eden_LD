@@ -2922,6 +2922,80 @@ public final class HubPayloads {
         }
     }
 
+    // ---------------------------------------------------------------- PvP toggle (1.3.3+, docs/PLAN-pvp-toggle.md)
+
+    /**
+     * C2S (1.3.3+): the inventory PvP button — the state the player wants. The server checks the cooldown and the combat
+     * tag, answers with {@link PvpState} and an action bar line. A client that can't send it (older server) shows no
+     * button.
+     */
+    public record PvpToggle(boolean on) implements CustomPacketPayload {
+        public static final Type<PvpToggle> TYPE = new Type<>(id("pvp_toggle"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PvpToggle> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeBoolean(p.on), buf -> new PvpToggle(buf.readBoolean()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * S2C (1.3.3+): the player's own PvP — their flag, the mode where they are ({@code PvpMode} ordinal), and the
+     * milliseconds left on the switch cooldown and on the combat tag. Sent on join, on every change, on a dimension
+     * change and when the dimension's mode changes; only to clients that know it (an older client can't toggle and
+     * counts as off).
+     */
+    public record PvpState(boolean on, int mode, long cooldownMillis, long combatMillis) implements CustomPacketPayload {
+        public static final Type<PvpState> TYPE = new Type<>(id("pvp_state"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PvpState> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeBoolean(p.on);
+                    buf.writeVarInt(p.mode);
+                    buf.writeVarLong(p.cooldownMillis);
+                    buf.writeVarLong(p.combatMillis);
+                },
+                buf -> new PvpState(buf.readBoolean(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * One online player in {@link PvpPlayers}: their own PvP flag, and the running Duels match they're in (a number two
+     * players share only in the same match; 0 = none).
+     */
+    public record PvpPlayer(java.util.UUID uuid, boolean on, int match) {
+        static void write(RegistryFriendlyByteBuf buf, PvpPlayer p) {
+            buf.writeUUID(p.uuid);
+            buf.writeBoolean(p.on);
+            buf.writeVarInt(p.match);
+        }
+
+        static PvpPlayer read(RegistryFriendlyByteBuf buf) {
+            return new PvpPlayer(buf.readUUID(), buf.readBoolean(), buf.readVarInt());
+        }
+    }
+
+    /**
+     * S2C (1.3.3+): the online players with PvP on or in a running duel (full replace; everyone else counts as off and
+     * not dueling). Sent to everyone on a switch, a join or leave, and a duel's start and end, so client-side targeting
+     * (Spell Engine, Better Combat) and the nameplate icon agree with the server.
+     */
+    public record PvpPlayers(List<PvpPlayer> players) implements CustomPacketPayload {
+        public static final Type<PvpPlayers> TYPE = new Type<>(id("pvp_players"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PvpPlayers> CODEC = StreamCodec.of(
+                (buf, p) -> writeList(buf, p.players, PvpPlayer::write),
+                buf -> new PvpPlayers(readList(buf, PvpPlayer::read)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     private static <T> void writeList(RegistryFriendlyByteBuf buf, List<T> list,
                                       java.util.function.BiConsumer<RegistryFriendlyByteBuf, T> writer) {
         buf.writeVarInt(list.size());
@@ -3182,5 +3256,8 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(EmojiGuests.TYPE, EmojiGuests.CODEC);
         PayloadTypeRegistry.playC2S().register(EmojiFavorite.TYPE, EmojiFavorite.CODEC);
         PayloadTypeRegistry.playS2C().register(TabOrder.TYPE, TabOrder.CODEC);
+        PayloadTypeRegistry.playC2S().register(PvpToggle.TYPE, PvpToggle.CODEC);
+        PayloadTypeRegistry.playS2C().register(PvpState.TYPE, PvpState.CODEC);
+        PayloadTypeRegistry.playS2C().register(PvpPlayers.TYPE, PvpPlayers.CODEC);
     }
 }

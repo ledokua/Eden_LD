@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.world;
 
 import net.ledok.eden_ld.EdenLD;
+import net.ledok.eden_ld.combat.PvpMode;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -67,9 +68,13 @@ public final class WorldAdmin {
                 }
             }
             dimension.put("rules", own);
-            Boolean pvp = WorldRules.ownPvp(level);
+            PvpMode pvp = WorldRules.ownPvp(level);
             if (pvp != null) {
-                dimension.putBoolean("pvp", pvp);
+                // "pvp_mode" for 1.3.3+ windows; the old switch too, for an older one (toggle reads as the server's).
+                dimension.putString("pvp_mode", pvp.key);
+                if (pvp != PvpMode.TOGGLE) {
+                    dimension.putBoolean("pvp", pvp == PvpMode.ON);
+                }
             }
             Difficulty difficulty = WorldRules.ownDifficulty(level);
             if (difficulty != null) {
@@ -133,9 +138,10 @@ public final class WorldAdmin {
                 }
             }
             case "pvp" -> {
-                if (level != null) {
-                    String value = args.getString("value");
-                    WorldRules.setPvp(level, value.equals("server") ? null : value.equals("on"), who);
+                // "server", or a mode ("on", "off", "toggle").
+                PvpMode mode = PvpMode.parse(args.getString("value"));
+                if (level != null && (mode != null || args.getString("value").equals("server"))) {
+                    WorldRules.setPvp(level, mode, who);
                 }
             }
             case "difficulty" -> {

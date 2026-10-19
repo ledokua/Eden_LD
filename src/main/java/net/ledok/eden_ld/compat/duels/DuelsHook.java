@@ -37,6 +37,14 @@ public final class DuelsHook {
         return LOADED && DuelsIntegration.inMatch(player);
     }
 
+    /**
+     * The running Duels match the player is in, as a number that two players share only in the same match; 0 when
+     * none (or without the mod).
+     */
+    public static int match(java.util.UUID player) {
+        return LOADED ? DuelsIntegration.match(player) : 0;
+    }
+
     /** The Duels tab for the player; null without the mod. */
     @Nullable
     public static HubPayloads.DuelsData data(ServerPlayer player) {

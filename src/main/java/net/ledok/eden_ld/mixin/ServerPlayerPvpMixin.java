@@ -9,7 +9,9 @@ import org.spongepowered.asm.mixin.injection.At;
 /**
  * PvP per dimension: vanilla asks the server's {@code pvp} switch whenever a player is hurt by another
  * (melee, arrows, tridents, potions, explosions they caused) — through this one method, on the player
- * being hurt — so a dimension with its own PvP setting answers here (see {@link WorldRules#pvp}).
+ * being hurt — so a dimension's PvP mode answers here: off only where the mode is off (see {@link WorldRules#pvp}).
+ * Each player's own switch, parties, guilds, run teams and duels are decided next, by {@code canHarmPlayer}
+ * ({@code PlayerMixin}).
  */
 @Mixin(ServerPlayer.class)
 public abstract class ServerPlayerPvpMixin {

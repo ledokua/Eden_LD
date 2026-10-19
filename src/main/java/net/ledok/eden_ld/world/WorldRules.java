@@ -13,13 +13,14 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
+import net.ledok.eden_ld.combat.PlayerPvp;
+import net.ledok.eden_ld.combat.PvpMode;
 import net.ledok.eden_ld.compat.duels.DuelsHook;
 import net.minecraft.network.protocol.game.ClientboundChangeDifficultyPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.GameRules;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,13 +30,12 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Per-dimension world settings, kept in {@code config/eden_ld/dimensions.json}: each dimension's own
- * gamerules, PvP and difficulty (docs/PLAN-world-rules.md), and its border ({@link WorldBorders}). A dimension stores only what it changes;
- * everything else follows the server's — the gamerules in the world save as {@code /gamerule} sets them,
- * PvP and difficulty in {@code server.properties}. The file is read at start and on {@code /reload}, and
+ * gamerules, PvP mode (docs/PLAN-pvp-toggle.md) and difficulty (docs/PLAN-world-rules.md), and its border
+ * ({@link WorldBorders}). A dimension stores only what it changes; everything else follows the server's — the
+ * gamerules in the world save as {@code /gamerule} sets them, PvP and difficulty in {@code server.properties}. The file is read at start and on {@code /reload}, and
  * written on every change; what Eden doesn't know (a removed mod's rule or dimension) is kept in it as it is.
  */
 public final class WorldRules {
@@ -93,10 +93,19 @@ public final class WorldRules {
         return holder(level).eden_ld$gameRules();
     }
 
-    /** A dimension's own PvP setting, or null when it follows the server's. */
+    /** A dimension's own PvP mode, or null when it follows the server's ({@link #pvpMode}). */
     @Nullable
-    public static Boolean ownPvp(ServerLevel level) {
+    public static PvpMode ownPvp(ServerLevel level) {
         return holder(level).eden_ld$pvp();
+    }
+
+    /**
+     * A dimension's PvP mode (docs/PLAN-pvp-toggle.md): its own, else the server's default — each player's choice
+     * while {@code server.properties} has {@code pvp=true}, else off ({@link PvpMode#serverDefault}).
+     */
+    public static PvpMode pvpMode(ServerLevel level) {
+        PvpMode own = holder(level).eden_ld$pvp();
+        return own != null ? own : PvpMode.serverDefault(level.getServer().isPvpAllowed());
     }
 
     /** A dimension's own difficulty, or null when it follows the server's. */
@@ -106,33 +115,15 @@ public final class WorldRules {
     }
 
     /**
-     * Whether players may hurt {@code player} where they are: their dimension's own PvP setting, else the
-     * server's ({@code server}). Where PvP is off, a running Duels match still fights (Duels relies on PvP
-     * being on and keeps outsiders out itself).
+     * Vanilla's PvP switch for {@code player} where they are ({@code server}: {@code server.properties}): off only in a
+     * dimension whose mode is {@link PvpMode#OFF}, unless they're in a running Duels match (Duels relies on PvP being on
+     * and keeps outsiders out itself). Who may hurt whom beyond that — each player's own choice, parties, guilds, run
+     * teams and duels — is {@code CombatTeamsCompat}'s relation, which vanilla's check asks next.
      */
     public static boolean pvp(ServerPlayer player, boolean server) {
-        Boolean own = holder(player.serverLevel()).eden_ld$pvp();
-        if (own == null) {
-            return server;
-        }
-        return own || DuelsHook.inMatch(player.getUUID());
-    }
-
-    /**
-     * Whether two players' sides ({@code attacker} and {@code target}: players, or their pets' owners) may
-     * fight where {@code target} is: its dimension's own PvP setting, else the server's; both in a running
-     * Duels match always may (Duels keeps other players out itself). Mods that pick targets themselves — Spell Engine, Better Combat, any
-     * projectile — ask this through {@code CombatTeamsCompat}, since they don't ask vanilla's PvP switch.
-     */
-    public static boolean pvpAt(Entity target, UUID attacker, UUID victim) {
-        if (!(target.level() instanceof ServerLevel level)) {
-            return true;
-        }
-        Boolean own = ownPvp(level);
-        if (own != null ? own : level.getServer().isPvpAllowed()) {
-            return true;
-        }
-        return DuelsHook.inMatch(attacker) && DuelsHook.inMatch(victim);
+        PvpMode own = holder(player.serverLevel()).eden_ld$pvp();
+        PvpMode mode = own != null ? own : PvpMode.serverDefault(server);
+        return mode != PvpMode.OFF || DuelsHook.inMatch(player.getUUID());
     }
 
     // ---------------------------------------------------------------- changes
@@ -186,12 +177,14 @@ public final class WorldRules {
     }
 
     /**
-     * Sets PvP in {@code level}: on or off, or null — or the server's own setting — to follow the server.
-     * True when the dimension now has its own setting. Callers check {@link #writable()} first.
+     * Sets the PvP mode of {@code level}, or null — or the server's default ({@link PvpMode#serverDefault}) — to follow
+     * the server. True when the dimension now has its own mode. Saved as {@code true} (on) and {@code false} (off), as
+     * before the toggle, and {@code "toggle"}. Callers check {@link #writable()} first.
      */
-    public static boolean setPvp(ServerLevel level, @Nullable Boolean pvp, String who) {
-        boolean own = pvp != null && pvp != level.getServer().isPvpAllowed();
-        return setting(level, "pvp", own ? new JsonPrimitive(pvp) : null, who);
+    public static boolean setPvp(ServerLevel level, @Nullable PvpMode mode, String who) {
+        boolean own = mode != null && mode != PvpMode.serverDefault(level.getServer().isPvpAllowed());
+        return setting(level, "pvp", !own ? null : mode == PvpMode.TOGGLE ? new JsonPrimitive(mode.key)
+                : new JsonPrimitive(mode == PvpMode.ON), who);
     }
 
     /**
@@ -295,17 +288,21 @@ public final class WorldRules {
         JsonObject settings = settings(id(level), false);
         applyGamerules(level, holder, report);
 
-        Boolean pvp = null;
+        PvpMode pvp = null;
         JsonElement savedPvp = settings == null ? null : settings.get("pvp");
         if (savedPvp != null) {
-            String text = savedPvp.isJsonPrimitive() ? savedPvp.getAsString().trim() : "";
-            if (text.equals("true") || text.equals("false")) {
-                pvp = Boolean.parseBoolean(text);
-            } else if (report) {
-                EdenLD.LOGGER.warn("[World] dimensions.json: pvp in {} must be true or false, not {}.", id(level), savedPvp);
+            pvp = savedPvp.isJsonPrimitive() ? PvpMode.parse(savedPvp.getAsString()) : null;
+            if (pvp == null && report) {
+                EdenLD.LOGGER.warn("[World] dimensions.json: pvp in {} must be true (on), false (off) or \"toggle\", not {}.",
+                        id(level), savedPvp);
             }
         }
+        PvpMode before = pvpMode(level);
         holder.eden_ld$setPvp(pvp);
+        if (pvpMode(level) != before) {
+            // Players there see the new mode at once (the inventory button, nameplates, their combat mods' targeting).
+            PlayerPvp.modeChanged(level);
+        }
 
         Difficulty difficulty = null;
         JsonElement savedDifficulty = settings == null ? null : settings.get("difficulty");

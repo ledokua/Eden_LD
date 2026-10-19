@@ -62,6 +62,7 @@ public class EdenLD implements ModInitializer {
                         container, net.minecraft.network.chat.Component.literal("Eden test guild quests"),
                         net.fabricmc.fabric.api.resource.ResourcePackActivationType.NORMAL));
         net.ledok.eden_ld.combat.CombatTag.initialize();
+        net.ledok.eden_ld.combat.PlayerPvp.initialize();
         CombatTeamsCompat.initialize();
         net.ledok.eden_ld.compat.PlaceholdersCompat.initialize();
         net.ledok.eden_ld.compat.opac.OpacCompat.initialize();

@@ -191,7 +191,7 @@ them without OP, set to `false` an OP loses them. Changes apply live.
 | `eden_ld.admin.mail.log` | everyone's mail in the log, and recalling any of it |
 | `eden_ld.admin.news` | the Moderation window's News section (publishing the Home tab's news) |
 | `eden_ld.admin.punish.log` | the Moderation window's Punishments log (everyone's BanHammer punishments) |
-| `eden_ld.admin.world` | Moderation → World settings, `/eden gamerule`, `/eden pvp`, `/eden difficulty` (a dimension's own gamerules, PvP, difficulty and border; the server-wide gamerules) |
+| `eden_ld.admin.world` | Moderation → World settings, `/eden gamerule`, `/eden pvp`, `/eden difficulty` (a dimension's own gamerules, PvP mode, difficulty and border; the server-wide gamerules), `/eden pvp player` (players' own PvP switch, no cooldown) |
 | `eden_ld.admin.tutorial` | `/eden tutorial start\|finish\|status` (the guide runs `finish` from the console) |
 | `eden_ld.admin.*` | all of the above |
 

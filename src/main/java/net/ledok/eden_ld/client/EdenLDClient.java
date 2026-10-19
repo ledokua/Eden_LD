@@ -81,6 +81,7 @@ public class EdenLDClient implements ClientModInitializer {
                 "key.eden_ld.hub", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F4, "category.eden_ld.main"));
 
         net.ledok.eden_ld.client.hub.InventoryHubButton.register();
+        net.ledok.eden_ld.client.hub.InventoryPvpButton.register();
         // Named Hub parts for tutorial spotlights (NPCs_LD dialog lines point at them).
         net.ledok.eden_ld.client.hub.HubSpotlights.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -96,6 +97,7 @@ public class EdenLDClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             HubState.resetOnJoin();
             ClientCombatTag.reset();
+            net.ledok.eden_ld.client.hub.ClientPvp.reset();
             net.ledok.eden_ld.client.hub.PlayerNames.reset();
             net.ledok.eden_ld.client.chat.ClientChatChannel.reset();
             // Only the new look keeps system-only lines apart (the System tab), so only it caps them.
@@ -109,6 +111,11 @@ public class EdenLDClient implements ClientModInitializer {
         });
         ClientPlayNetworking.registerGlobalReceiver(net.ledok.eden_ld.combat.CombatTag.Sync.TYPE,
                 (payload, context) -> ClientCombatTag.onSync(payload.millis()));
+        // The PvP toggle: the player's own state, and who else has PvP on or is dueling (targeting, nameplates).
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.PvpState.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.hub.ClientPvp.onState(payload));
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.PvpPlayers.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.hub.ClientPvp.onPlayers(payload));
 
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.OpenHub.TYPE,
                 (payload, context) -> HubScreen.open(payload.tab()));

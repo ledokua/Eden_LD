@@ -2,8 +2,10 @@ package net.ledok.eden_ld.compat;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
-import net.ledok.eden_ld.hub.party.PartyManager;
+import net.ledok.eden_ld.combat.PvpRelation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.player.Player;
@@ -12,24 +14,49 @@ import org.jetbrains.annotations.Nullable;
 import java.util.UUID;
 
 /**
- * Party-aware friendly fire for Spell Engine (AoE targeting) and Better Combat
- * (sweep targeting) via their {@code registerTeamMatcher} hooks. Both consult
- * matchers on the client (target selection/highlights) and the server (hits):
- * server side we answer from {@link PartyManager}; client side from the synced
- * party data. Friendly fire between partymates is always off.
+ * Who may hurt (or help) whom between players, their pets and their summons — party and guild friendly fire, run teams,
+ * duels and each player's own PvP switch (docs/PLAN-pvp-toggle.md) — in one place, {@link #resolve}, which everything
+ * asks: damage ({@code HubServer}), vanilla's player check and pets' targeting ({@code PlayerMixin}), projectiles
+ * ({@code ProjectileMixin}), splash and lingering potions ({@code ThrownPotionPvpMixin},
+ * {@code AreaEffectCloudPvpMixin}), Spell Engine's action gate ({@code SpellRelationMixin}) and the
+ * {@code registerTeamMatcher} hooks of Spell Engine (spell targeting) and Better Combat (sweeps). Both mods consult
+ * their matchers on the client (target selection, highlights) and the server (hits): server side the answer comes from
+ * {@link net.ledok.eden_ld.combat.PlayerPvp}; client side from the synced data ({@code ClientPvp}: everyone's flag,
+ * duels, the mode here, the player's own party and guild).
  * <p>
- * Server side, players (and their pets) also count as teammates without friendly fire where PvP is off
- * — a dimension's own setting, else the server's ({@link net.ledok.eden_ld.world.WorldRules#pvpAt}) —
- * because Spell Engine and Better Combat never ask vanilla's PvP switch: Spell Engine then treats them as
- * {@code ALLY} (no harmful spell, healing as before), and projectiles fly through them.
+ * Friends count as teammates without friendly fire (Spell Engine {@code ALLY}, Better Combat {@code FRIENDLY}), enemies
+ * as hostile; an ignored pair is reported as friends too (summons, Holy Barrier and sweeps leave them alone), and Spell
+ * Engine's action gate refuses them outright — its relations have no "ignore", every one allows damage or healing.
  *
  * <p>The inner hook classes are the only ones importing Spell Engine / Better
  * Combat types, so this class is safe to load when either mod is absent.
  */
 public final class CombatTeamsCompat {
 
-    /** Party relation: teammates + whether hitting each other is allowed. */
-    public record Relation(boolean teammates, boolean friendlyFire) {
+    /**
+     * Two sides' relation: teammates, whether hitting each other is allowed, and whether nothing at all lands between
+     * them ({@code ignore}: no damage, heals, buffs or knockback).
+     */
+    public record Relation(boolean teammates, boolean friendlyFire, boolean ignore) {
+        /** Heals and buffs land, damage doesn't. */
+        public static final Relation FRIENDS = new Relation(true, false, false);
+        /** Damage lands, heals and buffs don't. */
+        public static final Relation ENEMIES = new Relation(false, true, false);
+        /** Nothing lands either way (reported to the combat mods as friends). */
+        public static final Relation IGNORE = new Relation(true, false, true);
+
+        public static Relation of(PvpRelation relation) {
+            return switch (relation) {
+                case FRIENDS -> FRIENDS;
+                case ENEMIES -> ENEMIES;
+                case IGNORE -> IGNORE;
+            };
+        }
+
+        /** Friends: helpful effects land, harmful ones don't. */
+        public boolean friends() {
+            return teammates && !ignore;
+        }
     }
 
     private CombatTeamsCompat() {
@@ -47,9 +74,10 @@ public final class CombatTeamsCompat {
     }
 
     /**
-     * The party relation between two entities, each standing in for its "side": a player is
-     * their own side, a tamed/owned entity (pets, horses) is its owner's. Null when either
-     * has no side, or both belong to the same player (vanilla rules apply to your own pets).
+     * The relation between two entities, each standing in for its "side": a player is their own side, a tamed/owned
+     * entity (pets, horses, summons) is its owner's. Null when either has no side, or both belong to the same player
+     * (vanilla rules apply to your own pets); otherwise friends, enemies or ignore ({@link PvpRelation}) — judged where
+     * {@code target} stands.
      */
     @Nullable
     public static Relation resolve(Entity attacker, Entity target) {
@@ -58,25 +86,49 @@ public final class CombatTeamsCompat {
         if (a == null || t == null || a.equals(t)) {
             return null;
         }
-        if (sameTeamNoFriendlyFire(attacker, a, t)) {
-            // A run or duel team (Arenas dungeons and raids, Duels' 2v2 sides): the players' own matcher answers for
-            // them, but their pets and summons have no team of their own.
-            return new Relation(true, false);
-        }
+        // A run or duel team (Arenas dungeons and raids, Duels' sides): pets and summons have no team of their own.
+        boolean runTeam = sameTeamNoFriendlyFire(attacker, a, t);
         if (attacker.level().isClientSide()) {
-            return net.ledok.eden_ld.client.hub.ClientPartyRelation.resolve(a, t);
+            return net.ledok.eden_ld.client.hub.ClientPvp.relation(a, t, runTeam);
         }
         MinecraftServer server = attacker.getServer();
         if (server == null) {
             return null;
         }
-        if (PartyManager.protects(server, a, t)) {
-            return new Relation(true, false);
+        return Relation.of(net.ledok.eden_ld.combat.PlayerPvp.relation(server, target, a, t, runTeam));
+    }
+
+    /** Whether nothing lands between the two (an ignored pair): Spell Engine's action gate, potions. */
+    public static boolean ignores(Entity attacker, Entity target) {
+        Relation relation = resolve(attacker, target);
+        return relation != null && relation.ignore();
+    }
+
+    /**
+     * Whether a potion effect thrown or left by {@code owner} (a splash potion, a lingering cloud) lands on
+     * {@code target}: never on someone they ignore, only beneficial ones on friends, only harmful and neutral ones on
+     * enemies; as vanilla has it for everyone else (no thrower, mobs, the thrower themselves).
+     */
+    public static boolean effectLands(@Nullable Entity owner, Entity target, MobEffect effect) {
+        Relation relation = owner == null ? null : resolve(owner, target);
+        return relation == null || !relation.ignore() && relation.friends() == effect.isBeneficial();
+    }
+
+    /** Whether any of the effects lands on {@code target} ({@link #effectLands}). */
+    public static boolean anyEffectLands(@Nullable Entity owner, Entity target, Iterable<MobEffectInstance> effects) {
+        Relation relation = owner == null ? null : resolve(owner, target);
+        if (relation == null) {
+            return true;
         }
-        if (!net.ledok.eden_ld.world.WorldRules.pvpAt(target, a, t)) {
-            return new Relation(true, false);
+        if (relation.ignore()) {
+            return false;
         }
-        return null;
+        for (MobEffectInstance effect : effects) {
+            if (relation.friends() == effect.getEffect().value().isBeneficial()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether the two sides' players are on the same scoreboard team with friendly fire off (both must be loaded). */

@@ -154,9 +154,9 @@ public final class HubServer {
                 net.ledok.eden_ld.compat.LuckPermsCompat.onUserDataChange(() ->
                         started.execute(() -> syncNameStyles(started))));
 
-        // Friendly fire is off inside a party — players and their pets alike: partymates
-        // can't hurt each other or each other's pets, and pets can't hurt partymates. With
-        // no damage landing, pets never get a reason to retaliate either.
+        // No damage between friends (party, guild, run team) or players who ignore each other (PvP off, a duel
+        // outsider — docs/PLAN-pvp-toggle.md) — players and their pets alike: they can't hurt each other or each
+        // other's pets, and pets can't hurt them. With no damage landing, pets never get a reason to retaliate either.
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
             if (source.getEntity() == null || source.getEntity() == entity) {
                 return true;

@@ -8,8 +8,8 @@ import java.util.Locale;
 /**
  * Names for the Hub's parts, so tutorials (NPCs_LD dialog lines, VectorLib {@link Spotlight}) can point at them and
  * wait for them: the tab row, every tab, the page area and each tab's page (present only while that tab is open), the
- * help button and window (and its ▶ tour button), maximize and close, the balance on the Home page, the Hub button in
- * the inventory, and parts inside the tabs for their tours. Ids are stable — dialogs store them.
+ * help button and window (and its ▶ tour button), maximize and close, the balance on the Home page, the Hub and PvP
+ * buttons in the inventory, and parts inside the tabs for their tours. Ids are stable — dialogs store them.
  */
 public final class HubSpotlights {
     private HubSpotlights() {}
@@ -25,6 +25,8 @@ public final class HubSpotlights {
     public static final String BALANCE = PREFIX + "balance";
     /** The Hub button in the player's inventory ({@link InventoryHubButton}), found through a VectorLib locator. */
     public static final String INVENTORY_BUTTON = "eden_ld:inventory/hub_button";
+    /** The PvP toggle right of it ({@link InventoryPvpButton}; only where the server runs the toggle). */
+    public static final String INVENTORY_PVP_BUTTON = "eden_ld:inventory/pvp_button";
     /** The help window's ▶ button: starts the open tab's tour (only when the tab has one). */
     public static final String HELP_TOUR = PREFIX + "help_tour";
 
@@ -185,6 +187,7 @@ public final class HubSpotlights {
         Spotlight.register(CLOSE, Component.literal("Hub: close button"));
         Spotlight.register(BALANCE, Component.literal("Hub: balance on the Home page"));
         Spotlight.register(INVENTORY_BUTTON, Component.literal("Inventory: Hub button"));
+        Spotlight.register(INVENTORY_PVP_BUTTON, Component.literal("Inventory: PvP button"));
         Spotlight.register(HELP_TOUR, Component.literal("Hub: help window's ▶ tour button"));
         String[][] parts = {
                 {GUILD_CREATE, "Guild (no guild): create form"}, {GUILD_CREATE_BUTTON, "Guild (no guild): Create button"},

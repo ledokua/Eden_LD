@@ -4,6 +4,7 @@
   "package": "net.ledok.eden_ld.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "AreaEffectCloudPvpMixin",
     "BorderPacketMixin",
     "EntityHazardMixin",
     "GameProfileCacheAccessor",
@@ -24,6 +25,8 @@
     "ServerPlayerPvpMixin",
     "ServerPlayerStatMixin",
     "ServerPlayerTabListMixin",
+    "SpellRelationMixin",
+    "ThrownPotionPvpMixin",
     "WorldBorderAccessor",
     "WorldBorderCommandMixin",
     "phase.PhaseEntityMixin",

@@ -94,6 +94,8 @@ Notes:
   an auto-generated tag, but that is a hub-UI/admin-command concern, not part of this API.)
 - Friendly fire between partymates is **off** (damage, projectiles, pets, Spell Engine and
   Better Combat targeting), enforced by Eden_LD — unless suspended for a PvP mode, below.
+  With the PvP toggle (1.3.3, README "PvP toggle") partymates whose switches differ ignore each other
+  (no damage, heals or buffs), and players outside any team fight only when both have PvP on where they are.
   Owned entities (tamed pets, horses) count as their owner, so partymates' pets are
   protected too.
 - PvP damage that lands combat-tags both players (`combat.pvp_tag_seconds`): no hub
@@ -123,7 +125,9 @@ boolean protectedPair = EdenPartyApi.isProtected(server, a, b); // partymates, n
   of a duel is enough; spectators and other partymates stay protected from each other.
 - While suspended, Eden stops cancelling damage, lets projectiles hit, lets pets target the
   player, and stops reporting them as teammates to Spell Engine / Better Combat. The flag is
-  synced, so client-side targeting agrees.
+  synced, so client-side targeting agrees. (Since 1.3.3 a suspended pair counts as "no team": they fight
+  when both have PvP on there — or, for Duels, when Eden sees them in the same running match, whatever
+  their switches. A PvP mode of another mod needs both players' PvP on, or a dimension whose mode is `on`.)
 - Reasons stack (BusyLib-style): protection returns once every reason is resumed. Always
   resume with the reason you suspended with.
 - Suspensions are cleared on disconnect, so a crashed match can't leave a player

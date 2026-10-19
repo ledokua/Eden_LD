@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import net.ledok.eden_ld.combat.PvpMode;
 import net.ledok.eden_ld.world.DimensionGameRules;
 import net.ledok.eden_ld.world.DimensionHolder;
 import net.minecraft.world.Difficulty;
@@ -28,7 +29,7 @@ public abstract class LevelDimensionMixin implements LevelAccessor, DimensionHol
     private volatile Difficulty eden_ld$difficulty;
     @Unique
     @Nullable
-    private volatile Boolean eden_ld$pvp;
+    private volatile PvpMode eden_ld$pvp;
 
     @ModifyReturnValue(method = "getGameRules", at = @At("RETURN"))
     private GameRules eden_ld$dimensionRules(GameRules rules) {
@@ -71,12 +72,12 @@ public abstract class LevelDimensionMixin implements LevelAccessor, DimensionHol
 
     @Override
     @Nullable
-    public Boolean eden_ld$pvp() {
+    public PvpMode eden_ld$pvp() {
         return eden_ld$pvp;
     }
 
     @Override
-    public void eden_ld$setPvp(@Nullable Boolean pvp) {
+    public void eden_ld$setPvp(@Nullable PvpMode pvp) {
         eden_ld$pvp = pvp;
     }
 }

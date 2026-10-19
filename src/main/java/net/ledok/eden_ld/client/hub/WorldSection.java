@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.client.hub;
 
+import net.ledok.eden_ld.combat.PvpMode;
 import net.ledok.eden_ld.hub.moderation.AdminTools;
 import net.ledok.vectorlib.client.canvas.CanvasNode;
 import net.ledok.vectorlib.client.canvas.layout.Flex;
@@ -179,7 +180,7 @@ final class WorldSection {
     /** How many things a dimension sets for itself (gamerules, PvP, difficulty, flight, border). */
     private static int changes(CompoundTag dimension) {
         int count = dimension.getCompound("rules").size();
-        count += dimension.contains("pvp") ? 1 : 0;
+        count += dimension.contains("pvp_mode") || dimension.contains("pvp") ? 1 : 0;
         count += dimension.contains("difficulty") ? 1 : 0;
         count += dimension.getInt("flight") != 0 ? 1 : 0;
         count += dimension.getCompound("border").getBoolean("on") ? 1 : 0;
@@ -248,15 +249,15 @@ final class WorldSection {
         Settings settings = new Settings();
 
         settings.section("general", Component.translatable("gui.eden_ld.moderation.world.tab.general"));
-        boolean serverPvp = data.getBoolean("pvp");
-        String pvp = !dimension.contains("pvp") ? "server" : dimension.getBoolean("pvp") ? "on" : "off";
+        // The PvP mode (docs/PLAN-pvp-toggle.md); without its own, the server's pvp=true means each player's choice.
+        PvpMode serverPvp = PvpMode.serverDefault(data.getBoolean("pvp"));
+        String pvp = dimension.contains("pvp_mode") ? dimension.getString("pvp_mode")
+                : !dimension.contains("pvp") ? "server" : dimension.getBoolean("pvp") ? "on" : "off";
         settings.add(locked(Option.choice(Component.translatable("gui.eden_ld.moderation.world.pvp"),
-                        List.of("server", "on", "off"), pvp,
-                        value -> switch (value) {
-                            case "server" -> Component.translatable("gui.eden_ld.moderation.world.server_value", onOff(serverPvp));
-                            case "on" -> onOff(true);
-                            default -> onOff(false);
-                        },
+                        List.of("server", PvpMode.OFF.key, PvpMode.TOGGLE.key, PvpMode.ON.key), pvp,
+                        value -> value.equals("server")
+                                ? Component.translatable("gui.eden_ld.moderation.world.server_value", pvpMode(serverPvp))
+                                : pvpMode(PvpMode.parse(value)),
                         value -> action("pvp", id, args -> args.putString("value", value)))
                 .defaultValue("server")
                 .hint(Component.translatable("gui.eden_ld.moderation.world.pvp.hint")), locked));
@@ -569,6 +570,12 @@ final class WorldSection {
 
     private static Component onOff(boolean on) {
         return Component.translatable(on ? "gui.eden_ld.moderation.world.on" : "gui.eden_ld.moderation.world.off");
+    }
+
+    /** Off, Each player's choice, On (an unknown mode reads as off, as the server treats it). */
+    private static Component pvpMode(@Nullable PvpMode mode) {
+        return mode == PvpMode.TOGGLE ? Component.translatable("gui.eden_ld.moderation.world.pvp.toggle")
+                : onOff(mode == PvpMode.ON);
     }
 
     /** "Overworld", "Nether", "End" — else the id's path in words ("Black Bridge"). */
