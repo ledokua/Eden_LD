@@ -115,3 +115,5 @@ modded summons that aren't `OwnableEntity`, by class name through their public g
 (`Mob#setTarget` HEAD) refuses a target when the relation has no friendly fire, so pets and summons don't chase
 friends or ignored sides for nothing. A pet already fighting when a world's mode changes keeps its target but its
 hits still don't land (a player can't switch while combat-tagged).
+Deployed ~13:40: Prism Client/Server, pack c8854bc (pushed), live (1.3.3 to backup/removed-mods-2026-10-19; cmp +
+unzip -t). Not run in game.
