@@ -20,7 +20,7 @@ import java.util.List;
  * activity stats and dailies. Only class-loaded when Arenas_LD is present.
  * <p>
  * No Moderation controller actions yet (the {@link ActivitySource} admin defaults: unsupported) — the
- * 4.6.0 jar has no calls for them. With ArenasApi 4.7.0 this overrides {@code adminActions()} and
+ * 4.6.0 jar has no calls for them. With ArenasApi 4.8.0 this overrides {@code adminActions()} and
  * delegates: teleport → {@code location}/{@code teleportToController}, rename → {@code rename},
  * openAdmin → {@code openAdmin}, status → {@code status} (into {@code ActivityLiveStatus}), forceEnd →
  * {@code forceEnd}, forget → {@code forget}; and its forced-end run reports go to

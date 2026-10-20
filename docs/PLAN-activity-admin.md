@@ -2,7 +2,7 @@
 
 Owner's decisions, 2026-10-19. The Moderation window's Activities section becomes a control panel for every
 activity: controller actions through the activity's source, live status, a maintenance lock and a server-wide run
-history. Everything Eden-side is built; Arenas_LD's side waits for ArenasApi 4.7.0 (another session builds it). Eden
+history. Everything Eden-side is built; Arenas_LD's side waits for ArenasApi 4.8.0 (another session builds it). Eden
 is compiled against `libs/arenas_ld-fabric-4.6.0.jar`, so `ArenasIntegration` doesn't override any admin call yet and
 Arenas activities show only what Eden knows by itself (closed, history).
 
@@ -83,12 +83,15 @@ all; an `instance` that doesn't parse (`dim`, `x`, `y`, `z`) is refused, never w
 The full `AdminData` (`activities`) stays the "on open and after edits" path; the poll never resends it.
 `force_end` answers with `ActivityLive`; `teleport` and `admin` answer with nothing but a notice.
 
-## Still to wire: ArenasApi 4.7.0
+## Still to wire: ArenasApi 4.8.0
 
-When the 4.7.0 jar lands in `libs/`, `compat/arenas/ArenasIntegration` overrides `adminActions()` (all six) and
+(Renumbered 2026-10-20: Arenas 4.7.0 went to load and chunk-loading fixes and `/arenasld instance add|check`, with no
+ArenasApi change; this request is 4.8.0, not scheduled yet.)
+
+When the 4.8.0 jar lands in `libs/`, `compat/arenas/ArenasIntegration` overrides `adminActions()` (all six) and
 delegates:
 
-| Eden | ArenasApi 4.7.0 |
+| Eden | ArenasApi 4.8.0 |
 |---|---|
 | `teleport` | `location(server, id)` / `teleportToController(player, id)` |
 | `rename` | `rename(player, id, name)` |
@@ -98,7 +101,7 @@ delegates:
 | `forget` | `forget(server, id)` |
 
 Plus: Arenas' run listener reports forced ends — pass them to `ActivityServer.recordRun(..., forced = true)` so they
-stay out of the stats and player progress. Then bump the README's Arenas_LD line to 4.7.0+.
+stay out of the stats and player progress. Then bump the README's Arenas_LD line to 4.8.0+.
 
 ## Not done / notes
 
@@ -108,4 +111,4 @@ stay out of the stats and player progress. Then bump the README's Arenas_LD line
 
 **Deployed (2026-10-19, 1.3.5):** Prism Client/Server (1.3.4 to removed-mods-2026-10-19), pack 0352999 (pushed),
 live (1.3.4 to backup/removed-mods-2026-10-19; cmp + unzip -t). Not run in game before the deploy (no RAM for a dev
-server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.7.0 is wired.
+server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.8.0 is wired.
