@@ -93,10 +93,10 @@ dependencies {
 
     // Arenas_LD / Duels_LD — optional: the Activities tab's dungeons, raids and arenas (ArenasApi)
     // and the Duels tab (DuelsApi). Copies of their built jars; refresh them when those APIs change.
-    modCompileOnly files("libs/arenas_ld-fabric-4.6.0.jar")
+    modCompileOnly files("libs/arenas_ld-fabric-4.9.0.jar")
     modCompileOnly files("libs/duels_ld-1.4.0.jar")
     // In the dev client too, to see both tabs (Duels needs owo-lib).
-    modLocalRuntime files("libs/arenas_ld-fabric-4.6.0.jar", "libs/duels_ld-1.4.0.jar")
+    modLocalRuntime files("libs/arenas_ld-fabric-4.9.0.jar", "libs/duels_ld-1.4.0.jar")
     modLocalRuntime "io.wispforest:owo-lib:0.12.15.4+1.21"
 
     // NPCs_LD — optional: the hub help's ▶ starts a tab's tour dialog (NpcsCompat). A copy of the pack's jar.

@@ -764,7 +764,7 @@ the sections you may use:
   the list with its type, shown or hidden, the level it opens at and live markers — ▶ runs going,
   ⌛ instances cooling down, ⚠ setup warnings, **Closed**. For the one picked: the card preview;
   **Shown in the hub** and **Closed for maintenance** (see [Activities](#activities)); the required
-  levels and card art; and, where its source supports them (Arenas_LD 4.8.0+; datapack activities have
+  levels and card art; and, where its source supports them (Arenas_LD 4.9.0+; datapack activities have
   none), **Teleport** (to its controller; the window closes), **Admin screen** and **✎** rename (ops
   only — Arenas accepts op edits only; Esc on the admin screen comes back here), a **Live** block —
   every instance with a Free / Running / Cooldown chip and the cooldown left, the runs in progress
@@ -1658,9 +1658,10 @@ Other mods can register flight rules and read cached Minestar profiles — see [
   for guild-owned claims (see Guilds → Guild claims). Claims stay protected from mob griefing in a
   dimension that changes mobGriefing (see [World rules](#world-rules)).
 - **Arenas_LD** (4.6.0+) — optional; its dungeons, raids and mob arenas fill the Activities tab,
-  and Eden's level check (and the maintenance lock) is its entry gate (see Eden Hub → Activities). The
-  Moderation window's controller actions and live status wait for ArenasApi 4.8.0 (not wired yet,
-  `docs/PLAN-activity-admin.md`).
+  and Eden's level check (and the maintenance lock) is its entry gate (see Eden Hub → Activities). With
+  Arenas_LD 4.9.0+ the Moderation window also gets its controller actions and live status (teleport, rename,
+  admin screen, runs and instances, end run, warnings, forget); an older one just hides them
+  (`docs/PLAN-activity-admin.md`).
 - **Duels_LD** (1.4.0+) — optional; the Duels tab (see Eden Hub → Duels). Duels uses Eden's parties
   for 2v2.
 - **Kits_LD** (0.2.0+) — optional; the Kits tab and `/kits` (see Eden Hub → Kits).

@@ -18,7 +18,7 @@ import java.util.UUID;
  * @param instances   every place the activity runs at (an Arenas_LD controller each)
  * @param runs        the runs going on now
  * @param openLobbies lobbies waiting to start
- * @param queued      players waiting in those lobbies or a queue
+ * @param queued      players waiting to get in (in those lobbies or a queue)
  * @param warnings    setup problems worth a staff member's look
  */
 public record ActivityLiveStatus(List<Instance> instances, List<Run> runs, int openLobbies, int queued,
@@ -32,8 +32,12 @@ public record ActivityLiveStatus(List<Instance> instances, List<Run> runs, int o
 
     public enum State { FREE, RUNNING, COOLDOWN }
 
-    /** A place the activity runs at; {@code cooldownTicksLeft} only counts while {@link State#COOLDOWN}. */
-    public record Instance(ResourceLocation dimension, BlockPos pos, State state, int cooldownTicksLeft) {
+    /**
+     * A place the activity runs at; {@code cooldownTicksLeft} only counts while {@link State#COOLDOWN};
+     * {@code pendingRemoval}: staff marked it for removal once its run ends.
+     */
+    public record Instance(ResourceLocation dimension, BlockPos pos, State state, int cooldownTicksLeft,
+                           boolean pendingRemoval) {
         public Instance {
             Objects.requireNonNull(dimension, "dimension");
             Objects.requireNonNull(pos, "pos");
@@ -44,10 +48,11 @@ public record ActivityLiveStatus(List<Instance> instances, List<Run> runs, int o
     /**
      * A run going on: where ({@code dimension}, {@code instance} — what {@code forceEnd} takes), its
      * difficulty (null for arenas), the players, a short phase line ("Wave 3/10", "Boss"), ticks since
-     * it started and ticks left on its timer (-1 without one). A null phase reads as none.
+     * it started and ticks left on its timer (-1 without one); {@code closing}: it has ended and its
+     * players are on the way out. A null phase reads as none.
      */
     public record Run(ResourceLocation dimension, BlockPos instance, @Nullable String difficulty, List<UUID> players,
-                      Component phase, long ticksElapsed, long ticksLeft) {
+                      Component phase, long ticksElapsed, long ticksLeft, boolean closing) {
         public Run {
             Objects.requireNonNull(dimension, "dimension");
             Objects.requireNonNull(instance, "instance");
@@ -68,7 +73,9 @@ public record ActivityLiveStatus(List<Instance> instances, List<Run> runs, int o
         /** Instances marked for removal once their runs end. */
         PENDING_REMOVALS,
         /** The controller block is gone: Forget drops the activity. */
-        CONTROLLER_MISSING;
+        CONTROLLER_MISSING,
+        /** The controller's chunk isn't loaded: its instances and runs are unknown (not "none"). */
+        CONTROLLER_NOT_LOADED;
 
         public int bit() {
             return 1 << ordinal();

@@ -2,7 +2,7 @@
 
 Owner's decisions, 2026-10-19. The Moderation window's Activities section becomes a control panel for every
 activity: controller actions through the activity's source, live status, a maintenance lock and a server-wide run
-history. Everything Eden-side is built; Arenas_LD's side waits for ArenasApi 4.8.0 (another session builds it). Eden
+history. Everything Eden-side is built and, since 1.3.7, wired to ArenasApi 4.9.0. Eden
 is compiled against `libs/arenas_ld-fabric-4.6.0.jar`, so `ArenasIntegration` doesn't override any admin call yet and
 Arenas activities show only what Eden knows by itself (closed, history).
 
@@ -83,25 +83,27 @@ all; an `instance` that doesn't parse (`dim`, `x`, `y`, `z`) is refused, never w
 The full `AdminData` (`activities`) stays the "on open and after edits" path; the poll never resends it.
 `force_end` answers with `ActivityLive`; `teleport` and `admin` answer with nothing but a notice.
 
-## Still to wire: ArenasApi 4.8.0
+## Wired: ArenasApi 4.9.0 (Eden 1.3.7, 2026-10-20)
 
-(Renumbered 2026-10-20: Arenas 4.7.0 went to load and chunk-loading fixes and `/arenasld instance add|check`, with no
-ArenasApi change; this request is 4.8.0, not scheduled yet.)
+(The number moved twice: Arenas 4.7.0 went to load fixes and `/arenasld instance add|check`, 4.8.0 to boss minions;
+the admin API is 4.9.0, built by the Arenas_LD session, not committed or deployed when Eden 1.3.7 was built.)
 
-When the 4.8.0 jar lands in `libs/`, `compat/arenas/ArenasIntegration` overrides `adminActions()` (all six) and
-delegates:
+`compat/arenas/ArenasIntegration` looks up once, by reflection, whether the running Arenas_LD has the admin calls
+(`ADMIN`); when it does, `adminActions()` is all six and every call goes to `compat/arenas/ArenasAdmin`, the only class
+using the 4.9.0 types, so an older Arenas_LD (live ran 4.8.0) just keeps the buttons hidden and logs one line.
 
-| Eden | ArenasApi 4.8.0 |
+| Eden | ArenasApi 4.9.0 |
 |---|---|
-| `teleport` | `location(server, id)` / `teleportToController(player, id)` |
-| `rename` | `rename(player, id, name)` |
-| `openAdmin` | `openAdmin(player, id)` |
-| `status` | `status(server, id)` → map into `ActivityLiveStatus` (instances, runs, lobbies, queue, warnings); must be in-memory only, no chunk loads (polled every ~2 s for every activity) |
-| `forceEnd` | `forceEnd(server, id, instance?)` |
-| `forget` | `forget(server, id)` |
+| `teleport` | `teleportToController(player, id)` (free 2-high spot within 3 blocks; refused in a run or busy) |
+| `rename` | `rename(server, id, name)` (Arenas doesn't check op: `AdminTools` does) |
+| `openAdmin` | `openAdmin(player, id)` (Arenas checks op; bound to the controller's dimension, any distance) |
+| `status` | `status(server, id)` → `ActivityLiveStatus`: instances (+ `pendingRemoval`), runs (+ `closing`), `openLobbies`, `queued` = `waitingPlayers`, warnings by name (+ `CONTROLLER_NOT_LOADED`: the live block says "unknown" instead of "none") |
+| `forceEnd` | `forceEnd(server, id, InstanceRef?)` (Eden's `InstanceRef` → `ResourceKey<Level>` + pos) |
+| `forget` | `forget(server, id)` (refused while the controller exists) |
 
-Plus: Arenas' run listener reports forced ends — pass them to `ActivityServer.recordRun(..., forced = true)` so they
-stay out of the stats and player progress. Then bump the README's Arenas_LD line to 4.8.0+.
+Runs: `Outcome.FORCED` (a staff end) is matched by name and recorded with `forced = true` (history only, no stats,
+progress or dailies). The run phase is a translatable Component (`status.arenas_ld.*`), sent as JSON and resolved by
+the client.
 
 ## Not done / notes
 
@@ -111,4 +113,4 @@ stay out of the stats and player progress. Then bump the README's Arenas_LD line
 
 **Deployed (2026-10-19, 1.3.5):** Prism Client/Server (1.3.4 to removed-mods-2026-10-19), pack 0352999 (pushed),
 live (1.3.4 to backup/removed-mods-2026-10-19; cmp + unzip -t). Not run in game before the deploy (no RAM for a dev
-server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.8.0 is wired.
+server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.9.0 runs on the server (Eden 1.3.7+).

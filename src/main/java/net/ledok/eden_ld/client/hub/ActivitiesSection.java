@@ -530,12 +530,14 @@ final class ActivitiesSection {
         }
         CompoundTag status = detail.getCompound("status");
         boolean canEnd = supported.contains(AdminAction.FORCE_END);
+        // An unloaded controller: nothing is known about its instances and runs, which isn't "none".
+        boolean unknown = (status.getInt("warnings") & ActivityLiveStatus.Warning.CONTROLLER_NOT_LOADED.bit()) != 0;
 
         // Instances: where it runs, a state chip, the cooldown left.
         ListTag instances = status.getList("instances", Tag.TAG_COMPOUND);
         box.item(text(tr("instances"), DIM, (int) w));
         if (instances.isEmpty()) {
-            box.item(text(tr("no_instances"), DIM, (int) w));
+            box.item(text(tr(unknown ? "unknown" : "no_instances"), DIM, (int) w));
         }
         for (int i = 0; i < instances.size(); i++) {
             int index = i;
@@ -554,6 +556,9 @@ final class ActivitiesSection {
                 if (state == ActivityLiveStatus.State.COOLDOWN && ticks > 0) {
                     line.append(" · ").append(tr("time_left", clock(ticks * 50)));
                 }
+                if (now.getBoolean("removal")) {
+                    line.append(" · ").append(tr("pending_removal"));
+                }
                 return line;
             }, TEXT));
             box.item(row);
@@ -563,7 +568,7 @@ final class ActivitiesSection {
         ListTag runs = status.getList("runs", Tag.TAG_COMPOUND);
         box.item(text(tr("runs"), DIM, (int) w));
         if (runs.isEmpty()) {
-            box.item(text(tr("no_runs"), DIM, (int) w));
+            box.item(text(tr(unknown ? "unknown" : "no_runs"), DIM, (int) w));
         }
         for (int i = 0; i < runs.size(); i++) {
             int index = i;
@@ -599,6 +604,9 @@ final class ActivitiesSection {
                 if (now.getLong("left") >= 0) {
                     line.append(" · ").append(tr("time_left",
                             clock(Math.max(0, now.getLong("left") - ticksSincePoll()) * 50)));
+                }
+                if (now.getBoolean("closing")) {
+                    line.append(" · ").append(tr("run_closing"));
                 }
                 return line;
             }, TEXT));

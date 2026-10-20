@@ -32,8 +32,8 @@ import java.util.UUID;
  * resolved here (online, else the server's profile cache). Server thread.
  * <pre>
  * rows:   [{id, running, cooldown, lobbies, queued, warnings (bitmask), closed}]
- * detail: {id, status?: {instances: [{dim, x, y, z, state, cooldown}],
- *                        runs: [{dim, x, y, z, difficulty, players: [names], phase (JSON), elapsed, left}],
+ * detail: {id, status?: {instances: [{dim, x, y, z, state, cooldown, removal}],
+ *                        runs: [{dim, x, y, z, difficulty, players: [names], phase (JSON), elapsed, left, closing}],
  *                        lobbies, queued, warnings},
  *          history: {stats: [{difficulty, runs, wins, rate, median, best, wave}],
  *                    recent: [{ago (s), difficulty, won, forced, millis, wave, players: [names]}]}}
@@ -101,6 +101,7 @@ final class ActivityAdminData {
             i.putInt("state", instance.state().ordinal());
             i.putInt("cooldown", instance.state() == ActivityLiveStatus.State.COOLDOWN
                     ? Math.max(0, instance.cooldownTicksLeft()) : 0);
+            i.putBoolean("removal", instance.pendingRemoval());
             instances.add(i);
         }
         tag.put("instances", instances);
@@ -112,6 +113,7 @@ final class ActivityAdminData {
             r.putString("phase", Component.Serializer.toJson(ServerLang.localize(admin, run.phase()), server.registryAccess()));
             r.putLong("elapsed", Math.max(0, run.ticksElapsed()));
             r.putLong("left", run.ticksLeft() < 0 ? -1 : run.ticksLeft());
+            r.putBoolean("closing", run.closing());
             runs.add(r);
         }
         tag.put("runs", runs);
