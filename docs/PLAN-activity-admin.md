@@ -114,3 +114,7 @@ the client.
 **Deployed (2026-10-19, 1.3.5):** Prism Client/Server (1.3.4 to removed-mods-2026-10-19), pack 0352999 (pushed),
 live (1.3.4 to backup/removed-mods-2026-10-19; cmp + unzip -t). Not run in game before the deploy (no RAM for a dev
 server); live from the owner's next restart. Only the Closed lock and run history work until Arenas 4.9.0 runs on the server (Eden 1.3.7+).
+
+**Deployed (2026-10-20, 1.3.7):** Prism Client/Server (1.3.6 to removed-mods-2026-10-20), pack a2d4652 (pushed),
+live (1.3.6 to backup/removed-mods-2026-10-20; cmp + unzip -t), next to Arenas_LD 4.9.0 (released c9db237, pack
+53aef85). Not run in game; both go live at the owner's next restart.

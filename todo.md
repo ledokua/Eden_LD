@@ -8,7 +8,7 @@ needs a README pass too.
 
 - [x] **Wire ArenasApi into the activity admin** (owner, 2026-10-19; `docs/PLAN-activity-admin.md`) — Eden 1.3.5
       built the Eden side; 1.3.7 wires ArenasApi 4.9.0 (`ArenasAdmin`, reflection-checked so an older Arenas_LD
-      hides the buttons), forced ends into the history only. Not run in game; Arenas 4.9.0 not deployed yet.
+      hides the buttons), forced ends into the history only. Deployed 2026-10-20 with Arenas 4.9.0 (pack a2d4652); not run in game.
 - [ ] **PvP toggle** (owner, 2026-10-19; `docs/PLAN-pvp-toggle.md`) — players choose PvP: `/pvp [on|off]`, the
       inventory button right of the hub button (crossed swords, cooldown shade, tooltip), 1 min cooldown both ways
       (survives relog), no switching while combat-tagged, admins `/eden pvp player <players> on|off`; world modes
