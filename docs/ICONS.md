@@ -1,6 +1,6 @@
 # Hub icons
 
-Every icon the hub needs, for the artist (updated 2026-10-15). Until a file exists the hub draws a placeholder (a
+Every icon the hub needs, for the artist (updated 2026-10-25). Until a file exists the hub draws a placeholder (a
 colored square or circle, or a text symbol), so icons can be added one at a time.
 
 **Format**: PNG with a transparent background, square, one file per icon. Any power-of-two size
@@ -62,7 +62,7 @@ the page title). An empty tab shows its icon at 32 × 32.
 | `tab_guild` | Guild | banner / shield | ✅ |
 | `tab_waystones` | Waystones | waystone pillar | ✅ |
 | `tab_activities` | Activities (dungeons, raids, arenas) | dungeon door / crossed swords | ✅ |
-| `tab_duels` | Duels (now a filter inside Activities; kept for a Duels card or button later) | two swords clashing | ✅ |
+| `tab_duels` | Duels (now a filter inside Activities; kept for a Duels card or button later). Until `pvp` exists it is also the PvP button and the PvP mark above heads (see PvP) | two swords clashing | ✅ |
 | `tab_dailies` | Dailies, quests left today | open book | ✅ |
 | `tab_dailies_done` | Dailies, all claimed today | book with a check | ✅ |
 | `tab_mail` | Mail, everything read | open envelope | ✅ |
@@ -86,7 +86,19 @@ in chat.
 | `lc` | after every LC amount ("500" + coin): balance, prices, rewards, the guild bank, chat messages | ✅ |
 | `hourglass` | before countdowns and durations: playtime, quest resets, mail deletion, waystone cooldown | ✅ |
 
-## Buttons (12)
+## PvP (1, plus 1 optional)
+
+The PvP toggle (Eden 1.3.3): the button in the inventory, right of the hub button, and the mark after a name above
+the head of every player whose PvP is on. Both draw `tab_duels` today, so PvP and Duels look the same; a picture of
+its own tells them apart. Wiring it is a small code change once the file exists (the button's texture and a font
+glyph, U+FFF02, like `lc`).
+
+| Name | Shown at | Where |
+| --- | --- | --- |
+| `pvp` | 16 × 16 (button), 8 high (mark above heads) | the inventory PvP button — lit while on, dimmed while off, shaded during the 1-minute cooldown — and the nameplate mark (crossed swords, a red edge, a skull…) |
+| `pvp_off` | 16 × 16 | optional: the button while PvP is off, if a different picture reads better than the dimmed `pvp` (a sheathed sword, a shield) |
+
+## Buttons (12, plus 2 optional)
 
 Replace the text symbols on small buttons. Shown at **8 × 8** (inside 12–18 unit buttons).
 
@@ -98,12 +110,14 @@ Replace the text symbols on small buttons. Shown at **8 × 8** (inside 12–18 u
 | `reroll` | ↻ | reroll a daily quest |
 | `favorite_on` | ★ | waystone in favorites ✅ |
 | `favorite_off` | ☆ | waystone not in favorites ✅ |
-| `rename` | ✎ | rename a mail draft in Moderation (waystones rename from their right-click menu) ✅ |
+| `rename` | ✎ | rename a mail draft in Moderation, and an activity in Moderation → Activities (ops; waystones rename from their right-click menu) ✅ |
 | `invite` | the envelope button | invite to party — delivered, no button left to put it on (the cards' right-click menu) |
 | `open_external` | ↗ | open a GIF in the browser (the GIF viewer's title bar) ✅ |
 | `gear` | ⚙ | party settings and guild settings (leaders and officers) |
 | `tour` | ▶ | the help window's title bar: starts the open tab's tour — delivered, not wired (needs VectorLib) |
-| `warning` | ⚠ | an Activities card a party member's level is too low for (yellow) ✅ |
+| `sort_ascending` | ↑ | optional: the Activities tab's sort button, lowest first (it was never listed before) |
+| `sort_descending` | ↓ | optional: the same button, highest first |
+| `warning` | ⚠ | an Activities card a party member's level is too low for (yellow) ✅; Moderation → Activities still shows ⚠ as text (see there) |
 
 ## Ranks (6)
 
@@ -149,6 +163,20 @@ Shown at **12 × 12** on the Moderation window's section buttons (staff only), i
 | `mod_parties` | Parties: party admin |
 | `mod_world` | World settings: gamerules, PvP, difficulty, flight and borders per dimension (globe / portal) |
 | `mod_server` | Server: reload, command dump, op-only commands (wrench) |
+
+## Moderation → Activities (2 optional)
+
+Staff only. The list rows end with small markers at 0.8 scale (about 6 units high): ▶ and a count for runs going,
+⌛ and a count for instances cooling down, ⚠ for setup warnings, and "Closed" for an activity locked for
+maintenance. The Teleport, Admin screen, End run, End all runs and Forget buttons are text buttons and stay text.
+
+| Name | Shown at | Where |
+| --- | --- | --- |
+| `activity_running` | 8 × 8 | optional: replaces ▶ on a row with runs going (a lit torch, an open door) |
+| `closed` | 8 × 8 | optional: a padlock — on Moderation rows instead of "Closed", and on the player hub's dimmed card of a closed activity next to its "Closed" label |
+
+No art needed for the other two: ⌛ can become the delivered `hourglass` and ⚠ the delivered `warning` with a code
+change.
 
 ## Guild sub-tabs (5, optional)
 
@@ -218,9 +246,11 @@ a missing file shows the purple-and-black texture).
 | `backtank` | Back (Create backtank) | hovering the chestplate | Trinkets' back |
 | `belt` | Belt (Tom's Storage wireless terminal) | hovering the leggings | Trinkets' belt |
 
-**Total**: 19 tabs + the tab bar's close + 2 text icons + 12 buttons + 6 ranks + 7 mail + 11 moderation + 1 guild
-quest = **59**, plus 12 optional (5 guild sub-tabs, 4 settings sub-tabs, 3 chat) and 11 optional trinket slots.
+**Total**: 19 tabs + the tab bar's close + 2 text icons + 1 PvP + 12 buttons + 6 ranks + 7 mail + 11 moderation +
+1 guild quest = **60**, plus 17 optional (`pvp_off`, 2 sort arrows, 2 Moderation → Activities markers, 5 guild
+sub-tabs, 4 settings sub-tabs, 3 chat) and 11 optional trinket slots.
 **Delivered: 31** (all 19 tabs, both close buttons, `check`, `lc`, `hourglass`, and 8 buttons: `favorite_on`,
 `favorite_off`, `rename`, `invite`, `open_external`, `tour`, `warning`, plus `close`); `close`, `invite` and `tour`
-aren't on screen yet. **Next most visible:** the rest of the Buttons — `accept` (✔ on every request and invite),
-`reroll` (↻ on every daily quest), `gear` (⚙) — then the ranks.
+aren't on screen yet. **Next most visible:** `pvp` (every inventory, and above the head of everyone with PvP on —
+today it's the Duels picture), then the rest of the Buttons — `accept` (✔ on every request and invite), `reroll`
+(↻ on every daily quest), `gear` (⚙) — then the ranks.
