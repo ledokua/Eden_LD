@@ -72,3 +72,7 @@ keeps its button disabled. The hub only opens public announcements (`target` nul
 removed-mods-2026-10-26), pack ce147e7 (pushed), live (both old jars to backup/removed-mods-2026-10-26; cmp +
 unzip -t). Includes 1.3.11 (reports, settings API, unread-mail line). Tested by the Duels session in dev with two
 clients (pages, Review hand-off, "Don't ask again"); History and Report not yet. Live from the owner's next restart.
+
+**Deployed (2026-10-26, Eden 1.3.13 with Duels_LD 1.7.1):** Duels' screens follow the hub theme (EdenHubThemeApi).
+Prism Client/Server (1.3.12 and 1.7.0 to removed-mods-2026-10-26), pack e52055f (pushed), live (both to
+backup/removed-mods-2026-10-26; cmp + unzip -t). Live from the owner's next restart.
