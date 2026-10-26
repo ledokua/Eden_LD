@@ -345,6 +345,18 @@ public class EdenCommands {
                     HubServer.openHub(player, "mail");
                     return 1;
                 }))
+                // The Moderation window on Reports (the staff chat lines about reports link here).
+                .then(Commands.literal("reports")
+                        .requires(EdenPermissions.require(EdenPermissions.REPORTS))
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayer();
+                            if (player == null) {
+                                context.getSource().sendFailure(Component.translatable("message.eden_ld.players_only"));
+                                return 0;
+                            }
+                            HubServer.openHub(player, net.ledok.eden_ld.hub.moderation.ReportDesk.OPEN_TAB);
+                            return 1;
+                        }))
                 .executes(context -> {
                     ServerPlayer player = context.getSource().getPlayer();
                     if (player == null) {

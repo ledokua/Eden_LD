@@ -118,7 +118,26 @@ final class SettingsTab {
         settings.add(guildTag(data));
         settings.heading(tr("section.profile"));
         settings.add(whoMay("profile_visible_to", HubSettings.PROFILE_VISIBLE_TO, data.profileVisibleTo(), data));
+        if (DUELS) {
+            duels(settings, data);
+        }
         ignored(settings);
+    }
+
+    /** Duels_LD is on both sides: its switches show only where it's installed. */
+    private static final boolean DUELS = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("duels_ld");
+
+    /** Duels_LD's wager switches; Duels reads them from the server (EdenSettingsApi). */
+    private static void duels(Settings settings, HubPayloads.SettingsData data) {
+        settings.heading(tr("section.duels"));
+        settings.add(Option.toggle(tr("duels_challenges"), data.duelsPersonalChallenges(),
+                        on -> send(HubSettings.DUELS_PERSONAL_CHALLENGES, on ? 1 : 0))
+                .text(tr("channel.focus.toggle")).hint(tr("duels_challenges.hint")).defaultValue(true)
+                .keywords("duel", "challenge", "wager", "stake"));
+        settings.add(Option.toggle(tr("duels_skip_loss_warning"), data.duelsSkipLossWarning(),
+                        on -> send(HubSettings.DUELS_SKIP_LOSS_WARNING, on ? 1 : 0))
+                .text(tr("channel.focus.toggle")).hint(tr("duels_skip_loss_warning.hint")).defaultValue(false)
+                .keywords("duel", "wager", "stake", "warning", "popup"));
     }
 
     /** Everyone the player ignores, each with Stop ignoring — the only way back to someone offline. */

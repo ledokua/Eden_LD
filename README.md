@@ -737,6 +737,9 @@ claimed; the join message about them opens this tab (`/hub mail`), and `/shop-re
   **Deposit all** (every coin and money bag you carry). Economy_LD toasts the outcome, and the balance
   refreshes after every deposit or withdrawal, including ones made by right-click or command.
 - **Tab badge**: the unread count (Settings → Notifications → Unread mail), and a Home card.
+- **On join**, about 3 seconds in (after the join messages): "You have 3 unread letters. **[Open mail]**"
+  (it runs `/hub mail`) — only when there is unread mail, not during the tutorial, and not with
+  Settings → Notifications → Unread mail off.
 - Claiming (mail and purchases) is refused while BusyLib reports the player busy (duel, dungeon run, the
   tutorial).
 - Expired mail is deleted with whatever it still holds (Economy_LD's `mail.systemExpiryDays`, 7 days,
@@ -814,6 +817,16 @@ the sections you may use:
     when they end; give more (amount, duration like `30d` or permanent) or clear them.
 - **Punishments** (`eden_ld.admin.punish.log`): everyone's latest punishments from BanHammer's history
   (`storeAllPunishmentsInHistory`, on by default); a click opens that player's page.
+- **Reports** (`eden_ld.admin.reports`): players' complaints that other mods file through
+  `EdenModerationApi` (Duels_LD: disputed wager duels). The list, newest first — **Open** (with the
+  count) / **Handled** / **All**; each row: #id, category · reference, who filed it, how long ago, Open or
+  Handled. The picked report: who and when, its state (handled by whom, when), the player's text, the
+  mod's **log** (scrolls), a **staff note** (≤ 200 characters, staff only) with **Save note**, and
+  **Mark handled** / **Reopen** (the note is saved with them). Changes are logged with who made them.
+  Online staff with the node get "New report #12 (duels_ld:wager #1042) from Alex. **[Open]**" when one
+  is filed, and "There are 3 open reports. **[Open]**" about 3 seconds after joining while any are
+  open; [Open] runs `/hub reports`. A player may file 5 reports per 10 minutes; the world keeps the
+  newest 2000 (`data/eden_ld/reports.dat`; past that, handled ones older than 90 days go first).
 - **Guilds** (`eden_ld.admin.guilds`) and **Parties** (`eden_ld.admin.parties`): every one with its
   leader and members (online dot), and **Disband**.
 - **World settings** (`eden_ld.admin.world`): a column of pages — **GLOBAL**, then every dimension,
@@ -956,6 +969,11 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
   - **Show guild tag** — your `[TAG]` in chat, the tab list and above your head (off by default).
   - **Who can see my profile** — *Anyone* (default), *Friends*, or *No one*; others' Profile
     buttons follow it (you always see your own).
+  - **Duels** (shown when Duels_LD is installed; Duels reads them through `EdenSettingsApi`):
+    - **Accept personal duel challenges** — others may challenge you to a wager duel with
+      `/duel <name>` (default on).
+    - **Skip the stake-loss warning** — no "you can lose your stake" popup before a wager duel;
+      Duels' ready check always stays (default off).
   - **Ignored players** — everyone you ignore, each with *Stop ignoring* (the way back to someone
     offline and not your friend). See [Ignoring players](#ignoring-players).
 - **Chat**
@@ -990,7 +1008,8 @@ a setting moved off its default gets a small reset arrow beside it (its tooltip 
   Global and Discord lines no older than `chat.join_history_minutes` (120), under a
   "Recent Global chat" header (kept in memory; a restart starts fresh).
 - **Notifications** — which news the tabs point out: tabs you haven't opened, friend requests,
-  party invites, guild invites, daily quests to claim, shop purchases (all on by default).
+  party invites, guild invites, daily quests to claim, shop purchases (all on by default). *Unread
+  mail* also turns off the unread-letters line on join (see [Mail](#mail)).
 - **Visual**
   - **Hub theme** — see [Themes](#themes).
   - **Notification style** — *Badge* (default), *Glow*, or *Badge and glow*.
@@ -1616,7 +1635,8 @@ is the player's name.
 | `/hub theme unlock <players> <theme>` | `eden_ld.admin.themes` | Unlocks a hub theme (e.g. `eden_ld:stone_tablet`) for players. |
 | `/hub theme lock <players> <theme>` | `eden_ld.admin.themes` | Removes an unlocked theme (free themes stay). |
 | `/hub profile` | any player | Opens the hub on your profile. |
-| `/hub mail` | any player | Opens the hub on the Mail tab (the website-purchases join message links here). |
+| `/hub mail` | any player | Opens the hub on the Mail tab (the website-purchases and unread-mail join messages link here). |
+| `/hub reports` | `eden_ld.admin.reports` | Opens the Moderation window on Reports (the staff chat lines about reports link here). |
 | `/kits` | any player | With Kits_LD: opens the hub on the Kits tab (vanilla clients: Kits_LD's chat list). |
 | `/hub background unlock <players> <background>` | `eden_ld.admin.backgrounds` | Unlocks a profile background (e.g. `eden_ld:aurora`) for players. |
 | `/hub background lock <players> <background>` | `eden_ld.admin.backgrounds` | Removes an unlocked background (free ones stay). |
@@ -1663,7 +1683,8 @@ command list is resent. [docs/LUCKPERMS.md](docs/LUCKPERMS.md) lists every LuckP
 
 ## Addon API
 
-Other mods can register flight rules and read cached Minestar profiles — see [API.md](API.md).
+Other mods can register flight rules, read cached Minestar profiles, read players' hub settings
+(`EdenSettingsApi`) and file player reports for staff (`EdenModerationApi`) — see [API.md](API.md).
 
 ## Compatibility
 

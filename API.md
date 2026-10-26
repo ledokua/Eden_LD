@@ -197,6 +197,59 @@ EdenDailyApi.grantExtraRerolls(server, player.getUUID(), 2);
 - Progress only counts toward today's unclaimed quests of that type; completions notify the
   player and refresh their hub.
 
+## Player settings
+
+`net.ledok.eden_ld.api.hub.EdenSettingsApi` — server thread; works for offline players. A mod's
+per-player switches can live on the hub's Settings tab: Eden shows them, stores them with the
+player's other hub settings, and the mod reads them here.
+
+```java
+boolean skipWarning = EdenSettingsApi.getBoolean(server, player.getUUID(),
+        EdenSettingsApi.DUELS_SKIP_LOSS_WARNING, false);
+boolean challengeable = EdenSettingsApi.getBoolean(server, target.getUUID(),
+        EdenSettingsApi.DUELS_PERSONAL_CHALLENGES, true);
+```
+
+- `def` is returned while the player never changed the setting — pass the same default the
+  Settings tab shows (above).
+- Keys today (Settings → Privacy → **Duels**, shown when Duels_LD is installed on the client):
+  `duels_ld:wager.skip_loss_warning` (default off — skip the "you can lose your stake" popup;
+  Duels' ready check always stays) and `duels_ld:wager.personal_challenges` (default on — others
+  may challenge the player with `/duel <name>`). A new key needs an Eden release: the Settings tab
+  only sends keys Eden knows, and the server refuses others.
+- Cheap (an NBT lookup); fine to call per check, no need to cache.
+
+## Moderation reports
+
+`net.ledok.eden_ld.api.hub.EdenModerationApi` — server thread. A player's complaint about something
+your mod saw (a disputed wager, a griefing claim) goes to staff: it lands in the Moderation window's
+**Reports** section, and online staff with `eden_ld.admin.reports` get a chat line with **[Open]**
+at once (and on join while any report is open).
+
+```java
+// Duels_LD: the player disputes wager #1042 from its result screen.
+long id = EdenModerationApi.report(server, player.getUUID(), "duels_ld:wager", "#1042",
+        "He logged out right before losing and kept his stake.",
+        List.of("12:03:11 Alex staked 50 LC, Bob staked 50 LC",
+                "12:04:40 Bob disconnected (match running)",
+                "12:04:40 result: draw, stakes returned"));
+if (id < 0) {
+    player.sendSystemMessage(Component.translatable("message.duels_ld.report.refused"));
+}
+```
+
+- `category` names what it's about — your mod id and a kind (`duels_ld:wager`); `reference` is
+  your own id of the thing (`#1042`, "" for none). Staff see "New report #12 (duels_ld:wager #1042)
+  from Alex", and both in the list.
+- Returns the new report's id, or **-1 when refused**: blank text, or the reporter already filed
+  5 reports in the last 10 minutes (across every mod). Tell the player — Eden says nothing to them.
+- Caps are **cut, not refused**: text 500 characters, the log's first 200 lines of up to 300
+  characters each (trailing spaces trimmed), category and reference 64 each. The constants are on
+  `EdenModerationApi`.
+- The reporter may be offline (their name comes from the server's profile cache).
+- Reports are kept in the world (`data/eden_ld/reports.dat`), at most the newest 2000 — past that,
+  handled ones older than 90 days go first, then the oldest.
+
 ## Minestar profiles
 
 Server side, and only meaningful when the Minestar platform mod is installed. Gate every access

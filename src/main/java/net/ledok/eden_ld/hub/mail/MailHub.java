@@ -48,6 +48,17 @@ public final class MailHub {
     }
 
     /**
+     * "You have N unread letters [Open mail]" when the player has unread mail (asked of Economy_LD off-thread; the
+     * line goes out on the server thread). Nothing without Economy_LD or unread mail. The caller decides whether
+     * the player wants it ({@code JoinNotices}).
+     */
+    public static void unreadLine(ServerPlayer player) {
+        if (LOADED) {
+            Economy.unreadLine(player);
+        }
+    }
+
+    /**
      * A gift's mail to {@code to}: who gave which look, and their note — written in every language
      * Eden ships (the recipient may be offline), the Mail tab picks theirs. Nothing without Economy_LD.
      */
@@ -120,6 +131,30 @@ public final class MailHub {
             });
         }
 
+        static void unreadLine(ServerPlayer player) {
+            if (!net.ledok.economy_ld.manager.EconomyManager.getInstance().isRunning()) {
+                return;
+            }
+            net.ledok.economy_ld.mail.EconomyMail.unread(player.getUUID()).whenComplete((count, error) ->
+                    player.server.execute(() -> {
+                        if (error != null) {
+                            EdenLD.LOGGER.warn("[Mail] Can't count the unread mail of {}", player.getGameProfile().getName(), error);
+                            return;
+                        }
+                        if (player.hasDisconnected() || count == null || count <= 0) {
+                            return;
+                        }
+                        player.sendSystemMessage(Component.translatable(count == 1 ? "message.eden_ld.mail.unread_one"
+                                        : "message.eden_ld.mail.unread_many", count)
+                                .withStyle(net.minecraft.ChatFormatting.GOLD)
+                                .append(" ")
+                                .append(Component.translatable("message.eden_ld.mail.open_button")
+                                        .withStyle(net.minecraft.ChatFormatting.AQUA, net.minecraft.ChatFormatting.UNDERLINE)
+                                        .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                                net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND, "/hub mail")))));
+                    }));
+        }
+
         static void push(ServerPlayer player) {
             if (!net.ledok.economy_ld.manager.EconomyManager.getInstance().isRunning()) {
                 return;
@@ -168,11 +203,19 @@ public final class MailHub {
                 counts.add(item.count());
             }
             String sender = mail.senderName();
-            return new HubPayloads.MailView(mail.id(), mail.kind().ordinal(), sender, sender.startsWith("economy_ld."),
+            return new HubPayloads.MailView(mail.id(), mail.kind().ordinal(), sender, senderIsKey(sender),
                     content.defaultLanguage() == null ? "" : content.defaultLanguage(), texts,
                     content.titleKey() == null ? "" : content.titleKey(),
                     content.bodyKey() == null ? "" : content.bodyKey(), content.args(), items, counts, mail.coins(),
                     mail.createdAt(), mail.expiresAt(), mail.read(), mail.claimed());
+        }
+
+        /**
+         * A sender name that is a lang key (the reader's client translates it): Economy_LD's own senders, and Duels_LD's
+         * ({@code duels_ld.mail.sender}, the key ships in Duels' jar). An explicit list — other names show as written.
+         */
+        private static boolean senderIsKey(String sender) {
+            return sender.startsWith("economy_ld.") || sender.startsWith("duels_ld.");
         }
 
         private static void handle(ServerPlayer player, HubPayloads.MailAction action) {

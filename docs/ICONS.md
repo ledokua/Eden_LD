@@ -1,6 +1,6 @@
 # Hub icons
 
-Every icon the hub needs, for the artist (updated 2026-10-25). Until a file exists the hub draws a placeholder (a
+Every icon the hub needs, for the artist (updated 2026-10-26). Until a file exists the hub draws a placeholder (a
 colored square or circle, or a text symbol), so icons can be added one at a time.
 
 **Format**: PNG with a transparent background, square, one file per icon. Any power-of-two size
@@ -146,7 +146,7 @@ Shown at **8 × 8** before names in member lists (replace ♛ ♚ ★ ·).
 
 The unread dot is drawn in the notification color, no file needed.
 
-## Moderation sections (11)
+## Moderation sections (12)
 
 Shown at **12 × 12** on the Moderation window's section buttons (staff only), in the window's order.
 
@@ -159,6 +159,7 @@ Shown at **12 × 12** on the Moderation window's section buttons (staff only), i
 | `mod_activities` | Activities: which dungeons, raids and arenas the hub shows, their card art and levels (dungeon door with a cog) |
 | `mod_players` | Players: the player page — punish, unlocks, dailies, activities, emojis |
 | `mod_punish_log` | Punishments: the punishment log (book with a red mark) |
+| `mod_reports` | Reports: player complaints (flag / scroll with an exclamation mark) |
 | `mod_guilds` | Guilds: guild admin (disband …) |
 | `mod_parties` | Parties: party admin |
 | `mod_world` | World settings: gamerules, PvP, difficulty, flight and borders per dimension (globe / portal) |
@@ -246,8 +247,8 @@ a missing file shows the purple-and-black texture).
 | `backtank` | Back (Create backtank) | hovering the chestplate | Trinkets' back |
 | `belt` | Belt (Tom's Storage wireless terminal) | hovering the leggings | Trinkets' belt |
 
-**Total**: 19 tabs + the tab bar's close + 2 text icons + 1 PvP + 12 buttons + 6 ranks + 7 mail + 11 moderation +
-1 guild quest = **60**, plus 17 optional (`pvp_off`, 2 sort arrows, 2 Moderation → Activities markers, 5 guild
+**Total**: 19 tabs + the tab bar's close + 2 text icons + 1 PvP + 12 buttons + 6 ranks + 7 mail + 12 moderation +
+1 guild quest = **61**, plus 17 optional (`pvp_off`, 2 sort arrows, 2 Moderation → Activities markers, 5 guild
 sub-tabs, 4 settings sub-tabs, 3 chat) and 11 optional trinket slots.
 **Delivered: 31** (all 19 tabs, both close buttons, `check`, `lc`, `hourglass`, and 8 buttons: `favorite_on`,
 `favorite_off`, `rename`, `invite`, `open_external`, `tour`, `warning`, plus `close`); `close`, `invite` and `tour`

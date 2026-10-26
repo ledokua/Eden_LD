@@ -50,7 +50,7 @@ import java.util.Map;
  * placeholders), items in ghost slots (click one in your inventory, or drag from EMI; copies, the
  * admin keeps theirs), a live preview exactly as the Mail tab will show it — and drafts saved on
  * the server while typing. <b>Mail log</b>: sent staff mail with read / claimed counts and recall.
- * <b>Players</b> and <b>Punishments</b> (with BanHammer): see {@link PunishSection}.
+ * <b>Players</b> and <b>Punishments</b> (with BanHammer): see {@link PunishSection}; <b>Reports</b>: {@link ReportsSection}.
  * <p>
  * It is a container screen (with a client-only, slot-less menu) only so EMI shows its panels.
  */
@@ -89,7 +89,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
                 m.buttonHeight(), m.fieldHeight(), m.padding(), m.textShadow());
     }
 
-    private enum Section { MAIL, LOG, NEWS, CUSTOMIZATION, ACTIVITIES, PLAYERS, PUNISH_LOG, GUILDS, PARTIES, WORLD, SERVER }
+    private enum Section { MAIL, LOG, NEWS, CUSTOMIZATION, ACTIVITIES, PLAYERS, PUNISH_LOG, REPORTS, GUILDS, PARTIES, WORLD, SERVER }
 
     /** The window open now (payload handlers update it). */
     @Nullable
@@ -129,6 +129,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private final ServerSections serverSections = new ServerSections(this, WIDTH - SIDEBAR - 16);
     private final ActivitiesSection activities = new ActivitiesSection(this, WIDTH - SIDEBAR - 16);
     private final WorldSection world = new WorldSection(this, WIDTH - SIDEBAR - 16);
+    private final ReportsSection reports = new ReportsSection(this, WIDTH - SIDEBAR - 16);
 
     /** The news as edited here (published with Publish); loaded from the server until edited. */
     private final Map<String, String> newsTexts = new LinkedHashMap<>();
@@ -173,6 +174,22 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         screen.activities.select(activity);
         Minecraft.getInstance().setScreen(screen);
         screen.activities.request();
+    }
+
+    /**
+     * On a section by name ({@code OpenHub} "moderation:reports": a staff chat line's [Open]); Esc goes to the game.
+     * A section this staff member may not use falls back to their first, as on opening.
+     */
+    public static void openSection(String name) {
+        ClientPlayNetworking.send(HubPayloads.ModOpen.INSTANCE);
+        ModerationScreen screen = new ModerationScreen(null);
+        for (Section candidate : Section.values()) {
+            if (candidate.name().equalsIgnoreCase(name)) {
+                screen.section = candidate;
+            }
+        }
+        Minecraft.getInstance().setScreen(screen);
+        screen.requestSection();
     }
 
     /** From the hub's Moderation tab. */
@@ -347,6 +364,10 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             if (open.section == Section.ACTIVITIES) {
                 open.rebuild();
             }
+        } else if (open.reports.onData(data.area(), data.data())) {
+            if (open.section == Section.REPORTS) {
+                open.rebuild();
+            }
         } else if (open.world.onData(data.area(), data.data())) {
             if (open.section == Section.WORLD) {
                 open.world.refresh();
@@ -427,6 +448,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
                 case GUILDS -> serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.GUILDS);
                 case PARTIES -> serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.PARTIES);
                 case WORLD -> world.build(main);
+                case REPORTS -> reports.build(main);
                 case SERVER -> serverSections.buildServer(main);
             }
         }
@@ -477,6 +499,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             case GUILDS -> (staff & HomeData.STAFF_GUILDS) != 0;
             case PARTIES -> (staff & HomeData.STAFF_PARTIES) != 0;
             case WORLD -> (staff & HomeData.STAFF_WORLD) != 0;
+            case REPORTS -> (staff & HomeData.STAFF_REPORTS) != 0;
             case SERVER -> (staff & (HomeData.STAFF_EMOJIS | HomeData.STAFF_COMMANDS)) != 0;
         };
     }
@@ -484,7 +507,13 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private void show(Section target) {
         saveNow();
         section = target;
-        switch (target) {
+        requestSection();
+        rebuild();
+    }
+
+    /** Asks the server for the open section's data (the sections that have their own). */
+    private void requestSection() {
+        switch (section) {
             case LOG -> ClientPlayNetworking.send(new HubPayloads.MailLogRequest(logEveryone, 0));
             case PLAYERS -> punish.requestResults();
             case PUNISH_LOG -> ClientPlayNetworking.send(HubPayloads.PunishLogRequest.INSTANCE);
@@ -493,10 +522,10 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             case PARTIES -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.PARTIES);
             case WORLD -> world.request();
             case SERVER -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.SERVER);
+            case REPORTS -> reports.request();
             default -> {
             }
         }
-        rebuild();
     }
 
     private Flex sidebar() {

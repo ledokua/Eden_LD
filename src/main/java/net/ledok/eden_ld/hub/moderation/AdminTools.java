@@ -41,7 +41,7 @@ import java.util.UUID;
 
 /**
  * The server side of the Moderation window's admin tools — the player page's Unlocks, Dailies,
- * Dungeons and Emojis tabs, and the Activities, Guilds, Parties and Server sections. Each area is guarded
+ * Dungeons and Emojis tabs, and the Activities, Reports, Guilds, Parties and Server sections. Each area is guarded
  * by the node its command uses, and each action calls what the command calls. One request / data /
  * action payload trio serves them all; the data is NBT (components as JSON). The Activities section also
  * polls a light live payload ({@link ActivityAdminData}).
@@ -49,7 +49,8 @@ import java.util.UUID;
 public final class AdminTools {
 
     public static final String UNLOCKS = "unlocks", DAILIES = "dailies", DUNGEONS = "dungeons", EMOJIS = "emojis",
-            GUILDS = "guilds", PARTIES = "parties", SERVER = "server", ACTIVITIES = "activities", WORLD = "world";
+            GUILDS = "guilds", PARTIES = "parties", SERVER = "server", ACTIVITIES = "activities", WORLD = "world",
+            REPORTS = "reports";
 
     private AdminTools() {
     }
@@ -77,6 +78,7 @@ public final class AdminTools {
             case PARTIES -> may(admin, EdenPermissions.PARTIES);
             case SERVER -> may(admin, EdenPermissions.EMOJIS) || may(admin, EdenPermissions.COMMANDS);
             case WORLD -> may(admin, EdenPermissions.WORLD);
+            case REPORTS -> may(admin, EdenPermissions.REPORTS);
             default -> false;
         };
     }
@@ -98,6 +100,7 @@ public final class AdminTools {
             case SERVER -> serverData(admin, server);
             case ACTIVITIES -> activities(admin, server);
             case WORLD -> net.ledok.eden_ld.world.WorldAdmin.data(server);
+            case REPORTS -> ReportDesk.data(admin, server);
             default -> new CompoundTag();
         };
         ServerPlayNetworking.send(admin, new HubPayloads.AdminData(area, target, data));
@@ -385,6 +388,8 @@ public final class AdminTools {
             }
             case "activities/teleport", "activities/rename", "activities/admin", "activities/force_end",
                  "activities/forget" -> activityAction(admin, action.action(), args);
+            case "reports/view", "reports/handle", "reports/reopen", "reports/note" ->
+                    ReportDesk.act(admin, action.action(), args);
             case "dungeons/reset" -> {
                 ResourceLocation id = args.getString("id").isBlank() ? null : ResourceLocation.tryParse(args.getString("id"));
                 net.ledok.eden_ld.hub.activity.ActivityProgress.reset(server, target, id);

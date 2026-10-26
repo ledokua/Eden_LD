@@ -78,6 +78,21 @@ public final class HubSettings {
      */
     private static final java.util.List<String> CHAT_FLAGS = java.util.List.of(CHAT_NEW_LOOK, CHAT_HUD_STYLE,
             CHAT_SYSTEM_IN_TABS, CHAT_ALL_TAB);
+    /**
+     * Duels_LD's wager switches (Settings → Privacy → Duels, shown when Duels_LD is installed), read by Duels through
+     * {@code EdenSettingsApi.getBoolean}: skip the "you can lose your stake" popup (Duels' ready check always stays),
+     * and accept personal {@code /duel <name>} challenges. Stored under these keys as they are (NBT keys take ':' and
+     * '.'); unset = the default here.
+     */
+    public static final String DUELS_SKIP_LOSS_WARNING = "duels_ld:wager.skip_loss_warning";
+    public static final String DUELS_PERSONAL_CHALLENGES = "duels_ld:wager.personal_challenges";
+    private static final java.util.Map<String, Boolean> DUELS_FLAGS = java.util.Map.of(
+            DUELS_SKIP_LOSS_WARNING, false, DUELS_PERSONAL_CHALLENGES, true);
+    /**
+     * {@link #NOTIFY_OFF}'s bit for unread mail — the client's {@code HubNotifications.Kind.MAIL} ordinal. Off also
+     * drops the "unread letters" line on join.
+     */
+    public static final int NOTIFY_MAIL_BIT = 6;
     /** The longest timed mute the client may ask for (24 hours). */
     private static final int MAX_MUTE_MINUTES = 24 * 60;
     /** How hub tabs show news: badges, a glow, or both ({@link NotifyStyle} ordinal). */
@@ -228,6 +243,17 @@ public final class HubSettings {
             values[i] = flag(server, player, CHAT_FLAGS.get(i));
         }
         return ChatFlagBits.pack(values);
+    }
+
+    /** A yes/no setting under any key, {@code def} while unset (a number counts: 0 is no). Works for offline players. */
+    public static boolean bool(MinecraftServer server, UUID player, String key, boolean def) {
+        CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
+        return settings.contains(key, net.minecraft.nbt.Tag.TAG_ANY_NUMERIC) ? settings.getInt(key) != 0 : def;
+    }
+
+    /** One of Duels_LD's wager switches ({@link #DUELS_SKIP_LOSS_WARNING}, {@link #DUELS_PERSONAL_CHALLENGES}). */
+    public static boolean duels(MinecraftServer server, UUID player, String key) {
+        return bool(server, player, key, DUELS_FLAGS.getOrDefault(key, false));
     }
 
     /** A plain int setting (0 when unset): notify style, color, and the bit masks. */
@@ -483,6 +509,13 @@ public final class HubSettings {
             CompoundTag settings = root.getCompound(TAG);
             settings.putInt(PARTY_INVITES_FROM, value);
             root.put(TAG, settings);
+            return true;
+        }
+        if (DUELS_FLAGS.containsKey(key)) {
+            if (value != 0 && value != 1) {
+                return false;
+            }
+            settings(server, player).putBoolean(key, value != 0);
             return true;
         }
         if (CHAT_FLAGS.contains(key)) {

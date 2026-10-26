@@ -117,8 +117,14 @@ public class EdenLDClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.PvpPlayers.TYPE,
                 (payload, context) -> net.ledok.eden_ld.client.hub.ClientPvp.onPlayers(payload));
 
-        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.OpenHub.TYPE,
-                (payload, context) -> HubScreen.open(payload.tab()));
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.OpenHub.TYPE, (payload, context) -> {
+            // "moderation:<section>" (/hub reports): the Moderation window instead, on that section.
+            if (payload.tab().startsWith("moderation:")) {
+                net.ledok.eden_ld.client.hub.ModerationScreen.openSection(payload.tab().substring("moderation:".length()));
+            } else {
+                HubScreen.open(payload.tab());
+            }
+        });
 
         net.ledok.eden_ld.client.profile.ProfileBackgrounds.initialize();
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ProfileData.TYPE, (payload, context) -> {

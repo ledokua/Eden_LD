@@ -24,7 +24,10 @@ public final class HubPayloads {
         return ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, path);
     }
 
-    /** S2C: tells the client to open the hub screen (used by {@code /hub}). */
+    /**
+     * S2C: tells the client to open the hub screen (used by {@code /hub}), on a tab; {@code moderation:<section>}
+     * (1.3.11, {@code /hub reports}) opens the Moderation window on that section instead.
+     */
     public record OpenHub(String tab) implements CustomPacketPayload {
         /** Opens on the tab the player used last. */
         public static final OpenHub INSTANCE = new OpenHub("");
@@ -66,12 +69,13 @@ public final class HubPayloads {
             implements CustomPacketPayload {
         /**
          * {@code staff} bits: the Moderation window at all, writing mail, everyone's mail log,
-         * BanHammer punishments (any of its commands), the punishment log, editing the news, background rules.
+         * BanHammer punishments (any of its commands), the punishment log, editing the news, background rules, …,
+         * players' reports ({@code STAFF_REPORTS}, 1.3.11).
          */
         public static final int STAFF_MODERATION = 1, STAFF_MAIL = 2, STAFF_MAIL_LOG = 4, STAFF_PUNISH = 8,
                 STAFF_PUNISH_LOG = 16, STAFF_NEWS = 32, STAFF_BACKGROUNDS = 64, STAFF_THEMES = 128,
                 STAFF_DAILIES = 256, STAFF_DUNGEONS = 512, STAFF_EMOJIS = 1024, STAFF_GUILDS = 2048,
-                STAFF_PARTIES = 4096, STAFF_COMMANDS = 8192, STAFF_WORLD = 16384;
+                STAFF_PARTIES = 4096, STAFF_COMMANDS = 8192, STAFF_WORLD = 16384, STAFF_REPORTS = 32768;
         /** Any tab of the player page (the Players section). */
         public static final int STAFF_PLAYER_TABS = STAFF_PUNISH | STAFF_BACKGROUNDS | STAFF_THEMES | STAFF_DAILIES
                 | STAFF_DUNGEONS | STAFF_EMOJIS;
@@ -2407,14 +2411,16 @@ public final class HubPayloads {
      * {@code chatHidden} the hidden channels ({@code HubSettings.hiddenMask}); {@code notifyStyle}
      * a {@code HubSettings.NotifyStyle} ordinal, {@code notifyColor} 0 (theme) or a fixed color,
      * {@code notifyOff} the turned-off notification kinds and {@code seenTabs} the opened tabs, as bits;
-     * {@code mentionVolume} the mention ping's volume, 0-100.
+     * {@code mentionVolume} the mention ping's volume, 0-100; {@code duelsSkipLossWarning} /
+     * {@code duelsPersonalChallenges} Duels_LD's wager switches (1.3.11).
      */
     public record SettingsData(int partyInvitesFrom, boolean friendsAvailable, String theme,
                                List<String> themes, boolean inGuild, boolean showGuildTag,
                                int chatDeaths, int chatAdvancements, int chatHidden, boolean chatFocus,
                                int mentionVolume, int profileVisibleTo, int notifyStyle, int notifyColor,
                                int notifyOff, int seenTabs, int hubLanguage, List<LookOffer> themeOffers,
-                               boolean themeIconsOff, int chatNotify, List<Integer> chatMutes)
+                               boolean themeIconsOff, int chatNotify, List<Integer> chatMutes,
+                               boolean duelsSkipLossWarning, boolean duelsPersonalChallenges)
             implements CustomPacketPayload {
         public static final Type<SettingsData> TYPE = new Type<>(id("settings_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, SettingsData> CODEC = StreamCodec.of(
@@ -2440,12 +2446,15 @@ public final class HubPayloads {
                     buf.writeBoolean(p.themeIconsOff);
                     buf.writeVarInt(p.chatNotify);
                     writeList(buf, p.chatMutes, (b, minutes) -> b.writeInt(minutes));
+                    buf.writeBoolean(p.duelsSkipLossWarning);
+                    buf.writeBoolean(p.duelsPersonalChallenges);
                 },
                 buf -> new SettingsData(buf.readVarInt(), buf.readBoolean(), buf.readUtf(), readStrings(buf),
                         buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                         buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                         buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), readList(buf, LookOffer::read),
-                        buf.readBoolean(), buf.readVarInt(), readList(buf, b -> b.readInt())));
+                        buf.readBoolean(), buf.readVarInt(), readList(buf, b -> b.readInt()), buf.readBoolean(),
+                        buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

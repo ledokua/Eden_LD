@@ -708,7 +708,9 @@ public final class HubServer {
                         .offersFor(HubSettings.availableThemes(server, player.getUUID())),
                 HubSettings.themeIconsOff(server, player.getUUID()),
                 HubSettings.intSetting(server, player.getUUID(), HubSettings.CHAT_NOTIFY),
-                HubSettings.chatMutes(server, player.getUUID())));
+                HubSettings.chatMutes(server, player.getUUID()),
+                HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_SKIP_LOSS_WARNING),
+                HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_PERSONAL_CHALLENGES)));
     }
 
     private static void changeSetting(ServerPlayer player, HubPayloads.SettingChange change) {
