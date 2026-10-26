@@ -492,7 +492,8 @@ public final class HubServer {
                     quest.name().isPresent()
                             ? ServerLang.localize(player, DailyObjectives.goal(quest.objective(), quest.target()))
                             : Component.empty(),
-                    quest.icon(), slot.progress(), quest.count(), slot.claimed(),
+                    quest.icon(), DailyObjectives.shown(quest.objective(), quest.target(), slot.progress(), false),
+                    DailyObjectives.shown(quest.objective(), quest.target(), quest.count(), true), slot.claimed(),
                     quest.rewards().view(player), inGuild ? quest.guildXpOrDefault() : 0));
         }
         int freeLeft = DailyQuests.freeRerollsLeft(player, state);

@@ -384,6 +384,7 @@ targets and naming as [daily quests](#daily-quests), plus:
 | `rewards.guild_xp` | Guild XP. |
 | `rewards.lc` | LC straight into the guild bank. |
 | `rewards.items` | Item stacks mailed to every member. |
+| `dimension` | Members' progress only counts in that dimension (e.g. `"minecraft:the_end"`); the card says "… in the End". |
 
 `name`, `objective`, `target`, `count`, `icon` and `weight` work as for dailies. A test pool
 of 12 guild quests ships disabled: `/datapack enable "eden_ld:test_guild_quests"`, then
@@ -460,6 +461,19 @@ extra free rerolls for today (e.g. as a quest or shop reward).
 }
 ```
 
+**Conditions** (all optional) narrow where a quest counts and who draws it:
+
+| Field | Meaning |
+| --- | --- |
+| `dimension` | Progress only counts while the player is in that dimension (`"minecraft:the_end"`). The card adds "in the End" (lang key `dimension.<ns>.<path>`; Eden ships the Overworld, the Nether and the End, a datapack's `eden_lang` adds others). Also a requirement, as below. |
+| `requires` | Dimensions the player must have unlocked to draw the quest (`["minecraft:the_nether"]`), checked with [Realm Keys](https://github.com/thinkpad16/realm-keys) — exempt, globally and per-player unlocked dimensions all count. For quests whose target only lives there (blazes). Without Realm Keys every dimension counts as unlocked. |
+| `loot_stage` | `{"min": 20, "max": 0}`: the loot stage range (DD Loot Stage's `loot_stage:loot_stage` attribute) that draws the quest; `max` 0 = no top. Harder quests for higher stages, easy ones that stop at a stage. Without DD Loot Stage every player is stage 1. |
+
+A player only draws (and rerolls into) quests they may draw at that moment. When fewer than `quest_count` + 2 are left,
+stage tops (`max`) are ignored so the pool never runs dry; minimums and unlocked dimensions always hold. Unlocking a
+dimension or gaining stages mid-day shows from the next draw or reroll. A player who is offline when their set is drawn
+(an admin reset) counts as stage 1.
+
 **Two languages, no resource pack.** Quests need no authored text at all: without a `name`
 the card shows a generated objective line — "Kill Zombie ×20" / "Вбити: Зомбі ×20" — with mob,
 item, and spell names from the game's own translations, so every player reads their own
@@ -474,7 +488,7 @@ a `name`, the generated objective line shows under it.
 | --- | --- |
 | `name` | Optional title: text or `{"translate": "key"}` (server lang tables). Without it, the generated objective line is the title. |
 | `objective` | `kill_mobs`, `craft_items`, `place_blocks`, `break_blocks`, `eat_food`, `catch_fish`, `cast_spells`, `complete_dungeon`, `stat`, or another mod's progress id (`modid:thing`). Required. |
-| `target` | Optional filter: an id, or `#tag` — entity types for kills, items for crafting/eating, blocks for placing/mining, spells for casts. For `stat` it's required: the scoreboard stat name, e.g. `minecraft.custom:minecraft.jump`. Omit to count anything. |
+| `target` | Optional filter: an id, or `#tag` — entity types for kills, items for crafting/eating, blocks for placing/mining, spells for casts. For `stat` it's required: the scoreboard stat name, e.g. `minecraft.custom:minecraft.jump`, or several joined by `|` (`minecraft.custom:minecraft.walk_one_cm|minecraft.custom:minecraft.sprint_one_cm`: walking and sprinting add up). Distance stats (`..._one_cm`) count centimeters but show in blocks (a `count` of 150000 reads "0 / 1500"). Omit to count anything. |
 | `count` | How many are needed (default 1). |
 | `icon` | Item shown on the card (default paper). |
 | `weight` | Draw weight in the pool (default 10; 0 = never drawn). |

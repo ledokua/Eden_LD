@@ -257,7 +257,8 @@ public final class GuildQuests {
                 int goal = slot.getInt("goal");
                 int progress = slot.getInt("progress");
                 if (quest == null || slot.getBoolean("done") || !quest.objective().equals(type) || progress >= goal
-                        || quest.target().isPresent() && !matcher.test(quest.target().get())) {
+                        || quest.target().isPresent() && !matcher.test(quest.target().get())
+                        || !net.ledok.eden_ld.hub.daily.QuestConditions.inDimension(player, quest.dimension())) {
                     continue;
                 }
                 int added = Math.min(amount, goal - progress);
@@ -385,9 +386,12 @@ public final class GuildQuests {
                         quest.name().isPresent()
                                 ? ServerLang.localize(player, DailyObjectives.goal(quest.objective(), quest.target()))
                                 : Component.empty(),
-                        quest.icon(), slot.getInt("progress"), goal, slot.getBoolean("done"),
+                        quest.icon(), DailyObjectives.shown(quest.objective(), quest.target(), slot.getInt("progress"), false),
+                        DailyObjectives.shown(quest.objective(), quest.target(), goal, true), slot.getBoolean("done"),
                         quest.rewards().guildXp(), EconomyCompat.available() ? quest.rewards().lc() : 0,
-                        quest.rewards().items(), by.getInt(player.getUUID().toString()), top, topAmount));
+                        quest.rewards().items(),
+                        DailyObjectives.shown(quest.objective(), quest.target(), by.getInt(player.getUUID().toString()), false),
+                        top, DailyObjectives.shown(quest.objective(), quest.target(), topAmount, false)));
             }
         }
         return new HubPayloads.GuildQuestsData(progress.level(), progress.into(), progress.needed(),

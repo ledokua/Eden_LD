@@ -26,6 +26,36 @@ public final class DailyObjectives {
         return describe(quest.objective(), quest.target(), quest.count());
     }
 
+    /**
+     * Whether a {@code stat} target counts the stat named {@code name}: one stat, or several joined by {@code |} (walking
+     * and sprinting add up to the same distance).
+     */
+    public static boolean statMatches(String target, String name) {
+        for (String part : target.split("\\|")) {
+            if (part.equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Distance stats ({@code ..._one_cm}) count centimeters; quests show them in blocks. */
+    public static boolean inCentimeters(ResourceLocation type, java.util.Optional<String> target) {
+        return type.getNamespace().equals(net.ledok.eden_ld.EdenLD.MOD_ID) && type.getPath().equals("stat")
+                && target.isPresent() && target.get().endsWith("_one_cm");
+    }
+
+    /**
+     * An amount as players see it: distance stats in blocks (100 cm), anything else as is. Progress rounds down and goals
+     * up, so a bar never looks full before the quest is done.
+     */
+    public static int shown(ResourceLocation type, java.util.Optional<String> target, int amount, boolean goal) {
+        if (!inCentimeters(type, target)) {
+            return amount;
+        }
+        return goal ? (int) ((amount + 99L) / 100) : amount / 100;
+    }
+
     /** The line for any quest (daily or guild): objective type, optional target, amount. */
     public static Component describe(ResourceLocation type, java.util.Optional<String> targetId, int count) {
         String builtIn = type.getNamespace().equals(net.ledok.eden_ld.EdenLD.MOD_ID) ? type.getPath() : null;
@@ -35,7 +65,7 @@ public final class DailyObjectives {
         }
         if ("stat".equals(builtIn)) {
             return Component.translatable(KEY + "stat",
-                    targetId.map(DailyObjectives::statName).orElse(Component.literal("?")), count);
+                    targetId.map(stat -> statName(stat.split("\\|")[0])).orElse(Component.literal("?")), shown(type, targetId, count, true));
         }
         if (builtIn != null && java.util.Set.of("kill_mobs", "craft_items", "cast_spells", "complete_dungeon",
                 "place_blocks", "break_blocks", "eat_food").contains(builtIn)) {
@@ -59,7 +89,7 @@ public final class DailyObjectives {
             return Component.translatable(GOAL + "catch_fish");
         }
         if ("stat".equals(builtIn)) {
-            return targetId.map(DailyObjectives::statName).orElse(Component.literal("?"));
+            return targetId.map(stat -> statName(stat.split("\\|")[0])).orElse(Component.literal("?"));
         }
         if (builtIn != null && java.util.Set.of("kill_mobs", "craft_items", "cast_spells", "complete_dungeon",
                 "place_blocks", "break_blocks", "eat_food").contains(builtIn)) {

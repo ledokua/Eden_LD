@@ -154,7 +154,7 @@ public final class DailyQuests {
         CompoundTag fresh = new CompoundTag();
         fresh.putLong("day", today());
         ListTag slots = new ListTag();
-        for (DailyQuestDefinition quest : draw(random)) {
+        for (DailyQuestDefinition quest : draw(drawPool(server, player), random)) {
             slots.add(slotTag(quest.id()));
         }
         fresh.put("slots", slots);
@@ -175,7 +175,7 @@ public final class DailyQuests {
             CompoundTag slot = slots.getCompound(i);
             ResourceLocation id = ResourceLocation.tryParse(slot.getString("quest"));
             if (!slot.getBoolean("claimed") && (id == null || DailyQuestRegistry.get(id) == null)) {
-                DailyQuestDefinition replacement = randomExcluding(questIds(slots), new Random());
+                DailyQuestDefinition replacement = randomExcluding(drawPool(server, player), questIds(slots), new Random());
                 if (replacement != null) {
                     slots.set(i, slotTag(replacement.id()));
                     changed = true;
@@ -206,13 +206,24 @@ public final class DailyQuests {
         return ids;
     }
 
+    /**
+     * The quests this player may draw now ({@link DailyQuestDefinition#drawableBy}: loot stage, unlocked dimensions).
+     * When fewer than a day's set plus two rerolls are left, stage tops are dropped. Offline players count as stage 1.
+     */
+    private static List<DailyQuestDefinition> drawPool(MinecraftServer server, UUID player) {
+        int stage = QuestConditions.lootStage(server.getPlayerList().getPlayer(player));
+        int needed = Math.max(1, EdenLD.CONFIG.dailies.quest_count) + 2;
+        return QuestConditions.pool(DailyQuestRegistry.all(), quest -> quest.drawableBy(server, player, stage, false),
+                quest -> quest.drawableBy(server, player, stage, true), needed);
+    }
+
     /** A weighted draw without replacement. */
-    private static List<DailyQuestDefinition> draw(Random random) {
+    private static List<DailyQuestDefinition> draw(List<DailyQuestDefinition> pool, Random random) {
         List<DailyQuestDefinition> picked = new ArrayList<>();
         Set<ResourceLocation> taken = new HashSet<>();
         int count = Math.max(1, EdenLD.CONFIG.dailies.quest_count);
         for (int i = 0; i < count; i++) {
-            DailyQuestDefinition quest = randomExcluding(taken, random);
+            DailyQuestDefinition quest = randomExcluding(pool, taken, random);
             if (quest == null) {
                 break;
             }
@@ -223,8 +234,9 @@ public final class DailyQuests {
     }
 
     @Nullable
-    private static DailyQuestDefinition randomExcluding(Set<ResourceLocation> excluded, Random random) {
-        List<DailyQuestDefinition> pool = DailyQuestRegistry.all().stream()
+    private static DailyQuestDefinition randomExcluding(List<DailyQuestDefinition> from, Set<ResourceLocation> excluded,
+                                                        Random random) {
+        List<DailyQuestDefinition> pool = from.stream()
                 .filter(quest -> quest.weight() > 0 && !excluded.contains(quest.id()))
                 .toList();
         int total = pool.stream().mapToInt(DailyQuestDefinition::weight).sum();
@@ -268,7 +280,8 @@ public final class DailyQuests {
             DailyQuestDefinition quest = DailyQuestRegistry.get(ResourceLocation.tryParse(slot.getString("quest")));
             if (quest == null || slot.getBoolean("claimed") || !quest.objective().equals(type)
                     || slot.getInt("progress") >= quest.count()
-                    || quest.target().isPresent() && !matcher.test(quest.target().get())) {
+                    || quest.target().isPresent() && !matcher.test(quest.target().get())
+                    || !QuestConditions.inDimension(player, quest.dimension())) {
                 continue;
             }
             int progress = Math.min(quest.count(), slot.getInt("progress") + amount);
@@ -416,7 +429,7 @@ public final class DailyQuests {
         }
         List<ResourceLocation> ids = new ArrayList<>();
         state.slots().forEach(slot -> ids.add(slot.questId()));
-        if (rerollPick(ids, index) == null) {
+        if (rerollPick(server, player.getUUID(), ids, index) == null) {
             onDone.accept(Component.translatable("message.eden_ld.dailies.no_alternatives"));
             return;
         }
@@ -448,7 +461,7 @@ public final class DailyQuests {
             for (int i = 0; i < slots.size(); i++) {
                 slotIds.add(ResourceLocation.tryParse(slots.getCompound(i).getString("quest")));
             }
-            DailyQuestDefinition replacement = rerollPick(slotIds, index);
+            DailyQuestDefinition replacement = rerollPick(server, player.getUUID(), slotIds, index);
             if (replacement == null) {
                 EconomyCompat.give(player, cost);
                 onDone.accept(Component.translatable("message.eden_ld.dailies.no_alternatives"));
@@ -469,10 +482,12 @@ public final class DailyQuests {
 
     /**
      * A reroll never duplicates a quest held in another slot, and avoids the quest being
-     * replaced — unless the pool has nothing else, then that same quest comes back (fresh).
+     * replaced — unless the pool has nothing else, then that same quest comes back (fresh). Only from the quests the
+     * player may draw now.
      */
     @Nullable
-    private static DailyQuestDefinition rerollPick(List<ResourceLocation> slotQuests, int index) {
+    private static DailyQuestDefinition rerollPick(MinecraftServer server, UUID player, List<ResourceLocation> slotQuests,
+                                                   int index) {
         Set<ResourceLocation> others = new HashSet<>();
         for (int i = 0; i < slotQuests.size(); i++) {
             if (i != index && slotQuests.get(i) != null) {
@@ -484,8 +499,9 @@ public final class DailyQuests {
             all.add(slotQuests.get(index));
         }
         Random random = new Random();
-        DailyQuestDefinition pick = randomExcluding(all, random);
-        return pick != null ? pick : randomExcluding(others, random);
+        List<DailyQuestDefinition> pool = drawPool(server, player);
+        DailyQuestDefinition pick = randomExcluding(pool, all, random);
+        return pick != null ? pick : randomExcluding(pool, others, random);
     }
 
     /** Extra free rerolls for today only (quest rewards, shop items, admins). */

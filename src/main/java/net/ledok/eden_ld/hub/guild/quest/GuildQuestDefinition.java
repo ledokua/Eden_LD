@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.hub.daily.DailyObjectives;
+import net.ledok.eden_ld.hub.daily.QuestConditions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.resources.ResourceLocation;
@@ -20,12 +21,12 @@ import java.util.Optional;
  * weekly board. Drawn only for guilds whose level is within {@code min_level}..{@code max_level}
  * (0 = no top). {@code count_per_member} adds that much to the goal for each member the guild has
  * when the quest is drawn. Rewards: guild XP, LC into the guild bank, and items mailed to every
- * member when it's done.
+ * member when it's done. {@code dimension}: members' progress only counts there.
  */
 public record GuildQuestDefinition(ResourceLocation id, Optional<Component> name, Period period,
                                    ResourceLocation objective, Optional<String> target, int count,
                                    int countPerMember, ResourceLocation icon, int weight, int minLevel,
-                                   int maxLevel, Rewards rewards) {
+                                   int maxLevel, Rewards rewards, Optional<ResourceLocation> dimension) {
 
     public enum Period implements StringRepresentable {
         DAILY, WEEKLY;
@@ -55,7 +56,7 @@ public record GuildQuestDefinition(ResourceLocation id, Optional<Component> name
 
     public record Body(Optional<Component> name, Period period, ResourceLocation objective, Optional<String> target,
                        int count, int countPerMember, ResourceLocation icon, int weight, int minLevel, int maxLevel,
-                       Rewards rewards) {
+                       Rewards rewards, Optional<ResourceLocation> dimension) {
         public static final Codec<Body> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 ComponentSerialization.CODEC.optionalFieldOf("name").forGetter(Body::name),
                 Period.CODEC.optionalFieldOf("period", Period.DAILY).forGetter(Body::period),
@@ -68,12 +69,13 @@ public record GuildQuestDefinition(ResourceLocation id, Optional<Component> name
                 Codec.intRange(0, 10_000).optionalFieldOf("weight", 10).forGetter(Body::weight),
                 Codec.intRange(1, 10_000).optionalFieldOf("min_level", 1).forGetter(Body::minLevel),
                 Codec.intRange(0, 10_000).optionalFieldOf("max_level", 0).forGetter(Body::maxLevel),
-                Rewards.CODEC.optionalFieldOf("rewards", Rewards.NONE).forGetter(Body::rewards)
+                Rewards.CODEC.optionalFieldOf("rewards", Rewards.NONE).forGetter(Body::rewards),
+                ResourceLocation.CODEC.optionalFieldOf("dimension").forGetter(Body::dimension)
         ).apply(instance, Body::new));
 
         GuildQuestDefinition withId(ResourceLocation id) {
             return new GuildQuestDefinition(id, name, period, objective, target, count, countPerMember, icon, weight,
-                    minLevel, maxLevel, rewards);
+                    minLevel, maxLevel, rewards, dimension);
         }
     }
 
@@ -90,11 +92,12 @@ public record GuildQuestDefinition(ResourceLocation id, Optional<Component> name
 
     /** The card title: the authored name, else the objective without the amount (the bar shows it). */
     public Component cardTitle() {
-        return name.orElseGet(() -> DailyObjectives.goal(objective, target));
+        return name.orElseGet(() -> QuestConditions.withDimension(DailyObjectives.goal(objective, target), dimension));
     }
 
     /** The authored name, else the objective line for this goal (chat). */
     public Component title(int goal) {
-        return name.orElseGet(() -> DailyObjectives.describe(objective, target, goal));
+        return name.orElseGet(() -> QuestConditions.withDimension(DailyObjectives.describe(objective, target, goal),
+                dimension));
     }
 }

@@ -63,7 +63,7 @@ public final class DailyProgressHooks {
             changed = DailyQuests.report(player, DailyQuests.CATCH_FISH, target -> true, amount);
         }
         String name = stat.getName();
-        changed |= DailyQuests.report(player, DailyQuests.STAT, name::equals, amount);
+        changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
         if (changed) {
             HubServer.pushDailies(player);
         }
