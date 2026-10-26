@@ -67,3 +67,8 @@ reflection, so the Duels_LD that adds them lights the buttons up with no Eden ch
 the hub (no toast, no return to the hub armed). Not OK: `message()` as a red toast. A missing or misshaped method
 keeps its button disabled. The hub only opens public announcements (`target` null): personal challenges stay
 `/duel <name>`.
+
+**Deployed (2026-10-26, Eden 1.3.12 with Duels_LD 1.7.0):** Prism Client/Server (Eden 1.3.10 and Duels 1.5.0 to
+removed-mods-2026-10-26), pack ce147e7 (pushed), live (both old jars to backup/removed-mods-2026-10-26; cmp +
+unzip -t). Includes 1.3.11 (reports, settings API, unread-mail line). Tested by the Duels session in dev with two
+clients (pages, Review hand-off, "Don't ask again"); History and Report not yet. Live from the owner's next restart.
