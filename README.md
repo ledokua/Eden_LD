@@ -495,8 +495,9 @@ a `name`, the generated objective line shows under it.
 | `guild_xp` | Guild XP the claim gives the player's guild (default: config `guilds.daily_quest_xp`). |
 | `rewards` | `items` (full item stacks, components allowed — pay money as Economy_LD coins: `economy_ld:bronze_coin` 1 LC, `silver_coin` 100, `gold_coin` 10 000, `emerald_coin` 1 000 000; stacks up to 99), optional `xp` points and `lc` (straight to the balance), `commands` run by the server (`{player}` = name), `text` note shown after the rewards (describe what commands give; text or `{"translate": ...}`). |
 
-Eden counts kills (projectile kills count for the shooter), crafting (shift-click counts the
-whole batch), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
+Eden counts kills (projectile kills count for the shooter), crafting (the game's "crafted" statistic: the crafting
+grid with shift-click as the whole batch, furnaces and smokers, stonecutters, smithing, villager trades, and mod stations
+that call `onCraftedBy`, such as Farmer's Delight's cooking pot), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
 Engine casts**, and **any vanilla statistic** (`stat` — same names as `/scoreboard` criteria;
 distances are in centimeters, times in ticks).
 

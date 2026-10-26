@@ -21,7 +21,6 @@
     "PlayerMixin",
     "PoisonMobEffectMixin",
     "ProjectileMixin",
-    "ResultSlotMixin",
     "SaintsDragonsSpawnRulesMixin",
     "ServerPlayerPvpMixin",
     "ServerPlayerStatMixin",

@@ -46,8 +46,10 @@ public final class DailyProgressHooks {
 
     /**
      * From {@code ServerPlayer.awardStat}: block placing (ITEM_USED of a block item — seeds and
-     * berries planted count), mining (BLOCK_MINED), fishing (FISH_CAUGHT), and the generic
-     * {@code stat} objective for anything else vanilla tracks.
+     * berries planted count), mining (BLOCK_MINED), fishing (FISH_CAUGHT), crafting (ITEM_CRAFTED: whatever calls
+     * {@code ItemStack.onCraftedBy} — the crafting grid, furnaces, stonecutters, smithing, villager trades and mod
+     * stations such as Farmer's Delight's cooking pot), and the generic {@code stat} objective for anything else
+     * vanilla tracks.
      */
     public static void onStat(ServerPlayer player, net.minecraft.stats.Stat<?> stat, int amount) {
         boolean changed = false;
@@ -61,6 +63,9 @@ public final class DailyProgressHooks {
         } else if (stat.getType() == net.minecraft.stats.Stats.CUSTOM
                 && net.minecraft.stats.Stats.FISH_CAUGHT.equals(stat.getValue())) {
             changed = DailyQuests.report(player, DailyQuests.CATCH_FISH, target -> true, amount);
+        } else if (stat.getType() == net.minecraft.stats.Stats.ITEM_CRAFTED
+                && stat.getValue() instanceof net.minecraft.world.item.Item item) {
+            changed = DailyQuests.report(player, DailyQuests.CRAFT_ITEMS, DailyQuests.itemMatcher(new ItemStack(item)), amount);
         }
         String name = stat.getName();
         changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
@@ -75,9 +80,4 @@ public final class DailyProgressHooks {
         }
     }
 
-    public static void onCrafted(ServerPlayer player, ItemStack stack, int amount) {
-        if (DailyQuests.report(player, DailyQuests.CRAFT_ITEMS, DailyQuests.itemMatcher(stack), amount)) {
-            HubServer.pushDailies(player);
-        }
-    }
 }
