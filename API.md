@@ -301,3 +301,16 @@ MinestarHook.fetchFriends(player, false, snapshot -> {                // server 
 The `api.flight` package and `MinestarHook`/`ProfileCache` are kept source-stable; internals
 (`flight`, `legacy`, `minestar` implementation classes) may change without notice. Legacy
 `yggdrasil_ld:` registry ids are permanent.
+
+## Hub theme (client)
+
+`net.ledok.eden_ld.api.client.EdenHubThemeApi` (1.3.13+) — client only, render thread. Another mod's screen can
+look like the hub in whatever theme the player picked:
+
+```java
+Theme theme = EdenHubThemeApi.theme();                    // VectorLib palette tokens + widget skins
+Function<Rect, CanvasNode> shell = EdenHubThemeApi.panel(); // the themed panel background (~8 px border art)
+ResourceLocation id = EdenHubThemeApi.id();                // rebuild your screen when this changes
+```
+
+Duels_LD's stake screens use it in their "Hub theme" mode (looked up by reflection, so Duels runs without it).
