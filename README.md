@@ -331,6 +331,10 @@ the hub only — chat and nameplates keep the LuckPerms role prefixes), and a co
     was allowed at once.
   - `/guild-admin disband` releases the excess the same way.
   - Without OPAC, or without that setup, guilds work as before and claims stay personal.
+- **Spells in claims (Open Parties and Claims).** A player's harmful spells leave alone the mobs OPAC protects from
+  them — animals and villagers in a claim they have no access to: OPAC stops the damage itself, and Eden refuses the
+  rest at Spell Engine's action gate (the push-back area spells give after the hit, pulls, slows and other debuffs).
+  Hostile mobs and other players are unaffected (players follow the PvP rules).
 - **Guild waystones**: see [Waystones](#waystones) — "Visible to Team" stones are shared with
   the owner's guild.
 

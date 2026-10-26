@@ -5,6 +5,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.hub.guild.Guild;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -99,6 +101,28 @@ public final class OpacCompat {
             return false;
         }
     }
+
+    /**
+     * Whether OPAC protects {@code target} from {@code attacker} where it stands — the answer OPAC gives when the
+     * attacker hurts it (a claim the attacker has no access to, a protected mob). False without OPAC, on the client, or
+     * when the check fails.
+     */
+    public static boolean protects(Entity attacker, Entity target) {
+        if (!LOADED || !(attacker.level() instanceof ServerLevel)) {
+            return false;
+        }
+        try {
+            return OpacProtection.protects(attacker, target);
+        } catch (RuntimeException | LinkageError e) {
+            if (!protectionFailed) {
+                protectionFailed = true;
+                EdenLD.LOGGER.warn("Open Parties and Claims protection check failed", e);
+            }
+            return false;
+        }
+    }
+
+    private static boolean protectionFailed;
 
     private static void guarded(Runnable action) {
         try {
