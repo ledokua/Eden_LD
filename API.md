@@ -218,6 +218,9 @@ boolean challengeable = EdenSettingsApi.getBoolean(server, target.getUUID(),
   may challenge the player with `/duel <name>`). A new key needs an Eden release: the Settings tab
   only sends keys Eden knows, and the server refuses others.
 - Cheap (an NBT lookup); fine to call per check, no need to cache.
+- `setBoolean(server, player, key, value)` (1.3.12+) changes one of these keys, as the Settings
+  tab would — for a mod's own "Don't ask again" box — and refreshes an open Settings tab. False for
+  any other key.
 
 ## Moderation reports
 

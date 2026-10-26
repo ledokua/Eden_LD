@@ -65,8 +65,9 @@ public final class HubHelp {
     }
 
     /**
-     * The tour for what the tab shows now: a guild member's sub-tab ({@code guild/bank}), Activities' Duels
-     * ({@code activities/duels}), else the tab itself ({@code guild} is the one for players without a guild).
+     * The tour for what the tab shows now: a guild member's sub-tab ({@code guild/bank}), Activities' Ranked PvP
+     * ({@code activities/duels}) or Duels ({@code activities/wagers}), else the tab itself ({@code guild} is the one
+     * for players without a guild).
      */
     static String tourKey(HubTab tab) {
         String key = tab.name().toLowerCase(java.util.Locale.ROOT);
@@ -75,6 +76,9 @@ public final class HubHelp {
         }
         if (tab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
             return key + "/duels";
+        }
+        if (tab == HubTab.ACTIVITIES && ActivitiesTab.showingWagers()) {
+            return key + "/wagers";
         }
         return key;
     }

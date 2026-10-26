@@ -299,6 +299,26 @@ public class EdenLDClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.DuelsAlert.TYPE,
                 (payload, context) -> net.ledok.eden_ld.client.hub.DuelsAlerts.matchStarting(payload.mode()));
 
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.WagerData.TYPE, (payload, context) -> {
+            boolean wasAvailable = HubState.wagerHeader != null && HubState.wagerHeader.enabled();
+            HubState.wagerHeader = payload;
+            long now = System.currentTimeMillis();
+            if (payload.has(HubPayloads.WagerData.LISTINGS)) {
+                HubState.wagerListings = payload.listings();
+                HubState.wagerListingsAt = now;
+            }
+            if (payload.has(HubPayloads.WagerData.MINE)) {
+                HubState.wagerMine = payload.mine();
+                HubState.wagerMineAt = now;
+            }
+            if (payload.has(HubPayloads.WagerData.HISTORY)) {
+                HubState.wagerHistory = payload.history();
+            }
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onWagerData(wasAvailable != payload.enabled());
+            }
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.DuelsData.TYPE, (payload, context) -> {
             HubState.duelsData = payload;
             HubState.duelsReceivedAt = System.currentTimeMillis();

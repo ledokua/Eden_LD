@@ -346,6 +346,8 @@ public class HubScreen extends CanvasScreen {
             GuildQuestsView.tick();
         } else if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
             DuelsTab.tick();
+        } else if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingWagers()) {
+            WagersTab.tick();
         }
     }
 
@@ -367,6 +369,10 @@ public class HubScreen extends CanvasScreen {
         closeBankView();
         if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
             DuelsTab.left();
+        }
+        // Also when one of Duels' stake screens replaced the hub: it stops pushing the wager pages.
+        if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingWagers()) {
+            WagersTab.left();
         }
         net.ledok.eden_ld.client.chat.GifViewer.close();
     }
@@ -450,6 +456,9 @@ public class HubScreen extends CanvasScreen {
             }
             if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
                 DuelsTab.left();
+            }
+            if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingWagers()) {
+                WagersTab.left();
             }
         }
         if (!available(tab)) {
@@ -621,8 +630,11 @@ public class HubScreen extends CanvasScreen {
         } else if (tab == HubTab.ACTIVITIES) {
             ClientPlayNetworking.send(HubPayloads.ActivitiesRequest.INSTANCE);
             if (ActivitiesTab.showingDuels()) {
-                // Duels is a filter of Activities: live duel data while it's shown.
+                // Ranked PvP is a filter of Activities: live duel data while it's shown.
                 DuelsTab.entered();
+            } else if (ActivitiesTab.showingWagers()) {
+                // So is Duels (wager duels): the open page's data, pushed while it's shown.
+                WagersTab.entered();
             }
             ActivitiesTab.build(this, content);
         } else if (tab == HubTab.WARDROBE) {
@@ -1020,9 +1032,20 @@ public class HubScreen extends CanvasScreen {
         }
     }
 
-    /** Fresh Duels data (the Duels filter opened, a queue or match change), or a view switch. */
+    /** Fresh Ranked PvP data (its filter opened, a queue or match change), or a view switch. */
     public void onDuelsData() {
         if (HubState.lastTab == HubTab.ACTIVITIES && ActivitiesTab.showingDuels()) {
+            content.clear();
+            ActivitiesTab.build(this, content);
+        }
+    }
+
+    /**
+     * Fresh wager data (a page opened, a push, an action's answer). {@code availability}: wager duels were switched
+     * on or off, so the Activities filters change too.
+     */
+    public void onWagerData(boolean availability) {
+        if (HubState.lastTab == HubTab.ACTIVITIES && (availability || ActivitiesTab.showingWagers())) {
             content.clear();
             ActivitiesTab.build(this, content);
         }

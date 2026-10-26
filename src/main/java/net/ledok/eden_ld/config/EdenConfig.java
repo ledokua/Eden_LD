@@ -415,8 +415,8 @@ public class EdenConfig {
         /**
          * The hub tabs' tours: what the tab shows → the NPCs_LD dialog the help window's ▶ starts. Keys are tab names
          * (home, guild, waystones, activities, mail…; {@code guild} is for players without a guild) or tab/sub-tab:
-         * {@code guild/members|recruiting|quests|level|bank} for guild members, {@code activities/duels}. Nothing
-         * listed = no ▶. Tours a newer Eden adds join an existing file on load; {@code ""} turns one off.
+         * {@code guild/members|recruiting|quests|level|bank} for guild members, {@code activities/duels} (Ranked PvP),
+         * {@code activities/wagers} (Duels; none by default). Nothing listed = no ▶. Tours a newer Eden adds join an existing file on load; {@code ""} turns one off.
          */
         public java.util.Map<String, String> tab_tours = defaultTours();
 

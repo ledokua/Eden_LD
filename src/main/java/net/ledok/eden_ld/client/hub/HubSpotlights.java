@@ -60,7 +60,7 @@ public final class HubSpotlights {
     /** The first waystone row's star (favorite) and Teleport button. */
     public static final String WAYSTONES_STAR = PREFIX + "waystones/star";
     public static final String WAYSTONES_TELEPORT = PREFIX + "waystones/teleport";
-    /** All · Dungeons · Raids · Arenas · Duels. */
+    /** All · Dungeons · Raids · Arenas · Ranked PvP · Duels. */
     public static final String ACTIVITIES_FILTERS = PREFIX + "activities/filters";
     /** "Your level" (only when activities are locked by level). */
     public static final String ACTIVITIES_LEVEL = PREFIX + "activities/level";
@@ -105,7 +105,7 @@ public final class HubSpotlights {
     public static final String GUILD_BANK_VAULT = PREFIX + "guild/bank_vault";
     public static final String GUILD_BANK_INVENTORY = PREFIX + "guild/bank_inventory";
     public static final String GUILD_BANK_LOG = PREFIX + "guild/bank_log";
-    // Activities → Duels.
+    // Activities → Ranked PvP (the ids keep their old "duels" name: tutorials store them).
     public static final String DUELS_CARD_1V1 = PREFIX + "duels/card_1v1";
     public static final String DUELS_CARD_2V2 = PREFIX + "duels/card_2v2";
     public static final String DUELS_QUEUE_1V1 = PREFIX + "duels/queue_1v1";
@@ -115,6 +115,13 @@ public final class HubSpotlights {
     /** Matches · Top 1v1 · Top 2v2. */
     public static final String DUELS_VIEWS = PREFIX + "duels/views";
     public static final String DUELS_LIST = PREFIX + "duels/list";
+    // Activities → Duels (wager duels, Duels_LD 1.6.0+).
+    /** Announcements · My duels · History. */
+    public static final String WAGERS_PAGES = PREFIX + "wagers/pages";
+    /** Create duel (disabled until Duels_LD can open its stake screen from the hub). */
+    public static final String WAGERS_CREATE = PREFIX + "wagers/create";
+    /** The open page's list. */
+    public static final String WAGERS_LIST = PREFIX + "wagers/list";
     // Kits (Kits_LD): the list, the first card, the first Claim that can be pressed, the first Preview.
     public static final String KITS_LIST = PREFIX + "kits/list";
     public static final String KITS_FIRST = PREFIX + "kits/first";
@@ -213,10 +220,12 @@ public final class HubSpotlights {
                 {GUILD_PERKS, "Guild Level: perks"}, {GUILD_BANK_BALANCE, "Guild Bank: LC balance"},
                 {GUILD_BANK_TABS, "Guild Bank: vault tabs"}, {GUILD_BANK_UPGRADES, "Guild Bank: upgrades"},
                 {GUILD_BANK_VAULT, "Guild Bank: vault"}, {GUILD_BANK_INVENTORY, "Guild Bank: your inventory"},
-                {GUILD_BANK_LOG, "Guild Bank: Log"}, {DUELS_CARD_1V1, "Duels: 1v1 card"},
-                {DUELS_CARD_2V2, "Duels: 2v2 card"}, {DUELS_QUEUE_1V1, "Duels: 1v1 queue button"},
-                {DUELS_QUEUE_2V2, "Duels: 2v2 queue button"}, {DUELS_REWARDS, "Duels: today's rewards"},
-                {DUELS_VIEWS, "Duels: Matches / Top"}, {DUELS_LIST, "Duels: list"},
+                {GUILD_BANK_LOG, "Guild Bank: Log"}, {DUELS_CARD_1V1, "Ranked PvP: 1v1 card"},
+                {DUELS_CARD_2V2, "Ranked PvP: 2v2 card"}, {DUELS_QUEUE_1V1, "Ranked PvP: 1v1 queue button"},
+                {DUELS_QUEUE_2V2, "Ranked PvP: 2v2 queue button"}, {DUELS_REWARDS, "Ranked PvP: today's rewards"},
+                {DUELS_VIEWS, "Ranked PvP: Matches / Top"}, {DUELS_LIST, "Ranked PvP: list"},
+                {WAGERS_PAGES, "Duels: Announcements / My duels / History"}, {WAGERS_CREATE, "Duels: Create duel"},
+                {WAGERS_LIST, "Duels: list"},
                 {KITS_LIST, "Kits: list"}, {KITS_FIRST, "Kits: first kit"},
                 {KITS_CLAIM, "Kits: first Claim that can be pressed"}, {KITS_PREVIEW, "Kits: first Preview"},
                 {KITS_PREVIEW_WINDOW, "Kits: Preview window"}, {HOME_CARD, "Home: player card"},

@@ -15,7 +15,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Duels_LD behind {@link DuelsHook}: the tab's data from {@link DuelsApi}, and its queue buttons. */
+/**
+ * Duels_LD behind {@link DuelsHook}: the tab's data from {@link DuelsApi}, and its queue buttons.
+ * <p>
+ * Wager duels need DuelsApi 1.6.0+. Whether the running Duels_LD has that API is looked up once by reflection
+ * ({@link #WAGERS}); everything using its types lives in {@link DuelsWagers}, which is only touched after the check,
+ * so with an older Duels_LD the hub's Duels page simply doesn't show.
+ */
 final class DuelsIntegration {
 
     private static final int HISTORY = 20;
@@ -26,6 +32,8 @@ final class DuelsIntegration {
      */
     private static final Map<UUID, Integer> IN_MATCH = new ConcurrentHashMap<>();
     private static final AtomicInteger MATCHES = new AtomicInteger();
+    /** The running Duels_LD has the wager API (1.6.0+). */
+    private static final boolean WAGERS = wagerApi();
 
     private DuelsIntegration() {
     }
@@ -54,6 +62,91 @@ final class DuelsIntegration {
                 onChange.run();
             }
         });
+    }
+
+    static boolean wagers() {
+        return WAGERS;
+    }
+
+    /**
+     * Every wager method, record accessor and listener hook {@link DuelsWagers} uses, with their return types: a
+     * Duels_LD that renamed or reshaped any of them counts as having no wager API.
+     */
+    private static boolean wagerApi() {
+        try {
+            Class<?> api = DuelsApi.class;
+            String root = "net.ledok.duels_ld.api.";
+            Class<?> result = Class.forName(root + "WagerResult");
+            Class<?> listing = Class.forName(root + "DuelsApi$WagerListing");
+            Class<?> offer = Class.forName(root + "DuelsApi$WagerOffer");
+            Class<?> record = Class.forName(root + "DuelsApi$WagerRecord");
+            Class<?> stake = Class.forName(root + "DuelsApi$WagerStake");
+            Class<?> stats = Class.forName(root + "DuelsApi$WagerStats");
+            Class<?> mine = Class.forName(root + "DuelsApi$MyWagers");
+            returns(api.getMethod("wagersEnabled"), boolean.class);
+            returns(api.getMethod("listings", MinecraftServer.class, UUID.class), List.class);
+            returns(api.getMethod("myWagers", MinecraftServer.class, UUID.class), mine);
+            returns(api.getMethod("wagerHistory", MinecraftServer.class, UUID.class, int.class), List.class);
+            returns(api.getMethod("wagerStats", UUID.class), stats);
+            returns(api.getMethod("skipsLossWarning", MinecraftServer.class, UUID.class), boolean.class);
+            returns(api.getMethod("cancelListing", ServerPlayer.class), result);
+            for (String action : List.of("withdrawOffer", "declineOffer", "acceptOffer", "declineChallenge")) {
+                returns(api.getMethod(action, ServerPlayer.class, int.class), result);
+            }
+            returns(api.getMethod("report", ServerPlayer.class, int.class, String.class), result);
+            returns(result.getMethod("ok"), boolean.class);
+            returns(result.getMethod("message", Object[].class), net.minecraft.network.chat.Component.class);
+            Class<?> listener = DuelsApi.Listener.class;
+            listener.getMethod("onWagerChanged", UUID.class);
+            listener.getMethod("onListingsChanged");
+            for (String accessor : List.of("number", "offers")) {
+                returns(listing.getMethod(accessor), int.class);
+            }
+            for (String accessor : List.of("createdAtMillis", "expiresAtMillis", "pausedRemainingMillis")) {
+                returns(listing.getMethod(accessor), long.class);
+            }
+            listing.getMethod("author");
+            listing.getMethod("authorName");
+            listing.getMethod("authorStats");
+            listing.getMethod("stake");
+            listing.getMethod("comment");
+            listing.getMethod("state");
+            listing.getMethod("target");
+            listing.getMethod("targetName");
+            listing.getMethod("mine");
+            returns(offer.getMethod("id"), int.class);
+            returns(offer.getMethod("number"), int.class);
+            offer.getMethod("challenger");
+            offer.getMethod("challengerName");
+            offer.getMethod("stake");
+            offer.getMethod("state");
+            offer.getMethod("online");
+            offer.getMethod("createdAtMillis");
+            returns(record.getMethod("number"), int.class);
+            returns(record.getMethod("startedAtMillis"), long.class);
+            returns(record.getMethod("endedAtMillis"), long.class);
+            for (String accessor : List.of("author", "authorName", "challenger", "challengerName", "authorStake",
+                    "challengerStake", "winner", "reportedByViewer")) {
+                record.getMethod(accessor);
+            }
+            returns(stake.getMethod("items"), List.class);
+            returns(stake.getMethod("coins"), long.class);
+            for (String accessor : List.of("wins", "losses", "draws")) {
+                returns(stats.getMethod(accessor), int.class);
+            }
+            for (String accessor : List.of("listing", "offersOnMine", "myOffers", "challengesToMe", "inBank")) {
+                mine.getMethod(accessor);
+            }
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static void returns(java.lang.reflect.Method method, Class<?> type) throws NoSuchMethodException {
+        if (method.getReturnType() != type) {
+            throw new NoSuchMethodException(method + " doesn't return " + type.getName());
+        }
     }
 
     static boolean inMatch(UUID player) {

@@ -72,4 +72,33 @@ public final class DuelsHook {
             DuelsIntegration.leave(player, mode);
         }
     }
+
+    // ---------------------------------------------------------------- wager duels (Duels_LD 1.6.0+)
+
+    /** The running Duels_LD has the wager API (checked once by reflection); false without the mod or with an older one. */
+    public static boolean wagers() {
+        return LOADED && DuelsIntegration.wagers();
+    }
+
+    /**
+     * Listens to wager changes: {@code onPlayer} with a player whose wagers changed (either side of an offer, the
+     * fight, deliveries), {@code onListings} when a public announcement appeared, went or changed state.
+     */
+    public static void initializeWagers(java.util.function.Consumer<java.util.UUID> onPlayer, Runnable onListings) {
+        if (wagers()) {
+            DuelsWagers.register(onPlayer, onListings);
+        }
+    }
+
+    /** The wager pages' data for the player: the header and the {@code parts} asked for; null without the API. */
+    @Nullable
+    public static HubPayloads.WagerData wagerData(ServerPlayer player, int parts) {
+        return wagers() ? DuelsWagers.data(player, parts) : null;
+    }
+
+    /** Runs a wager page's action; the toast to show (Duels' own words), or null for none. */
+    @Nullable
+    public static HubPayloads.HubNotice wagerAction(ServerPlayer player, HubPayloads.WagerAction action) {
+        return wagers() ? DuelsWagers.act(player, action) : null;
+    }
 }

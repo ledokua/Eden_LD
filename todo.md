@@ -9,6 +9,9 @@ needs a README pass too.
 - [x] **Wire ArenasApi into the activity admin** (owner, 2026-10-19; `docs/PLAN-activity-admin.md`) — Eden 1.3.5
       built the Eden side; 1.3.7 wires ArenasApi 4.9.0 (`ArenasAdmin`, reflection-checked so an older Arenas_LD
       hides the buttons), forced ends into the history only. Deployed 2026-10-20 with Arenas 4.9.0 (pack a2d4652); not run in game.
+- [ ] **Wager duels hub pages** (2026-10-26, Eden 1.3.12; `docs/PLAN-wager-duels-hub.md`) — Duels → Ranked PvP, new
+      Activities → Duels (Announcements / My duels / History) from DuelsApi 1.6.0 (reflection-guarded); Create /
+      Terms / Review wait for Duels' `open*` calls; 9 tests — not run in game, not committed.
 - [ ] **For Duels_LD's wager duels** (2026-10-26, Eden 1.3.11): `EdenSettingsApi` + Settings → Privacy → Duels (2 switches),
       `EdenModerationApi.report` + Moderation → Reports (`eden_ld.admin.reports`, `/hub reports`, staff chat lines), the
       unread-mail line on join, `duels_ld.` mail senders as lang keys; 11 tests — not run in game, not committed.

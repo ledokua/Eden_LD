@@ -2389,6 +2389,269 @@ public final class HubPayloads {
         }
     }
 
+    // ---------------------------------------------------------------- wager duels (Duels_LD 1.6.0+)
+
+    /** A stake as the hub shows it: the stacks (copies) and the coins. */
+    public record WagerStakeView(List<net.minecraft.world.item.ItemStack> items, long coins) {
+        public static final WagerStakeView EMPTY = new WagerStakeView(List.of(), 0);
+
+        static void write(RegistryFriendlyByteBuf buf, WagerStakeView stake) {
+            writeList(buf, stake.items, (b, stack) -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.encode(b, stack));
+            buf.writeVarLong(Math.max(0, stake.coins));
+        }
+
+        static WagerStakeView read(RegistryFriendlyByteBuf buf) {
+            return new WagerStakeView(readList(buf, net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC::decode),
+                    buf.readVarLong());
+        }
+
+        public boolean isEmpty() {
+            return items.isEmpty() && coins <= 0;
+        }
+    }
+
+    /**
+     * One announcement (or personal challenge). {@code state}: one of the constants (-1 = a state this Eden doesn't
+     * know). {@code remainingMillis}: time left when sent — a running countdown, or the paused rest while
+     * {@code paused} (preparing or fighting). {@code target}: the challenged player of a personal challenge, else null.
+     */
+    public record WagerListingView(int number, java.util.UUID author, String authorName, int wins, int losses, int draws,
+                                   WagerStakeView stake, String comment, long createdAtMillis, long remainingMillis,
+                                   boolean paused, int offers, int state,
+                                   @org.jetbrains.annotations.Nullable java.util.UUID target, String targetName,
+                                   boolean mine) implements net.ledok.eden_ld.hub.duels.WagerLists.Entry {
+        public static final int ACTIVE = 0, PREPARING = 1, FIGHTING = 2, FINISHED = 3, CANCELLED = 4, EXPIRED = 5;
+
+        static void write(RegistryFriendlyByteBuf buf, WagerListingView l) {
+            buf.writeVarInt(l.number);
+            buf.writeUUID(l.author);
+            buf.writeUtf(l.authorName, 64);
+            buf.writeVarInt(l.wins);
+            buf.writeVarInt(l.losses);
+            buf.writeVarInt(l.draws);
+            WagerStakeView.write(buf, l.stake);
+            buf.writeUtf(l.comment, 256);
+            buf.writeVarLong(Math.max(0, l.createdAtMillis));
+            buf.writeVarLong(Math.max(0, l.remainingMillis));
+            buf.writeBoolean(l.paused);
+            buf.writeVarInt(l.offers);
+            buf.writeVarInt(l.state + 1);
+            buf.writeBoolean(l.target != null);
+            if (l.target != null) {
+                buf.writeUUID(l.target);
+            }
+            buf.writeUtf(l.targetName, 64);
+            buf.writeBoolean(l.mine);
+        }
+
+        static WagerListingView read(RegistryFriendlyByteBuf buf) {
+            int number = buf.readVarInt();
+            java.util.UUID author = buf.readUUID();
+            String authorName = buf.readUtf(64);
+            int wins = buf.readVarInt();
+            int losses = buf.readVarInt();
+            int draws = buf.readVarInt();
+            WagerStakeView stake = WagerStakeView.read(buf);
+            String comment = buf.readUtf(256);
+            long created = buf.readVarLong();
+            long remaining = buf.readVarLong();
+            boolean paused = buf.readBoolean();
+            int offers = buf.readVarInt();
+            int state = buf.readVarInt() - 1;
+            java.util.UUID target = buf.readBoolean() ? buf.readUUID() : null;
+            return new WagerListingView(number, author, authorName, wins, losses, draws, stake, comment, created,
+                    remaining, paused, offers, state, target, buf.readUtf(64), buf.readBoolean());
+        }
+
+        @Override
+        public long coins() {
+            return stake.coins();
+        }
+
+        @Override
+        public int itemCount() {
+            return stake.items().size();
+        }
+    }
+
+    /**
+     * An offer (a challenger's stake on an announcement). {@code state}: one of the constants (-1 = unknown).
+     * {@code authorName}: the announcement's author, for the viewer's own offers ("" when not known).
+     */
+    public record WagerOfferView(int id, int number, java.util.UUID challenger, String challengerName,
+                                 WagerStakeView stake, int state, boolean online, long createdAtMillis, String authorName) {
+        public static final int PENDING = 0, READY_CHECK = 1, FIGHTING = 2, WON = 3, LOST = 4, DRAW = 5,
+                DECLINED = 6, WITHDRAWN = 7, CLOSED = 8;
+
+        static void write(RegistryFriendlyByteBuf buf, WagerOfferView o) {
+            buf.writeVarInt(o.id);
+            buf.writeVarInt(o.number);
+            buf.writeUUID(o.challenger);
+            buf.writeUtf(o.challengerName, 64);
+            WagerStakeView.write(buf, o.stake);
+            buf.writeVarInt(o.state + 1);
+            buf.writeBoolean(o.online);
+            buf.writeVarLong(Math.max(0, o.createdAtMillis));
+            buf.writeUtf(o.authorName, 64);
+        }
+
+        static WagerOfferView read(RegistryFriendlyByteBuf buf) {
+            return new WagerOfferView(buf.readVarInt(), buf.readVarInt(), buf.readUUID(), buf.readUtf(64),
+                    WagerStakeView.read(buf), buf.readVarInt() - 1, buf.readBoolean(), buf.readVarLong(), buf.readUtf(64));
+        }
+    }
+
+    /** The viewer's My duels page: their announcement (or null), offers on it, their offers, challenges to them, the bank. */
+    public record WagerMineView(@org.jetbrains.annotations.Nullable WagerListingView listing, List<WagerOfferView> offersOnMine,
+                                List<WagerOfferView> myOffers, List<WagerListingView> challengesToMe, WagerStakeView inBank) {
+        public static final WagerMineView EMPTY = new WagerMineView(null, List.of(), List.of(), List.of(), WagerStakeView.EMPTY);
+
+        static void write(RegistryFriendlyByteBuf buf, WagerMineView m) {
+            buf.writeBoolean(m.listing != null);
+            if (m.listing != null) {
+                WagerListingView.write(buf, m.listing);
+            }
+            writeList(buf, m.offersOnMine, WagerOfferView::write);
+            writeList(buf, m.myOffers, WagerOfferView::write);
+            writeList(buf, m.challengesToMe, WagerListingView::write);
+            WagerStakeView.write(buf, m.inBank);
+        }
+
+        static WagerMineView read(RegistryFriendlyByteBuf buf) {
+            WagerListingView listing = buf.readBoolean() ? WagerListingView.read(buf) : null;
+            return new WagerMineView(listing, readList(buf, WagerOfferView::read), readList(buf, WagerOfferView::read),
+                    readList(buf, WagerListingView::read), WagerStakeView.read(buf));
+        }
+    }
+
+    /**
+     * A finished wager duel from the viewer's side: {@code result} 0 won, 1 lost, 2 draw; {@code reported}: the
+     * viewer already complained about it.
+     */
+    public record WagerRecordView(int number, long endedAtMillis, long durationMillis, String opponentName,
+                                  WagerStakeView myStake, WagerStakeView theirStake, int result, boolean reported) {
+        public static final int WON = 0, LOST = 1, DRAW = 2;
+
+        static void write(RegistryFriendlyByteBuf buf, WagerRecordView r) {
+            buf.writeVarInt(r.number);
+            buf.writeVarLong(Math.max(0, r.endedAtMillis));
+            buf.writeVarLong(Math.max(0, r.durationMillis));
+            buf.writeUtf(r.opponentName, 64);
+            WagerStakeView.write(buf, r.myStake);
+            WagerStakeView.write(buf, r.theirStake);
+            buf.writeVarInt(r.result);
+            buf.writeBoolean(r.reported);
+        }
+
+        static WagerRecordView read(RegistryFriendlyByteBuf buf) {
+            return new WagerRecordView(buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readUtf(64),
+                    WagerStakeView.read(buf), WagerStakeView.read(buf), buf.readVarInt(), buf.readBoolean());
+        }
+    }
+
+    /**
+     * S2C (1.3.12): the hub's wager pages (Activities → Duels), from Duels_LD's {@code DuelsApi}. Always the header:
+     * {@code enabled} (wager duels are on), {@code actions} (which of Duels' screens can be opened from the hub:
+     * {@link #CREATE}, {@link #TERMS}, {@link #REVIEW}), {@code skipLossWarning} (the player turned Eden's loss
+     * warning off) and their wager record. Then only the {@code parts} asked for ({@link #LISTINGS}, {@link #MINE},
+     * {@link #HISTORY}); the client keeps the others it already has. Sent only to clients that know it.
+     */
+    public record WagerData(int parts, boolean enabled, int actions, boolean skipLossWarning, int wins, int losses, int draws,
+                            List<WagerListingView> listings, WagerMineView mine, List<WagerRecordView> history)
+            implements CustomPacketPayload {
+        public static final int LISTINGS = 1, MINE = 2, HISTORY = 4;
+        public static final int CREATE = 1, TERMS = 2, REVIEW = 4;
+        public static final Type<WagerData> TYPE = new Type<>(id("wager_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, WagerData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeVarInt(p.parts);
+                    buf.writeBoolean(p.enabled);
+                    buf.writeVarInt(p.actions);
+                    buf.writeBoolean(p.skipLossWarning);
+                    buf.writeVarInt(p.wins);
+                    buf.writeVarInt(p.losses);
+                    buf.writeVarInt(p.draws);
+                    if ((p.parts & LISTINGS) != 0) {
+                        writeList(buf, p.listings, WagerListingView::write);
+                    }
+                    if ((p.parts & MINE) != 0) {
+                        WagerMineView.write(buf, p.mine);
+                    }
+                    if ((p.parts & HISTORY) != 0) {
+                        writeList(buf, p.history, WagerRecordView::write);
+                    }
+                },
+                buf -> {
+                    int parts = buf.readVarInt();
+                    boolean enabled = buf.readBoolean();
+                    int actions = buf.readVarInt();
+                    boolean skip = buf.readBoolean();
+                    int wins = buf.readVarInt();
+                    int losses = buf.readVarInt();
+                    int draws = buf.readVarInt();
+                    List<WagerListingView> listings = (parts & LISTINGS) != 0 ? readList(buf, WagerListingView::read) : List.of();
+                    WagerMineView mine = (parts & MINE) != 0 ? WagerMineView.read(buf) : WagerMineView.EMPTY;
+                    List<WagerRecordView> history = (parts & HISTORY) != 0 ? readList(buf, WagerRecordView::read) : List.of();
+                    return new WagerData(parts, enabled, actions, skip, wins, losses, draws, listings, mine, history);
+                });
+
+        public boolean has(int part) {
+            return (parts & part) != 0;
+        }
+
+        public boolean can(int action) {
+            return (actions & action) != 0;
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * C2S (1.3.12): the wager pages. {@link Action#VIEW} with {@code id} the page (0 Announcements, 1 My duels,
+     * 2 History) subscribes to live pushes for it, {@link Action#LEAVE} stops them; the rest act through Duels_LD
+     * ({@code id}: an offer id or a duel number, as the action says; {@code text}: the complaint). The answer is a
+     * {@link HubNotice} with Duels' own words, and fresh data.
+     */
+    public record WagerAction(Action action, int id, String text) implements CustomPacketPayload {
+        public enum Action {
+            VIEW, LEAVE,
+            /** The viewer's own announcement. */
+            CANCEL_LISTING,
+            /** {@code id}: the viewer's offer. */
+            WITHDRAW_OFFER,
+            /** {@code id}: an offer on the viewer's announcement. */
+            DECLINE_OFFER, ACCEPT_OFFER,
+            /** {@code id}: the number of a personal challenge to the viewer. */
+            DECLINE_CHALLENGE,
+            /** {@code id}: the duel number; {@code text}: the complaint. */
+            REPORT,
+            /** Duels' screens (when the running Duels_LD has them): create (public), terms ({@code id} number), review ({@code id} offer). */
+            OPEN_CREATE, OPEN_TERMS, OPEN_REVIEW
+        }
+
+        public static final int MAX_TEXT = 512;
+        public static final Type<WagerAction> TYPE = new Type<>(HubPayloads.id("wager_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, WagerAction> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeEnum(p.action);
+                    buf.writeVarInt(p.id);
+                    buf.writeUtf(p.text, MAX_TEXT);
+                },
+                buf -> new WagerAction(buf.readEnum(Action.class), buf.readVarInt(), buf.readUtf(MAX_TEXT)));
+
+        public WagerAction(Action action, int id) {
+            this(action, id, "");
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     // ---------------------------------------------------------------- settings
 
     /** C2S: the client opened the Settings tab. */
@@ -3254,6 +3517,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(DuelsData.TYPE, DuelsData.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsStatus.TYPE, DuelsStatus.CODEC);
         PayloadTypeRegistry.playS2C().register(DuelsAlert.TYPE, DuelsAlert.CODEC);
+        PayloadTypeRegistry.playS2C().register(WagerData.TYPE, WagerData.CODEC);
         PayloadTypeRegistry.playS2C().register(DailiesData.TYPE, DailiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(HubNotice.TYPE, HubNotice.CODEC);
         PayloadTypeRegistry.playS2C().register(Balance.TYPE, Balance.CODEC);
@@ -3311,6 +3575,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(ActivitiesSeen.TYPE, ActivitiesSeen.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsView.TYPE, DuelsView.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsQueue.TYPE, DuelsQueue.CODEC);
+        PayloadTypeRegistry.playC2S().register(WagerAction.TYPE, WagerAction.CODEC);
         PayloadTypeRegistry.playC2S().register(SettingsDataRequest.TYPE, SettingsDataRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(SettingChange.TYPE, SettingChange.CODEC);
         PayloadTypeRegistry.playC2S().register(ThemeSelect.TYPE, ThemeSelect.CODEC);

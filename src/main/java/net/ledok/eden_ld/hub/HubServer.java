@@ -61,6 +61,7 @@ public final class HubServer {
         IgnoreList.initialize();
         net.ledok.eden_ld.hub.activity.ActivityServer.initialize();
         net.ledok.eden_ld.hub.duels.DuelsHub.initialize();
+        net.ledok.eden_ld.hub.duels.WagersHub.initialize();
         net.ledok.eden_ld.hub.profile.Wardrobe.initialize();
         ServerLang.initialize();
         DailyQuestRegistry.initialize();
@@ -678,7 +679,7 @@ public final class HubServer {
         }
     }
 
-    private static void sendSettings(ServerPlayer player) {
+    public static void sendSettings(ServerPlayer player) {
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;

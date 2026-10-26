@@ -194,7 +194,7 @@ replaces the old tutorial-mod-for-yggdrasil; the NPCs_LD guide dialog runs its s
 
 One parchment-styled hub screen (default key **F4**, or `/hub`) gathers the server's social and
 progression features under bookmark tabs: Home · Profile · Wardrobe · Friends · Party · Guild ·
-Waystones · Activities (with Duels) · Dailies · Kits, plus Settings. The hub remembers the last-opened tab during a play session and opens on
+Waystones · Activities (with Ranked PvP and Duels) · Dailies · Kits, plus Settings. The hub remembers the last-opened tab during a play session and opens on
 Home after joining.
 
 The inventory has a hub button too, under the crafting grid (where the recipe book button is when Not
@@ -216,12 +216,13 @@ closes it. When what the tab shows has a **tour** (`tutorial.tab_tours`), **▶*
 NPCs_LD walk-through of it — pinned lines that highlight its parts one by one — any time, as often as wanted (a
 dialog waiting for something, like the guide, is set aside and comes back after). Every tab has one, going by
 what's on screen: Guild for players without a guild, each guild sub-tab for members (`guild/members`, `guild/recruiting`,
-`guild/quests`, `guild/level`, `guild/bank`), Duels in Activities (`activities/duels`), and the tab itself everywhere
+`guild/quests`, `guild/level`, `guild/bank`), Ranked PvP in Activities (`activities/duels`; wager Duels can have one as
+`activities/wagers`, none by default), and the tab itself everywhere
 else (Home, Mail, Profile, Wardrobe, Friends, Party, Waystones, Activities, Dailies, Kits, Settings); ▶ follows
 the sub-tab as it changes, and shows only for tours whose dialog NPCs_LD has. Tours a newer Eden adds join an
 existing `tutorial.json` when it loads; set one to `""` to turn it off. The parts have stable names for dialogs
 (`eden_ld:hub/home/…`, `…/profile/…`, `…/wardrobe/…`, `…/friends/…`, `…/party/…`, `…/guild/…`, `…/waystones/…`,
-`…/activities/…`, `…/duels/…`, `…/dailies/…`, `…/mail/…`, `…/kits/…`, `…/settings/…`, listed in `HubSpotlights` and
+`…/activities/…`, `…/duels/…` (Ranked PvP), `…/wagers/…` (Duels), `…/dailies/…`, `…/mail/…`, `…/kits/…`, `…/settings/…`, listed in `HubSpotlights` and
 in NPCs_LD's editor picker).
 
 **Any size.** Drag the hub's sides or bottom (or the dotted corner) to make it bigger, or press
@@ -236,7 +237,7 @@ a divider to drag (double-click it to reset); it's remembered for the session.
 with Economy_LD, today's dailies — over your [profile](#profile) background), pending shop
 purchases, party invites and friend requests with action buttons, and the server's news (Markdown,
 in the reader's language — written in the [Moderation window](#moderation-window)). **Friends**, **Party**, **Guild**, **Waystones**,
-**Activities**, **Duels**, **Dailies**, **Kits** and **Settings** are live too; the other
+**Activities** (with **Ranked PvP** and **Duels**), **Dailies**, **Kits** and **Settings** are live too; the other
 tabs arrive in future updates — see [docs/PLAN-hub.md](docs/PLAN-hub.md) for the roadmap.
 
 ### Guilds
@@ -572,9 +573,11 @@ your waystones — the tab only appears when the mod is installed.
 
 ### Activities
 
-Dungeons, raids and mob arenas as picture cards — **All · Dungeons · Raids · Arenas · Duels**
+Dungeons, raids and mob arenas as picture cards — **All · Dungeons · Raids · Arenas · Ranked PvP · Duels**
 filters, sorting by **name / required level / type** (ascending or descending), and "Your level: N"
-on top. **Duels** (with Duels_LD) shows the [duel queues and top lists](#duels) in the same page.
+on top. **Ranked PvP** (with Duels_LD) shows the [duel queues and top lists](#ranked-pvp) in the same page,
+**Duels** (with a Duels_LD that has wager duels) the [wager duels](#duels-wager-duels). Each filter's tooltip says
+which is which.
 
 - **Cards** show only a picture and the name. A locked card is dimmed with "🔒 Locked · Minimum
   level N" — N is the level of its first enabled difficulty. Clicking an open card opens the
@@ -641,10 +644,11 @@ drawn preview for themes) and **Worn ✔**, **Owned**, its price, or 🔒. Click
   the other player gets it unlocked at once (online or not) and a mail — in their language — saying
   who it's from. Refused when they already have it, for yourself, or for unknown names.
 
-### Duels
+### Ranked PvP
 
-With **Duels_LD** 1.4.0+ on the server, ranked duels in the hub — the **Duels** filter of the
-[Activities](#activities) tab (it hides without the mod):
+With **Duels_LD** 1.4.0+ on the server, ranked duels in the hub — the **Ranked PvP** filter of the
+[Activities](#activities) tab (it hides without the mod; it was called Duels until wager duels took the name in
+1.3.12 — its tour and part ids still say `duels`):
 
 - **A card per mode** (1v1, 2v2): rating, leaderboard place, wins · losses · draws with the win
   rate, and **Find match / Leave queue**. While searching the card shows the time and the rating
@@ -658,16 +662,51 @@ With **Duels_LD** 1.4.0+ on the server, ranked duels in the hub — the **Duels*
   when) and **Top 1v1 / Top 2v2** (the top 20; you're highlighted, or shown below with your place).
 - While the tab is open, the server pushes every queue change, match start and end, and party
   change, and refreshes every 5 seconds. Duels' own screen (B) and commands keep working.
-- **Outside the tab:** while you're in a queue, Home shows "Searching for a 1v1 duel · 0:42" with
+- **Outside the tab:** while you're in a queue, Home shows "Ranked PvP: searching for a 1v1 match · 0:42" with
   **Leave queue**; when your match starts, a bell and a notice in the screen corner (you may be
-  looking elsewhere). Settings → Notifications → Duels turns both off.
+  looking elsewhere). Settings → Notifications → Ranked PvP turns both off.
+
+### Duels (wager duels)
+
+With a **Duels_LD** that has wager duels (1.6.0+, switched on in its config, Economy_LD present) the **Duels**
+filter of [Activities](#activities) shows players' 1v1 duels for a stake of items and coins: the winner takes both
+stakes, ratings don't move. Duels_LD owns the rules, the duel bank (escrow) and the fights; Eden only draws these
+pages from `DuelsApi` and calls its actions. Items never pass through the hub: the screens that move them are
+Duels' own. Three pages, under **Create duel**:
+
+- **Announcements** — every open announcement (and personal challenges to you) as a card: `#1042`, the author and
+  their wager record (W · L · D), the stake (coins, the first three items with their full tooltips, "+N more" with
+  the rest in its tooltip), the time left counting down (or "Preparing for the fight" / "Fight in progress" while
+  the timer is paused, what's left in the tooltip), the number of offers, "Challenge to …" on a personal one, and
+  the comment. Sort **Newest / Coins** (coins only: items can't be weighed), show **All / Money / Items** (a mixed
+  stake is in both). Your own announcement is pinned on top whatever the filter, with **Offers** (to My duels)
+  and **Cancel** (confirmed). Others' have **Terms**.
+- **My duels** — "In the duel bank: 500 󿼀 + 3 items" (the items in its tooltip) and your record; your
+  announcement with every offer on it (online dot, the challenger's stake, **Review**, **Accept**, **Decline** —
+  Accept needs the challenger online and first asks "If you lose, you lose everything you staked", unless
+  Settings → Privacy → Duels → Skip the stake-loss warning is on); your offers on others' announcements (state,
+  **Withdraw** while pending); personal challenges to you (**Offer a stake**, **Decline**).
+- **History** — your last 50 wager duels: number, opponent, result, fight time, date, both stakes, and **Report**
+  (a complaint of up to 300 characters goes to Moderation → Reports with the duel's number and log; once per duel,
+  then "Reported"). Your record on top.
+- Announcements and My duels carry the moderator's fairness warning: nobody has to play fair; report a cheat with
+  the duel number.
+- **Create duel**, **Terms** / **Offer a stake** and **Review** open Duels' stake and review screens, which replace
+  the hub. Until the server's Duels_LD can open them from the hub (`openCreate` / `openTerms` / `openReview`) they're
+  disabled with "Coming soon" — `/duel` works meanwhile. Eden finds them by reflection, so a newer Duels_LD lights
+  them up with no Eden update.
+- Every action answers with Duels' own words as a toast (green done, red refused). While a page is open the server
+  pushes it again on every change to your wagers, every change of a public announcement (Announcements), and every
+  5 seconds on My duels (online dots).
+- With an older Duels_LD (no wager API) or wager duels switched off, the filter isn't there. See
+  [docs/PLAN-wager-duels-hub.md](docs/PLAN-wager-duels-hub.md).
 
 ### PvP toggle
 
 Players choose whether they take part in PvP (docs/PLAN-pvp-toggle.md) — explorers who don't want it can still
 play and explore the world. **Everyone starts with PvP off** (new and existing players).
 
-- **Switching**: the button right of the hub button in the inventory (the Duels tab's crossed swords, lit while
+- **Switching**: the button right of the hub button in the inventory (the Ranked PvP icon's crossed swords, lit while
   on, dimmed while off, shaded while the cooldown runs; its tooltip says the state, the cooldown or combat time
   left, and "PvP is off here" where the dimension overrides it), or `/pvp on` / `/pvp off`; `/pvp` alone shows the
   state. After any switch the next one waits **1 minute**, both ways, across relogs and restarts; a
@@ -1700,8 +1739,9 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   Arenas_LD 4.9.0+ the Moderation window also gets its controller actions and live status (teleport, rename,
   admin screen, runs and instances, end run, warnings, forget); an older one just hides them
   (`docs/PLAN-activity-admin.md`).
-- **Duels_LD** (1.4.0+) — optional; the Duels tab (see Eden Hub → Duels). Duels uses Eden's parties
-  for 2v2.
+- **Duels_LD** (1.4.0+) — optional; Activities → Ranked PvP (see Eden Hub → Ranked PvP). Duels uses Eden's parties
+  for 2v2. With Duels_LD 1.6.0+ also Activities → Duels (wager duels; see Eden Hub → Duels); an older one just hides
+  that filter.
 - **Kits_LD** (0.2.0+) — optional; the Kits tab and `/kits` (see Eden Hub → Kits).
 - **Realm Keys** (1.0.0) — server-only in the pack, so players' games don't have its texts: Eden's lang files carry
   its messages (`command.realm_keys.*`, `message.realm_keys.*`, `dimension.realm_keys.*`, English and Ukrainian, from

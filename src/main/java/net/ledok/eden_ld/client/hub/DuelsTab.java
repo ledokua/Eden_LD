@@ -25,9 +25,10 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * The Duels tab (Duels_LD): a card per mode (rating, leaderboard place, wins/losses/draws, the
- * queue button and its live state), today's battle rewards, then recent matches or a mode's
- * leaderboard. While the tab is open the server pushes every change; Duels' own screen (B) stays.
+ * Activities → Ranked PvP (Duels_LD's ranked duels; "Duels" before wager duels took that name): a card per mode
+ * (rating, leaderboard place, wins/losses/draws, the queue button and its live state), today's battle rewards, then
+ * recent matches or a mode's leaderboard. While the page is open the server pushes every change; Duels' own screen
+ * (B) stays.
  */
 final class DuelsTab {
 

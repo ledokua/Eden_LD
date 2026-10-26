@@ -28,8 +28,9 @@ import java.util.Set;
 
 /**
  * The Activities tab: dungeons, raids and mob arenas as picture cards. Filters (All · Dungeons ·
- * Raids · Arenas · Duels) and sorting (name / required level / type, ascending or descending) on top;
- * the Duels filter (with Duels_LD) shows the duel queues, matches and top lists ({@link DuelsTab}).
+ * Raids · Arenas · Ranked PvP · Duels) and sorting (name / required level / type, ascending or descending) on top;
+ * Ranked PvP (with Duels_LD) shows the duel queues, matches and top lists ({@link DuelsTab}), Duels (with a
+ * Duels_LD that has wager duels) the announcements, the player's own wagers and their history ({@link WagersTab}).
  * A card shows only the picture and the name; a locked one is dimmed with the level it needs, a closed
  * one (staff closed it for maintenance) with "Closed" — only staff may still click it.
  * Clicking an open card opens the activity's lobby screen (Arenas_LD) — everything else lives there.
@@ -46,7 +47,8 @@ final class ActivitiesTab {
     private static int columns = 3;
     private static float cardWidth = CARD_MIN;
 
-    enum Filter { ALL, DUNGEON, RAID, ARENA, DUELS }
+    /** {@code DUELS} is Ranked PvP (the name stays: it was the tab's only kind of duel), {@code WAGERS} the wager Duels. */
+    enum Filter { ALL, DUNGEON, RAID, ARENA, DUELS, WAGERS }
 
     enum Sort { NAME, LEVEL, TYPE }
 
@@ -69,24 +71,44 @@ final class ActivitiesTab {
         GLOWING.clear();
     }
 
-    /** Duels_LD is on the server, so the Duels filter exists. */
+    /** Duels_LD is on the server, so the Ranked PvP filter exists. */
     private static boolean duelsAvailable() {
         return HubState.homeData != null && HubState.homeData.duelsAvailable();
     }
 
-    /** The Duels filter is showing (the server pushes duel changes while it is). */
+    /** The Ranked PvP filter is showing (the server pushes duel changes while it is). */
     static boolean showingDuels() {
         return filter == Filter.DUELS && duelsAvailable();
     }
 
-    /** A filter click: the Duels view subscribes to live duel data while it's shown. */
+    /**
+     * The server runs wager duels (a Duels_LD with the wager API, switched on) and takes the pages' requests, so the
+     * Duels filter exists.
+     */
+    static boolean wagersAvailable() {
+        return HubState.wagerHeader != null && HubState.wagerHeader.enabled()
+                && ClientPlayNetworking.canSend(HubPayloads.WagerAction.TYPE);
+    }
+
+    /** The Duels (wager) filter is showing (the server pushes the open page while it is). */
+    static boolean showingWagers() {
+        return filter == Filter.WAGERS && wagersAvailable();
+    }
+
+    /** A filter click: Ranked PvP and Duels subscribe to live data while they're shown. */
     private static void choose(HubScreen screen, Filter next) {
         boolean wasDuels = showingDuels();
+        boolean wasWagers = showingWagers();
         filter = next;
         if (wasDuels && !showingDuels()) {
             DuelsTab.left();
         } else if (!wasDuels && showingDuels()) {
             DuelsTab.entered();
+        }
+        if (wasWagers && !showingWagers()) {
+            WagersTab.left();
+        } else if (!wasWagers && showingWagers()) {
+            WagersTab.entered();
         }
         screen.onActivitiesData();
     }
@@ -96,12 +118,12 @@ final class ActivitiesTab {
         float width = HubScreen.innerWidth();
         columns = Math.max(3, (int) ((width - LANE + GAP) / (CARD_MIN + GAP)));
         cardWidth = (width - LANE - GAP * (columns - 1)) / columns;
-        if (filter == Filter.DUELS && !duelsAvailable()) {
+        if (filter == Filter.DUELS && !duelsAvailable() || filter == Filter.WAGERS && !wagersAvailable()) {
             filter = Filter.ALL;
         }
-        boolean duels = showingDuels();
+        boolean duels = showingDuels() || showingWagers();
         boolean noActivities = data == null || data.activities().isEmpty();
-        if (noActivities && !duelsAvailable()) {
+        if (noActivities && !duelsAvailable() && !wagersAvailable()) {
             if (data == null) {
                 Flex center = Flex.column().justify(Justify.CENTER).alignItems(Align.CENTER);
                 center.sizing(Sizing.fill(), Sizing.expand());
@@ -130,13 +152,20 @@ final class ActivitiesTab {
         filters.sizing(Sizing.fill(), Sizing.content());
         List<Filter> shownFilters = new ArrayList<>();
         for (Filter candidate : Filter.values()) {
-            if (candidate != Filter.DUELS || duelsAvailable()) {
+            if (candidate == Filter.DUELS ? duelsAvailable() : candidate != Filter.WAGERS || wagersAvailable()) {
                 shownFilters.add(candidate);
             }
         }
         var filterTabs = EdenParchment.tabs(shownFilters, candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)),
                 filter, candidate -> choose(screen, candidate), 36, "activities/filter");
         filterTabs.id(HubSpotlights.ACTIVITIES_FILTERS);
+        // The two kinds of duel are easy to mix up: each says what it is.
+        if (shownFilters.contains(Filter.DUELS)) {
+            filterTabs.tabTooltip(Filter.DUELS, tr("filter.duels.hint"));
+        }
+        if (shownFilters.contains(Filter.WAGERS)) {
+            filterTabs.tabTooltip(Filter.WAGERS, tr("filter.wagers.hint"));
+        }
         filters.item(filterTabs);
         filters.spacer();
         if (data != null && data.gated() && !duels) {
@@ -146,8 +175,12 @@ final class ActivitiesTab {
         }
         content.item(filters);
 
-        if (duels) {
+        if (showingDuels()) {
             DuelsTab.build(screen, content);
+            return;
+        }
+        if (showingWagers()) {
+            WagersTab.build(screen, content);
             return;
         }
         if (data == null) {

@@ -251,6 +251,11 @@ public final class HubSettings {
         return settings.contains(key, net.minecraft.nbt.Tag.TAG_ANY_NUMERIC) ? settings.getInt(key) != 0 : def;
     }
 
+    /** Whether {@code key} is one of Duels_LD's wager switches (the keys {@code EdenSettingsApi} may change). */
+    public static boolean isDuelsFlag(String key) {
+        return DUELS_FLAGS.containsKey(key);
+    }
+
     /** One of Duels_LD's wager switches ({@link #DUELS_SKIP_LOSS_WARNING}, {@link #DUELS_PERSONAL_CHALLENGES}). */
     public static boolean duels(MinecraftServer server, UUID player, String key) {
         return bool(server, player, key, DUELS_FLAGS.getOrDefault(key, false));

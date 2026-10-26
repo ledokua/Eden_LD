@@ -16,9 +16,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Server side of the hub's Duels tab (Duels_LD): the tab's data, its queue buttons, and live
- * pushes to whoever has the tab open — on queue changes, match starts and ends, party changes,
- * and every few seconds while they look (queue sizes and the search range move on their own).
+ * Server side of the hub's Ranked PvP page (Duels_LD's ranked duels; the wager Duels pages are {@link WagersHub}):
+ * the page's data, its queue buttons, and live pushes to whoever has it open — on queue changes, match starts and
+ * ends, party changes, and every few seconds while they look (queue sizes and the search range move on their own).
  */
 public final class DuelsHub {
 

@@ -27,6 +27,16 @@ public final class HubState {
     public static HubPayloads.DuelsStatus duelsStatus;
     public static long duelsStatusAt;
     public static long duelsReceivedAt;
+    /**
+     * Wager duels (Activities → Duels, Duels_LD 1.6.0+): the last header (null = this server has none, so no Duels
+     * filter), and each page's last data with when it came (its countdowns run from there).
+     */
+    public static HubPayloads.WagerData wagerHeader;
+    public static java.util.List<HubPayloads.WagerListingView> wagerListings;
+    public static long wagerListingsAt;
+    public static HubPayloads.WagerMineView wagerMine;
+    public static long wagerMineAt;
+    public static java.util.List<HubPayloads.WagerRecordView> wagerHistory;
     /** Activities the player's level opened that they haven't seen yet: the tab badge and a Home card. */
     public static java.util.List<net.minecraft.network.chat.Component> activityUnlocks = java.util.List.of();
     public static HubPayloads.DailiesData dailiesData;
@@ -83,6 +93,10 @@ public final class HubState {
         duelsData = null;
         wardrobeData = null;
         duelsStatus = null;
+        wagerHeader = null;
+        wagerListings = null;
+        wagerMine = null;
+        wagerHistory = null;
         activityUnlocks = java.util.List.of();
         waystonesData = null;
         dailiesData = null;
