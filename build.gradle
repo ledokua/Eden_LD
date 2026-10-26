@@ -110,6 +110,10 @@ dependencies {
     // run-server/mods and run-main/mods).
     modCompileOnly files("libs/Kits_LD-fabric-0.2.0.jar")
 
+    // Farmer's Delight (Refabricated) — optional: its cooking pot's meals count for craft quests (CookingPot*Mixin).
+    // A copy of the pack's jar.
+    modCompileOnly files("libs/FarmersDelight-1.21.1-3.3.6+refabricated.jar")
+
     modCompileOnly files("libs/Economy_LD-1.0.2.jar")
     modLocalRuntime files("libs/Economy_LD-1.0.2.jar")
     // Its bundled SQLite driver isn't unpacked from a local jar in the dev run.

@@ -281,7 +281,8 @@ public final class DailyQuests {
             if (quest == null || slot.getBoolean("claimed") || !quest.objective().equals(type)
                     || slot.getInt("progress") >= quest.count()
                     || quest.target().isPresent() && !matcher.test(quest.target().get())
-                    || !QuestConditions.inDimension(player, quest.dimension())) {
+                    || !QuestConditions.inDimension(player, quest.dimension())
+                    || !QuestConditions.atStation(player, quest.station())) {
                 continue;
             }
             int progress = Math.min(quest.count(), slot.getInt("progress") + amount);

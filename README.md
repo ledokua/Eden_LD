@@ -385,6 +385,7 @@ targets and naming as [daily quests](#daily-quests), plus:
 | `rewards.lc` | LC straight into the guild bank. |
 | `rewards.items` | Item stacks mailed to every member. |
 | `dimension` | Members' progress only counts in that dimension (e.g. `"minecraft:the_end"`); the card says "… in the End". |
+| `station` | Crafted things only count when made there, as for dailies. |
 
 `name`, `objective`, `target`, `count`, `icon` and `weight` work as for dailies. A test pool
 of 12 guild quests ships disabled: `/datapack enable "eden_ld:test_guild_quests"`, then
@@ -468,6 +469,7 @@ extra free rerolls for today (e.g. as a quest or shop reward).
 | `dimension` | Progress only counts while the player is in that dimension (`"minecraft:the_end"`). The card adds "in the End" (lang key `dimension.<ns>.<path>`; Eden ships the Overworld, the Nether and the End, a datapack's `eden_lang` adds others). Also a requirement, as below. |
 | `requires` | Dimensions the player must have unlocked to draw the quest (`["minecraft:the_nether"]`), checked with [Realm Keys](https://github.com/thinkpad16/realm-keys) — exempt, globally and per-player unlocked dimensions all count. For quests whose target only lives there (blazes). Without Realm Keys every dimension counts as unlocked. |
 | `loot_stage` | `{"min": 20, "max": 0}`: the loot stage range (DD Loot Stage's `loot_stage:loot_stage` attribute) that draws the quest; `max` 0 = no top. Harder quests for higher stages, easy ones that stop at a stage. Without DD Loot Stage every player is stage 1. |
+| `station` | For `craft_items`: the block things must be made at, one id or a list — `"farmersdelight:cooking_pot"`, `["minecraft:smoker", "minecraft:furnace"]`. It's the open menu's block: `minecraft:crafting_table` (the inventory's own grid too), `minecraft:furnace`, `minecraft:smoker`, `minecraft:blast_furnace`, `minecraft:stonecutter`, `minecraft:merchant` (villager trades), a mod's menu id (Farmer's Delight's cooking pot; its meals served by right-clicking the pot with a bowl count there too). The card adds the block's name: "Craft Meals (Cooking Pot)". |
 
 A player only draws (and rerolls into) quests they may draw at that moment. When fewer than `quest_count` + 2 are left,
 stage tops (`max`) are ignored so the pool never runs dry; minimums and unlocked dimensions always hold. Unlocking a
@@ -497,7 +499,7 @@ a `name`, the generated objective line shows under it.
 
 Eden counts kills (projectile kills count for the shooter), crafting (the game's "crafted" statistic: the crafting
 grid with shift-click as the whole batch, furnaces and smokers, stonecutters, smithing, villager trades, and mod stations
-that call `onCraftedBy`, such as Farmer's Delight's cooking pot), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
+that call `onCraftedBy`, such as Farmer's Delight's cooking pot — shift-clicked or served with a bowl too), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
 Engine casts**, and **any vanilla statistic** (`stat` — same names as `/scoreboard` criteria;
 distances are in centimeters, times in ticks).
 

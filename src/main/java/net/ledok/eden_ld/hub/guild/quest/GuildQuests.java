@@ -258,7 +258,8 @@ public final class GuildQuests {
                 int progress = slot.getInt("progress");
                 if (quest == null || slot.getBoolean("done") || !quest.objective().equals(type) || progress >= goal
                         || quest.target().isPresent() && !matcher.test(quest.target().get())
-                        || !net.ledok.eden_ld.hub.daily.QuestConditions.inDimension(player, quest.dimension())) {
+                        || !net.ledok.eden_ld.hub.daily.QuestConditions.inDimension(player, quest.dimension())
+                        || !net.ledok.eden_ld.hub.daily.QuestConditions.atStation(player, quest.station())) {
                     continue;
                 }
                 int added = Math.min(amount, goal - progress);

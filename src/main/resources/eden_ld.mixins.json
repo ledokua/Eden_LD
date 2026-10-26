@@ -6,6 +6,8 @@
   "mixins": [
     "AreaEffectCloudPvpMixin",
     "BorderPacketMixin",
+    "CookingPotBlockMixin",
+    "CookingPotMenuMixin",
     "EntityHazardMixin",
     "GameProfileCacheAccessor",
     "GameProfileInfoAccessor",

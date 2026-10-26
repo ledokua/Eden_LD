@@ -25,12 +25,14 @@ import java.util.UUID;
  * (items); absent = anything counts. {@code guild_xp} overrides what claiming it gives the
  * player's guild (config {@code guilds.daily_quest_xp}). {@code dimension}: progress only counts there.
  * {@code requires}: dimensions the player must have unlocked (Realm Keys) to draw it — {@code dimension} counts too.
- * {@code loot_stage}: the loot stage range that draws it ({@link QuestConditions}).
+ * {@code loot_stage}: the loot stage range that draws it. {@code station}: block ids things must be made at, one or a
+ * list ({@link QuestConditions}).
  */
 public record DailyQuestDefinition(ResourceLocation id, Optional<Component> name, ResourceLocation objective,
                                    Optional<String> target, int count, ResourceLocation icon, int weight,
                                    DailyReward rewards, Optional<Integer> guildXp, Optional<ResourceLocation> dimension,
-                                   List<ResourceLocation> requires, QuestConditions.StageRange lootStage) {
+                                   List<ResourceLocation> requires, QuestConditions.StageRange lootStage,
+                                   List<ResourceLocation> station) {
 
     /** Bare objective names ("kill_mobs") belong to Eden. */
     private static final Codec<ResourceLocation> OBJECTIVE = Codec.STRING.xmap(
@@ -41,7 +43,7 @@ public record DailyQuestDefinition(ResourceLocation id, Optional<Component> name
     public record Body(Optional<Component> name, ResourceLocation objective, Optional<String> target, int count,
                        ResourceLocation icon, int weight, DailyReward rewards, Optional<Integer> guildXp,
                        Optional<ResourceLocation> dimension, List<ResourceLocation> requires,
-                       QuestConditions.StageRange lootStage) {
+                       QuestConditions.StageRange lootStage, List<ResourceLocation> station) {
         public static final Codec<Body> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 ComponentSerialization.CODEC.optionalFieldOf("name").forGetter(Body::name),
                 OBJECTIVE.fieldOf("objective").forGetter(Body::objective),
@@ -55,12 +57,13 @@ public record DailyQuestDefinition(ResourceLocation id, Optional<Component> name
                 ResourceLocation.CODEC.optionalFieldOf("dimension").forGetter(Body::dimension),
                 ResourceLocation.CODEC.listOf().optionalFieldOf("requires", List.of()).forGetter(Body::requires),
                 QuestConditions.StageRange.CODEC.optionalFieldOf("loot_stage", QuestConditions.StageRange.ANY)
-                        .forGetter(Body::lootStage)
+                        .forGetter(Body::lootStage),
+                QuestConditions.STATIONS.optionalFieldOf("station", List.of()).forGetter(Body::station)
         ).apply(instance, Body::new));
 
         DailyQuestDefinition withId(ResourceLocation id) {
             return new DailyQuestDefinition(id, name, objective, target, count, icon, weight, rewards, guildXp,
-                    dimension, requires, lootStage);
+                    dimension, requires, lootStage, station);
         }
     }
 
@@ -87,11 +90,13 @@ public record DailyQuestDefinition(ResourceLocation id, Optional<Component> name
 
     /** The card title: the authored name, else the objective without the amount (the bar shows it). */
     public Component cardTitle() {
-        return name.orElseGet(() -> QuestConditions.withDimension(DailyObjectives.goal(objective, target), dimension));
+        return name.orElseGet(() -> QuestConditions.withDimension(
+                QuestConditions.withStation(DailyObjectives.goal(objective, target), station), dimension));
     }
 
     /** The chat title: the authored name, else the generated objective line. */
     public Component title() {
-        return name.orElseGet(() -> QuestConditions.withDimension(DailyObjectives.describe(this), dimension));
+        return name.orElseGet(() -> QuestConditions.withDimension(
+                QuestConditions.withStation(DailyObjectives.describe(this), station), dimension));
     }
 }

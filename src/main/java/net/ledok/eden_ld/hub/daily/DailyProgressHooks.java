@@ -48,8 +48,8 @@ public final class DailyProgressHooks {
      * From {@code ServerPlayer.awardStat}: block placing (ITEM_USED of a block item — seeds and
      * berries planted count), mining (BLOCK_MINED), fishing (FISH_CAUGHT), crafting (ITEM_CRAFTED: whatever calls
      * {@code ItemStack.onCraftedBy} — the crafting grid, furnaces, stonecutters, smithing, villager trades and mod
-     * stations such as Farmer's Delight's cooking pot), and the generic {@code stat} objective for anything else
-     * vanilla tracks.
+     * stations such as Farmer's Delight's cooking pot; a quest's {@code station} picks where), and the generic
+     * {@code stat} objective for anything else vanilla tracks.
      */
     public static void onStat(ServerPlayer player, net.minecraft.stats.Stat<?> stat, int amount) {
         boolean changed = false;

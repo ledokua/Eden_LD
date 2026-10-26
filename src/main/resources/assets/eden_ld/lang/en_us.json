@@ -391,6 +391,7 @@
   "gui.eden_ld.hub.dailies.objective.stat.killed_by": "Get killed by %s",
   "gui.eden_ld.hub.dailies.goal.kill_mobs": "Kill %s",
   "gui.eden_ld.hub.dailies.in_dimension": "%s in %s",
+  "gui.eden_ld.hub.dailies.at_station": "%s (%s)",
   "dimension.minecraft.overworld": "the Overworld",
   "dimension.minecraft.the_nether": "the Nether",
   "dimension.minecraft.the_end": "the End",
