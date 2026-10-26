@@ -1388,6 +1388,7 @@
   "gui.eden_ld.hub.wagers.filter.items": "Речі",
   "gui.eden_ld.hub.wagers.none": "Зараз оголошень немає. Створіть своє або загляньте пізніше.",
   "gui.eden_ld.hub.wagers.none_filtered": "Оголошень такого виду немає.",
+  "gui.eden_ld.hub.wagers.none_others": "Інших оголошень зараз немає. Загляньте пізніше.",
   "gui.eden_ld.hub.wagers.number": "#%s",
   "gui.eden_ld.hub.wagers.stats": "%s П · %s Пр · %s Н",
   "gui.eden_ld.hub.wagers.your_record": "Ваш рахунок: %s",

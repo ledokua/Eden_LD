@@ -158,8 +158,9 @@ final class WagersTab {
         }
         List<WagerListingView> shown = WagerLists.arrange(all, sort, filter);
         if (shown.isEmpty()) {
-            list.item(EdenParchment.text(all.size() > (own == null ? 0 : 1) ? tr("none_filtered") : tr("none"),
-                    EdenParchment.INK_DIM, (int) inner));
+            // Others hidden by the filter, else none at all (only the viewer's own, pinned above, or nothing).
+            String empty = all.size() > (own == null ? 0 : 1) ? "none_filtered" : own != null ? "none_others" : "none";
+            list.item(EdenParchment.text(tr(empty), EdenParchment.INK_DIM, (int) inner));
         }
         for (WagerListingView listing : shown) {
             list.item(listingCard(screen, listing, header, HubState.wagerListingsAt, inner));

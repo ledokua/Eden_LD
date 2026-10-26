@@ -1388,6 +1388,7 @@
   "gui.eden_ld.hub.wagers.filter.items": "Items",
   "gui.eden_ld.hub.wagers.none": "No announcements right now. Create one, or check back later.",
   "gui.eden_ld.hub.wagers.none_filtered": "No announcements of this kind.",
+  "gui.eden_ld.hub.wagers.none_others": "No other announcements right now. Check back later.",
   "gui.eden_ld.hub.wagers.number": "#%s",
   "gui.eden_ld.hub.wagers.stats": "%s W · %s L · %s D",
   "gui.eden_ld.hub.wagers.your_record": "Your record: %s",
