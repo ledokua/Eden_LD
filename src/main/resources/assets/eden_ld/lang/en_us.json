@@ -769,6 +769,8 @@
   "gui.eden_ld.hub.tab.news.party": "Party invites: %s",
   "gui.eden_ld.hub.tab.news.guild": "Guild invites: %s",
   "gui.eden_ld.hub.tab.news.dailies": "Quests ready to claim: %s",
+  "gui.eden_ld.hub.tab.news.kits": "Kits ready to claim: %s",
+  "gui.eden_ld.hub.tab.news.activities": "Newly unlocked activities: %s",
   "gui.eden_ld.hub.settings.tab.notifications": "Notifications",
   "gui.eden_ld.hub.settings.section.notify_kinds": "Point out on the tabs",
   "gui.eden_ld.hub.settings.section.notify_look": "Notifications",
