@@ -2,6 +2,7 @@ package net.ledok.eden_ld.compat.opac;
 
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.hub.guild.Guild;
+import net.ledok.eden_ld.hub.guild.GuildMemberClaims;
 import net.ledok.eden_ld.hub.guild.GuildManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -20,7 +21,8 @@ import java.util.UUID;
 
 /**
  * Guild claims in OPAC. With party-owned claims the guild's claims are its leader's, so:
- * the bank's claim upgrades are OPAC "bonus chunk claims" on the leader's player config, added
+ * the bank's claim upgrades and the members' own claims ({@link GuildMemberClaims}: Prime) are OPAC "bonus chunk
+ * claims" on the leader's player config, added
  * and removed as deltas (an admin's own bonus for that player stays untouched); a leadership
  * change moves the bonus and the old leader's claims to the new leader. {@link Guild#opacOwner}
  * / {@link Guild#opacBonus} remember what was applied where.
@@ -103,7 +105,8 @@ final class OpacGuildClaims {
                 guild.opacOwner = null;
                 guild.opacBonus = 0;
             }
-            int wanted = guild.bank.claimLevel * step;
+            // Bought claim upgrades, plus what the members bring (Prime: LuckPerms meta, leader included).
+            int wanted = guild.bank.claimLevel * step + GuildMemberClaims.get(server).total(guild);
             if (guild.opacOwner == null || guild.opacBonus != wanted) {
                 addBonus(api, leader, wanted - guild.opacBonus);
                 guild.opacOwner = leader;

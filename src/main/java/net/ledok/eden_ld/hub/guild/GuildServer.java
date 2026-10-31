@@ -35,6 +35,7 @@ public final class GuildServer {
     }
 
     public static void initialize() {
+        GuildMemberClaims.initialize();
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.GuildDataRequest.TYPE,
                 (payload, context) -> send(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.GuildAction.TYPE,

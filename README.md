@@ -310,6 +310,11 @@ the hub only — chat and nameplates keep the LuckPerms role prefixes), and a co
     have no alliances.
   - **Claim upgrades** from the bank become OPAC *bonus chunk claims* on the leader's config
     (added on top of any bonus an admin set; only Eden's part is ever taken back).
+  - **Members bring claims** (1.3.16): each member's LuckPerms meta `eden_ld.guild_claim_bonus` (whole number; e.g.
+    15 on the prime group) is added to the guild's limit the same way, leader included —
+    `/lp group prime meta set eden_ld.guild_claim_bonus 15`. Eden remembers each player's value, so offline members
+    count; it's re-read on join, whenever LuckPerms recalculates a player (Prime bought or expired), and every 5
+    minutes for offline members. Leaving the guild takes it away; a disbanded guild loses it like the upgrades.
   - **Leadership transfer** moves the bonus and every chunk the old leader claimed to the new
     leader — guild land always stays with the guild. Moved chunks use the new leader's main
     claim config (sub-configs are per player).

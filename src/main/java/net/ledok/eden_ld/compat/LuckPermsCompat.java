@@ -22,6 +22,14 @@ public final class LuckPermsCompat {
     }
 
     /**
+     * A whole-number meta value of any player, online or not: LuckPerms loads an offline user's data first. Completes
+     * off the server thread; empty without LuckPerms, when unset or not a number.
+     */
+    public static java.util.concurrent.CompletableFuture<OptionalInt> loadMetaInt(java.util.UUID player, String key) {
+        return LOADED ? Hook.loadMetaInt(player, key) : java.util.concurrent.CompletableFuture.completedFuture(OptionalInt.empty());
+    }
+
+    /**
      * A string meta value (group inheritance resolved), e.g.
      * {@code /lp group prime meta set eden_ld.name_color #69118f}; null when unset.
      */
@@ -214,6 +222,17 @@ public final class LuckPermsCompat {
                 return best;
             } catch (IllegalStateException e) {
                 return 0;
+            }
+        }
+
+        static java.util.concurrent.CompletableFuture<OptionalInt> loadMetaInt(java.util.UUID player, String key) {
+            try {
+                return net.luckperms.api.LuckPermsProvider.get().getUserManager().loadUser(player)
+                        .thenApply(user -> user.getCachedData().getMetaData().getMetaValue(key, Integer::parseInt)
+                                .map(OptionalInt::of).orElse(OptionalInt.empty()))
+                        .exceptionally(error -> OptionalInt.empty());
+            } catch (IllegalStateException e) {
+                return java.util.concurrent.CompletableFuture.completedFuture(OptionalInt.empty());
             }
         }
 
