@@ -37,9 +37,9 @@ public final class GuildManager extends SavedData {
 
     private static final Factory<GuildManager> FACTORY = new Factory<>(GuildManager::new, GuildManager::load, null);
 
-    public static final int MAX_NAME_LENGTH = 24;
-    public static final int MIN_NAME_LENGTH = 3;
-    public static final int MAX_TAG_LENGTH = 5;
+    public static final int MAX_NAME_LENGTH = GuildRules.MAX_NAME_LENGTH;
+    public static final int MIN_NAME_LENGTH = GuildRules.MIN_NAME_LENGTH;
+    public static final int MAX_TAG_LENGTH = GuildRules.MAX_TAG_LENGTH;
     public static final int MAX_MOTD_LENGTH = 120;
     private static final int CHAT_HISTORY_LIMIT = 50;
     private static final long INVITE_EXPIRY_MS = 30 * 60 * 1000L;
@@ -143,37 +143,31 @@ public final class GuildManager extends SavedData {
 
     // ---------------------------------------------------------------- validation
 
+    /** Length and uniqueness by {@link GuildRules#nameProblem}, and no characters chat refuses. */
     @Nullable
     public Component validateName(String name, @Nullable Guild self) {
         String trimmed = name.trim();
-        if (trimmed.length() < MIN_NAME_LENGTH || trimmed.length() > MAX_NAME_LENGTH) {
+        String problem = GuildRules.nameProblem(trimmed, guilds.values().stream()
+                .filter(guild -> guild != self).map(guild -> guild.name).toList());
+        if ("bad_name".equals(problem)) {
             return error("bad_name", MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         }
         if (!net.ledok.eden_ld.chat.ChatGuard.allowedText(trimmed)) {
             return Component.translatable("message.eden_ld.text.illegal_characters");
         }
-        for (Guild guild : guilds.values()) {
-            if (guild != self && guild.name.equalsIgnoreCase(trimmed)) {
-                return error("name_taken", trimmed);
-            }
-        }
-        return null;
+        return problem == null ? null : error(problem, trimmed);
     }
 
     /** 1–5 letters or digits (any alphabet — Cyrillic tags are fine). */
     @Nullable
     public Component validateTag(String tag, @Nullable Guild self) {
         String trimmed = tag.trim();
-        int length = trimmed.codePointCount(0, trimmed.length());
-        if (length < 1 || length > MAX_TAG_LENGTH || !trimmed.codePoints().allMatch(Character::isLetterOrDigit)) {
+        String problem = GuildRules.tagProblem(trimmed, guilds.values().stream()
+                .filter(guild -> guild != self).map(guild -> guild.tag).toList());
+        if ("bad_tag".equals(problem)) {
             return error("bad_tag", MAX_TAG_LENGTH);
         }
-        for (Guild guild : guilds.values()) {
-            if (guild != self && guild.tag.equalsIgnoreCase(trimmed)) {
-                return error("tag_taken", trimmed);
-            }
-        }
-        return null;
+        return problem == null ? null : error(problem, trimmed);
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -582,6 +576,92 @@ public final class GuildManager extends SavedData {
         guild.motd = trimmed.length() > MAX_MOTD_LENGTH ? trimmed.substring(0, MAX_MOTD_LENGTH) : trimmed;
         setDirty();
         return null;
+    }
+
+    // ---------------------------------------------------------------- staff (Moderation → Guilds)
+    // The same rules as the members' own paths (names, tags, ranks, notices), without the actor's rank: staff act
+    // from outside the guild, with every member offline if need be. Callers sync (GuildServer.syncAll) afterwards.
+
+    @Nullable
+    public Component staffRename(Guild guild, String name) {
+        Component bad = validateName(name, guild);
+        if (bad != null) {
+            return bad;
+        }
+        guild.name = name.trim();
+        setDirty();
+        return null;
+    }
+
+    @Nullable
+    public Component staffSetTag(Guild guild, String tag) {
+        Component bad = validateTag(tag, guild);
+        if (bad != null) {
+            return bad;
+        }
+        guild.tag = tag.trim();
+        setDirty();
+        return null;
+    }
+
+    public void staffSetColor(Guild guild, int color) {
+        guild.color = color & 0xFFFFFF;
+        setDirty();
+    }
+
+    /** Removes a member (never the leader: leadership goes first); they and the guild are told as for a kick. */
+    @Nullable
+    public Component staffKick(MinecraftServer server, Guild guild, UUID target) {
+        if (!guild.isMember(target)) {
+            return error("staff_not_member");
+        }
+        if (guild.rank(target) == GuildRank.LEADER) {
+            return error("staff_leader");
+        }
+        String name = guild.memberNames.getOrDefault(target, "?");
+        removeMember(guild, target);
+        notify(server, target, "kicked", guild.name);
+        notifyMembers(server, guild, "member_kicked", name);
+        return null;
+    }
+
+    /** Any rank below leader for any member but the leader (leadership moves only by {@link #staffTransfer}). */
+    @Nullable
+    public Component staffSetRank(Guild guild, UUID target, GuildRank rank) {
+        if (!guild.isMember(target)) {
+            return error("staff_not_member");
+        }
+        if (guild.rank(target) == GuildRank.LEADER || rank == GuildRank.LEADER) {
+            return error("staff_leader");
+        }
+        guild.members.put(target, rank);
+        setDirty();
+        return null;
+    }
+
+    /** Leadership to another member, as the leader's own transfer: the old leader becomes the vice-leader. */
+    @Nullable
+    public Component staffTransfer(MinecraftServer server, Guild guild, UUID target) {
+        if (!guild.isMember(target)) {
+            return error("staff_not_member");
+        }
+        UUID leader = guild.leader();
+        if (target.equals(leader)) {
+            return error("staff_already_leader");
+        }
+        if (leader != null) {
+            guild.members.put(leader, GuildRank.VICE_LEADER);
+        }
+        guild.members.put(target, GuildRank.LEADER);
+        setDirty();
+        notifyMembers(server, guild, "new_leader", guild.memberNames.getOrDefault(target, "?"));
+        return null;
+    }
+
+    /** One staff action into the guild's staff log (the newest {@link GuildRules#STAFF_LOG_LIMIT} kept). */
+    public void addStaffLog(Guild guild, Guild.StaffEntry entry) {
+        GuildRules.addCapped(guild.staffLog, entry, GuildRules.STAFF_LOG_LIMIT);
+        setDirty();
     }
 
     @Nullable

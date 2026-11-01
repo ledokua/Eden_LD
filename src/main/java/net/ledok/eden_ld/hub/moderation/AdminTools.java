@@ -18,7 +18,6 @@ import net.ledok.eden_ld.hub.activity.ActivitySource;
 import net.ledok.eden_ld.hub.daily.DailyQuests;
 import net.ledok.eden_ld.hub.guild.Guild;
 import net.ledok.eden_ld.hub.guild.GuildManager;
-import net.ledok.eden_ld.hub.guild.GuildServer;
 import net.ledok.eden_ld.hub.party.Party;
 import net.ledok.eden_ld.hub.party.PartyManager;
 import net.ledok.eden_ld.hub.profile.ProfileServer;
@@ -41,16 +40,16 @@ import java.util.UUID;
 
 /**
  * The server side of the Moderation window's admin tools — the player page's Unlocks, Dailies,
- * Dungeons and Emojis tabs, and the Activities, Reports, Guilds, Parties and Server sections. Each area is guarded
- * by the node its command uses, and each action calls what the command calls. One request / data /
- * action payload trio serves them all; the data is NBT (components as JSON). The Activities section also
- * polls a light live payload ({@link ActivityAdminData}).
+ * Dungeons and Emojis tabs, and the Activities, Reports, Guilds (one guild's detail: {@link GuildDesk}), Parties
+ * and Server sections. Each area is guarded by the node its command uses, and each action calls what the command
+ * calls. One request / data / action payload trio serves them all; the data is NBT (components as JSON). The
+ * Activities section also polls a light live payload ({@link ActivityAdminData}).
  */
 public final class AdminTools {
 
     public static final String UNLOCKS = "unlocks", DAILIES = "dailies", DUNGEONS = "dungeons", EMOJIS = "emojis",
             GUILDS = "guilds", PARTIES = "parties", SERVER = "server", ACTIVITIES = "activities", WORLD = "world",
-            REPORTS = "reports";
+            REPORTS = "reports", GUILD = "guild";
 
     private AdminTools() {
     }
@@ -62,6 +61,7 @@ public final class AdminTools {
                 (payload, context) -> context.server().execute(() -> act(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLiveRequest.TYPE,
                 (payload, context) -> context.server().execute(() -> sendLive(context.player(), payload.selected())));
+        GuildDesk.initialize();
     }
 
     private static boolean may(ServerPlayer admin, String node) {
@@ -74,7 +74,7 @@ public final class AdminTools {
             case DAILIES -> may(admin, EdenPermissions.DAILIES);
             case DUNGEONS, ACTIVITIES -> may(admin, EdenPermissions.DUNGEONS);
             case EMOJIS -> may(admin, EdenPermissions.EMOJIS);
-            case GUILDS -> may(admin, EdenPermissions.GUILDS);
+            case GUILDS, GUILD -> may(admin, EdenPermissions.GUILDS);
             case PARTIES -> may(admin, EdenPermissions.PARTIES);
             case SERVER -> may(admin, EdenPermissions.EMOJIS) || may(admin, EdenPermissions.COMMANDS);
             case WORLD -> may(admin, EdenPermissions.WORLD);
@@ -96,6 +96,7 @@ public final class AdminTools {
             case DUNGEONS -> dungeons(server, target);
             case EMOJIS -> emojis(server, target);
             case GUILDS -> guilds(server);
+            case GUILD -> GuildDesk.data(admin, server, target);
             case PARTIES -> parties(server);
             case SERVER -> serverData(admin, server);
             case ACTIVITIES -> activities(admin, server);
@@ -238,9 +239,11 @@ public final class AdminTools {
         all.sort(Comparator.comparing((Guild g) -> g.tag, String.CASE_INSENSITIVE_ORDER));
         for (Guild guild : all) {
             CompoundTag entry = new CompoundTag();
+            entry.putUUID("id", guild.id);
             entry.putString("tag", guild.tag);
             entry.putString("name", guild.name);
             entry.putInt("color", guild.color);
+            entry.putBoolean("frozen", guild.freeze != null);
             entry.putLong("created", guild.created);
             UUID leader = guild.leader();
             entry.putString("leader", leader == null ? "" : guild.memberNames.getOrDefault(leader, "?"));
@@ -416,18 +419,8 @@ public final class AdminTools {
                 EmojiRegistry.limitsChanged(server, target);
                 yield Component.translatable("message.eden_ld.admin.bonus_cleared");
             }
-            case "guilds/disband" -> {
-                GuildManager manager = GuildManager.get(server);
-                Guild guild = manager.byTag(args.getString("tag"));
-                if (guild == null) {
-                    yield null;
-                }
-                manager.forceDisband(server, guild);
-                GuildServer.syncAll(server);
-                HubServer.refreshWaystones(server);
-                EdenLD.LOGGER.info("{} disbanded the guild [{}] {}", name, guild.tag, guild.name);
-                yield Component.translatable("message.eden_ld.admin.disbanded", guild.name);
-            }
+            // With a reason since 1.3.21 (refused without one).
+            case "guilds/disband" -> GuildDesk.disband(admin, args);
             case "parties/disband" -> {
                 PartyManager manager = PartyManager.get(server);
                 Party party = manager.byTag(args.getString("tag"));
@@ -478,7 +471,11 @@ public final class AdminTools {
                 EdenLD.LOGGER.info("{} set the op-only commands: {}", name, names);
                 yield Component.translatable("message.eden_ld.admin.op_only_saved", names.size());
             }
-            default -> area.equals(WORLD) ? net.ledok.eden_ld.world.WorldAdmin.act(admin, action.action(), args) : null;
+            default -> switch (area) {
+                case WORLD -> net.ledok.eden_ld.world.WorldAdmin.act(admin, action.action(), args);
+                case GUILD -> GuildDesk.act(admin, action.action(), target, args);
+                default -> null;
+            };
         };
         if (done != null) {
             // World settings report only what failed; the window shows a change by itself.
@@ -493,6 +490,10 @@ public final class AdminTools {
                 default -> send(admin, area, target);
             }
             return;
+        }
+        if (area.equals(GUILD) && !action.action().equals("view")) {
+            // A rename or a kick changes the list's row too.
+            send(admin, GUILDS, net.minecraft.Util.NIL_UUID);
         }
         send(admin, area, target);
     }
@@ -631,7 +632,7 @@ public final class AdminTools {
         return Component.Serializer.toJson(component, server.registryAccess());
     }
 
-    private static void notice(ServerPlayer player, Component message, boolean ok) {
+    static void notice(ServerPlayer player, Component message, boolean ok) {
         ServerPlayNetworking.send(player, new HubPayloads.ModNotice(message, ok));
     }
 }

@@ -50,7 +50,8 @@ import java.util.Map;
  * placeholders), items in ghost slots (click one in your inventory, or drag from EMI; copies, the
  * admin keeps theirs), a live preview exactly as the Mail tab will show it — and drafts saved on
  * the server while typing. <b>Mail log</b>: sent staff mail with read / claimed counts and recall.
- * <b>Players</b> and <b>Punishments</b> (with BanHammer): see {@link PunishSection}; <b>Reports</b>: {@link ReportsSection}.
+ * <b>Players</b> and <b>Punishments</b> (with BanHammer): see {@link PunishSection}; <b>Reports</b>: {@link ReportsSection};
+ * <b>Guilds</b>: {@link GuildsSection}.
  * <p>
  * It is a container screen (with a client-only, slot-less menu) only so EMI shows its panels.
  */
@@ -130,6 +131,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private final ActivitiesSection activities = new ActivitiesSection(this, WIDTH - SIDEBAR - 16);
     private final WorldSection world = new WorldSection(this, WIDTH - SIDEBAR - 16);
     private final ReportsSection reports = new ReportsSection(this, WIDTH - SIDEBAR - 16);
+    private final GuildsSection guilds = new GuildsSection(this, WIDTH - SIDEBAR - 16);
 
     /** The news as edited here (published with Publish); loaded from the server until edited. */
     private final Map<String, String> newsTexts = new LinkedHashMap<>();
@@ -368,6 +370,12 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             if (open.section == Section.REPORTS) {
                 open.rebuild();
             }
+        } else if (open.guilds.onData(data.area(), data.data())) {
+            // The list feeds the old view too (servers before 1.3.21).
+            open.serverSections.onData(data.area(), data.data());
+            if (open.section == Section.GUILDS) {
+                open.rebuild();
+            }
         } else if (open.world.onData(data.area(), data.data())) {
             if (open.section == Section.WORLD) {
                 open.world.refresh();
@@ -445,7 +453,13 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
                 case CUSTOMIZATION -> customization.build(main, info.groups(),
                         (info.staff() & HomeData.STAFF_BACKGROUNDS) != 0, (info.staff() & HomeData.STAFF_THEMES) != 0);
                 case ACTIVITIES -> activities.build(main);
-                case GUILDS -> serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.GUILDS);
+                case GUILDS -> {
+                    if (guilds.legacy()) {
+                        serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.GUILDS);
+                    } else {
+                        guilds.build(main);
+                    }
+                }
                 case PARTIES -> serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.PARTIES);
                 case WORLD -> world.build(main);
                 case REPORTS -> reports.build(main);
@@ -518,7 +532,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             case PLAYERS -> punish.requestResults();
             case PUNISH_LOG -> ClientPlayNetworking.send(HubPayloads.PunishLogRequest.INSTANCE);
             case ACTIVITIES -> activities.request();
-            case GUILDS -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.GUILDS);
+            case GUILDS -> guilds.request();
             case PARTIES -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.PARTIES);
             case WORLD -> world.request();
             case SERVER -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.SERVER);

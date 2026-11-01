@@ -52,6 +52,12 @@ public final class ServerLang {
         ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new Listener());
     }
 
+    /** The player's language code: their hub language when they picked one (Settings → Visual), else their client's. */
+    public static String locale(ServerPlayer player) {
+        String hub = net.ledok.eden_ld.hub.HubSettings.hubLanguage(player.server, player.getUUID());
+        return (hub.isEmpty() ? player.clientInformation().language() : hub).toLowerCase(Locale.ROOT);
+    }
+
     /**
      * The value for {@code key} in the player's language — their hub language when they picked
      * one (Settings → Visual), else their client's — else en_us, else null.
@@ -59,8 +65,7 @@ public final class ServerLang {
     @Nullable
     public static String lookup(ServerPlayer player, String key) {
         Map<String, Map<String, String>> current = tables;
-        String hub = net.ledok.eden_ld.hub.HubSettings.hubLanguage(player.server, player.getUUID());
-        String locale = (hub.isEmpty() ? player.clientInformation().language() : hub).toLowerCase(Locale.ROOT);
+        String locale = locale(player);
         Map<String, String> table = current.get(locale);
         String value = table == null ? null : table.get(key);
         if (value == null) {

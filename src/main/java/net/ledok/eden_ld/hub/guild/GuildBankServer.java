@@ -110,10 +110,28 @@ public final class GuildBankServer {
         }
 
         List<HubPayloads.BankLog> log = new ArrayList<>();
+        List<HubPayloads.BankStaff.StaffNote> notes = new ArrayList<>();
+        // Clients before 1.3.21 know no staff entries: LC moves show as plain deposits/withdrawals, the rest not at all.
+        boolean staffAware = ServerPlayNetworking.canSend(player, HubPayloads.BankStaff.TYPE);
         int from = Math.max(0, bank.log.size() - LOG_SENT);
         for (GuildBank.LogEntry entry : bank.log.subList(from, bank.log.size())) {
-            log.add(new HubPayloads.BankLog(entry.time(), entry.name(), entry.type().ordinal(), entry.tab(),
-                    entry.stack(), entry.amount(), entry.detail()));
+            GuildBank.LogType type = entry.type();
+            long amount = entry.amount();
+            String detail = entry.detail();
+            if (type.staff()) {
+                // The reason travels in BankStaff (BankLog's detail is short).
+                notes.add(new HubPayloads.BankStaff.StaffNote(entry.time(), clip(detail, 512)));
+                detail = "";
+                if (!staffAware) {
+                    if (type != GuildBank.LogType.STAFF_LC) {
+                        continue;
+                    }
+                    type = amount >= 0 ? GuildBank.LogType.DEPOSIT_LC : GuildBank.LogType.WITHDRAW_LC;
+                    amount = Math.abs(amount);
+                }
+            }
+            log.add(new HubPayloads.BankLog(entry.time(), entry.name(), type.ordinal(), entry.tab(),
+                    entry.stack(), amount, detail.length() > 32 ? detail.substring(0, 32) : detail));
         }
 
         // The viewer's own LC (for the deposit box) comes from Economy_LD asynchronously.
@@ -129,7 +147,17 @@ public final class GuildBankServer {
             }
             sendData(player, guild, bank, rank, balance, hasEconomy ? own : -1, tabsView, viewed, contentsView,
                     rightsView, logView);
+            if (staffAware) {
+                Guild.BankFreeze freeze = guild.freeze;
+                ServerPlayNetworking.send(player, new HubPayloads.BankStaff(freeze != null,
+                        freeze == null ? "" : clip(freeze.byName(), 64), freeze == null ? "" : clip(freeze.reason(), 512),
+                        freeze == null ? 0 : freeze.since(), notes));
+            }
         });
+    }
+
+    private static String clip(String value, int max) {
+        return value.length() > max ? value.substring(0, max) : value;
     }
 
     private static void sendData(ServerPlayer player, Guild guild, GuildBank bank, GuildRank rank, long balance,

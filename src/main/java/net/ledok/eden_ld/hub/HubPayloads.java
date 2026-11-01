@@ -70,12 +70,14 @@ public final class HubPayloads {
         /**
          * {@code staff} bits: the Moderation window at all, writing mail, everyone's mail log,
          * BanHammer punishments (any of its commands), the punishment log, editing the news, background rules, …,
-         * players' reports ({@code STAFF_REPORTS}, 1.3.11).
+         * players' reports ({@code STAFF_REPORTS}, 1.3.11), reading guilds' chat in Moderation → Guilds
+         * ({@code STAFF_GUILD_CHAT}, 1.3.21).
          */
         public static final int STAFF_MODERATION = 1, STAFF_MAIL = 2, STAFF_MAIL_LOG = 4, STAFF_PUNISH = 8,
                 STAFF_PUNISH_LOG = 16, STAFF_NEWS = 32, STAFF_BACKGROUNDS = 64, STAFF_THEMES = 128,
                 STAFF_DAILIES = 256, STAFF_DUNGEONS = 512, STAFF_EMOJIS = 1024, STAFF_GUILDS = 2048,
-                STAFF_PARTIES = 4096, STAFF_COMMANDS = 8192, STAFF_WORLD = 16384, STAFF_REPORTS = 32768;
+                STAFF_PARTIES = 4096, STAFF_COMMANDS = 8192, STAFF_WORLD = 16384, STAFF_REPORTS = 32768,
+                STAFF_GUILD_CHAT = 65536;
         /** Any tab of the player page (the Players section). */
         public static final int STAFF_PLAYER_TABS = STAFF_PUNISH | STAFF_BACKGROUNDS | STAFF_THEMES | STAFF_DAILIES
                 | STAFF_DUNGEONS | STAFF_EMOJIS;
@@ -860,6 +862,38 @@ public final class HubPayloads {
         }
     }
 
+    /**
+     * S2C (1.3.21+, only to clients that know it — {@code ServerPlayNetworking.canSend}): what staff did to the bank,
+     * sent right after each {@link BankData}. {@code frozen} with who froze it, why and since when (ms); {@code notes}
+     * the reasons of the staff entries in that data's log ({@code BankLog.detail} is too short for them), by time.
+     */
+    public record BankStaff(boolean frozen, String frozenBy, String frozenReason, long frozenSince,
+                            List<StaffNote> notes) implements CustomPacketPayload {
+        public static final Type<BankStaff> TYPE = new Type<>(id("guild_bank_staff"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, BankStaff> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeBoolean(p.frozen);
+                    buf.writeUtf(p.frozenBy, 64);
+                    buf.writeUtf(p.frozenReason, 512);
+                    buf.writeLong(p.frozenSince);
+                    writeList(buf, p.notes, (b, note) -> {
+                        b.writeLong(note.time());
+                        b.writeUtf(note.reason(), 512);
+                    });
+                },
+                buf -> new BankStaff(buf.readBoolean(), buf.readUtf(64), buf.readUtf(512), buf.readLong(),
+                        readList(buf, b -> new StaffNote(b.readLong(), b.readUtf(512)))));
+
+        /** A staff log entry's reason, keyed by the entry's time. */
+        public record StaffNote(long time, String reason) {
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: the bank view opened on a tab (-1 = overview only) or closed ({@link #CLOSED}). */
     public record BankView(int tab) implements CustomPacketPayload {
         public static final int CLOSED = -2;
@@ -1524,7 +1558,8 @@ public final class HubPayloads {
 
     /**
      * C2S: the data of one Moderation window area ({@code AdminTools.UNLOCKS}, {@code GUILDS}, …),
-     * for a player ({@code target}) or server-wide (nil UUID).
+     * for a player ({@code target}) or server-wide (nil UUID) — or one guild's detail ({@code AdminTools.GUILD},
+     * 1.3.21: {@code target} is the guild's id).
      */
     public record AdminRequest(String area, java.util.UUID target) implements CustomPacketPayload {
         public static final Type<AdminRequest> TYPE = new Type<>(id("admin_request"));
@@ -3558,6 +3593,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(GuildDataRequest.TYPE, GuildDataRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(GuildAction.TYPE, GuildAction.CODEC);
         PayloadTypeRegistry.playS2C().register(BankData.TYPE, BankData.CODEC);
+        PayloadTypeRegistry.playS2C().register(BankStaff.TYPE, BankStaff.CODEC);
         PayloadTypeRegistry.playC2S().register(BankView.TYPE, BankView.CODEC);
         PayloadTypeRegistry.playC2S().register(BankAction.TYPE, BankAction.CODEC);
         PayloadTypeRegistry.playC2S().register(DailiesDataRequest.TYPE, DailiesDataRequest.CODEC);

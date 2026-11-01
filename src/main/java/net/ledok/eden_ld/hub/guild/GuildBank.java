@@ -48,7 +48,19 @@ public final class GuildBank {
         }
     }
 
-    public enum LogType { DEPOSIT_ITEM, WITHDRAW_ITEM, DEPOSIT_LC, WITHDRAW_LC, BUY_TAB, BUY_UPGRADE, RIGHTS, QUEST_REWARD }
+    /**
+     * Audit entry kinds; new ones go last (clients map the ordinal). The STAFF_ kinds (1.3.21) are Moderation's:
+     * LC added (amount &gt; 0) or taken (&lt; 0), the bank frozen or thawed — {@code name} is the staff member's,
+     * {@code detail} their reason.
+     */
+    public enum LogType {
+        DEPOSIT_ITEM, WITHDRAW_ITEM, DEPOSIT_LC, WITHDRAW_LC, BUY_TAB, BUY_UPGRADE, RIGHTS, QUEST_REWARD,
+        STAFF_LC, STAFF_FREEZE, STAFF_UNFREEZE;
+
+        public boolean staff() {
+            return this == STAFF_LC || this == STAFF_FREEZE || this == STAFF_UNFREEZE;
+        }
+    }
 
     /** One audit entry; {@code stack} for item moves, {@code amount} for LC and purchases. */
     public record LogEntry(long time, UUID player, String name, LogType type, int tab, ItemStack stack,

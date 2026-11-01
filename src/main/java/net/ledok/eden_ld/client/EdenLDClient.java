@@ -414,6 +414,13 @@ public class EdenLDClient implements ClientModInitializer {
             }
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.BankStaff.TYPE, (payload, context) -> {
+            HubState.bankStaff = payload;
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onGuildData();
+            }
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.GuildChatLine.TYPE, (payload, context) -> {
             HubState.guildChat.add(payload.line());
             if (context.client().screen instanceof HubScreen screen) {

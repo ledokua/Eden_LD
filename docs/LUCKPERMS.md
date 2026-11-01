@@ -184,7 +184,7 @@ them without OP, set to `false` an OP loses them. Changes apply live.
 | `eden_ld.admin.emojis` | `/emojis reload`, `/emojis bonus …`, the Emojis tab and Server → Reload emojis |
 | `eden_ld.admin.dailies` | `/dailies give-rerolls`, `/dailies reset`, and the Dailies tab |
 | `eden_ld.admin.dungeons` | `/activities complete\|reset\|level`, and the Activities tab of the Moderation player page |
-| `eden_ld.admin.guilds` | `/guild-admin list\|disband`, and the Guilds section |
+| `eden_ld.admin.guilds` | `/guild-admin list\|disband\|xp\|quests`, and the Guilds section (every guild's overview, members, bank, quest boards and staff log; rename, retag, recolor, ranks, kick, leadership, guild XP, new quests, bank LC, freezing the bank, disband) |
 | `eden_ld.admin.parties` | `/party-admin list\|disband`, and the Parties section |
 | `eden_ld.admin.commands` | `/eden commands dump` (every command and the level it needs, to a file), and Server → the op-only command list |
 | `eden_ld.admin.mail` | the Moderation window's mail composer, and your own mail's log and recall |
@@ -194,6 +194,7 @@ them without OP, set to `false` an OP loses them. Changes apply live.
 | `eden_ld.admin.world` | Moderation → World settings, `/eden gamerule`, `/eden pvp`, `/eden difficulty` (a dimension's own gamerules, PvP mode, difficulty and border; the server-wide gamerules), `/eden pvp player` (players' own PvP switch, no cooldown) |
 | `eden_ld.admin.tutorial` | `/eden tutorial start\|finish\|status` (the guide runs `finish` from the console) |
 | `eden_ld.admin.reports` | Moderation → Reports (players' reports from other mods, e.g. Duels_LD), `/hub reports`, and the chat lines about new and open reports |
+| `eden_ld.admin.guild_chat` | Moderation → Guilds → Chat: reading a guild's stored chat (with `eden_ld.admin.guilds`; without it the sub-tab is hidden) |
 | `eden_ld.admin.*` | all of the above |
 
 ```

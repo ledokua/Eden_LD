@@ -257,6 +257,14 @@ public final class MailStaff {
                 EdenLD.LOGGER.info("[Mail] {} sent mail #{} to {}", player.getGameProfile().getName(), id,
                         recipients.all() ? "everyone" : recipients.players().size() + " player(s)");
                 saveDraft(player, new HubPayloads.DraftSave(draft, true));
+                java.util.Map<String, String> titles = new java.util.LinkedHashMap<>();
+                for (HubPayloads.MailText text : draft.texts()) {
+                    if (!text.title().isBlank()) {
+                        titles.put(text.language(), text.title());
+                    }
+                }
+                MailHub.announceStaffMail(player.server, recipients.all(), recipients.players(), titles,
+                        draft.defaultLanguage());
                 notice(player, count < 0 ? Component.translatable("message.eden_ld.moderation.sent_all")
                         : Component.translatable("message.eden_ld.moderation.sent", count), true);
                 sendInfo(player);

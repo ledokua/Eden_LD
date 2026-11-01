@@ -6,6 +6,7 @@ needs a README pass too.
 
 ## Now
 
+- [ ] **Moderation → Guilds page** (owner, 2026-11-01, Eden 1.3.21) — Overview / Members / Bank / Chat (`eden_ld.admin.guild_chat`) / Quests sub-tabs, staff actions with reasons and a staff log, bank freeze; 12 tests — not run in game, not committed.
 - [x] **Wire ArenasApi into the activity admin** (owner, 2026-10-19; `docs/PLAN-activity-admin.md`) — Eden 1.3.5
       built the Eden side; 1.3.7 wires ArenasApi 4.9.0 (`ArenasAdmin`, reflection-checked so an older Arenas_LD
       hides the buttons), forced ends into the history only. Deployed 2026-10-20 with Arenas 4.9.0 (pack a2d4652); not run in game.

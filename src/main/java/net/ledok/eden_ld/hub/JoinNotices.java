@@ -58,8 +58,9 @@ public final class JoinNotices {
         ReportDesk.joinLine(player);
         boolean mailOff = (HubSettings.intSetting(server, player.getUUID(), HubSettings.NOTIFY_OFF)
                 & (1 << HubSettings.NOTIFY_MAIL_BIT)) != 0;
-        if (!mailOff && !Tutorial.isActive(player)) {
-            MailHub.unreadLine(player);
+        // Letters from the administration always; the other unread mail as the player's setting says.
+        if (!Tutorial.isActive(player)) {
+            MailHub.joinLines(player, !mailOff);
         }
     }
 }

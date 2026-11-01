@@ -71,12 +71,26 @@ public final class GuildBankService {
 
     private static void log(Guild guild, ServerPlayer player, GuildBank.LogType type, int tab, ItemStack stack,
                             long amount, String detail) {
-        List<GuildBank.LogEntry> log = guild.bank.log;
-        log.add(new GuildBank.LogEntry(System.currentTimeMillis(), player.getUUID(),
-                player.getGameProfile().getName(), type, tab, stack.copy(), amount, detail));
-        while (log.size() > GuildBank.LOG_LIMIT) {
-            log.remove(0);
+        log(guild, player.getUUID(), player.getGameProfile().getName(), type, tab, stack, amount, detail);
+    }
+
+    private static void log(Guild guild, UUID player, String name, GuildBank.LogType type, int tab, ItemStack stack,
+                            long amount, String detail) {
+        GuildRules.addCapped(guild.bank.log, new GuildBank.LogEntry(System.currentTimeMillis(), player, name, type,
+                tab, stack.copy(), amount, detail), GuildBank.LOG_LIMIT);
+    }
+
+    /**
+     * The refusal when staff froze the bank and {@code move} takes something out ("The guild bank is frozen by
+     * staff: reason"); null otherwise. Every withdrawal and purchase path asks first.
+     */
+    @Nullable
+    public static Component frozen(Guild guild, GuildRules.BankMove move) {
+        Guild.BankFreeze freeze = guild.freeze;
+        if (!GuildRules.refused(freeze != null, move)) {
+            return null;
         }
+        return error("frozen", freeze.reason());
     }
 
     // ---------------------------------------------------------------- items
@@ -119,6 +133,10 @@ public final class GuildBankService {
         Guild guild = manager.guildOf(player.getUUID());
         if (guild == null || tab < 0 || tab >= guild.bank.tabs.size() || slot < 0 || slot >= GuildBank.TAB_SIZE) {
             return error("no_tab");
+        }
+        Component frozen = frozen(guild, GuildRules.BankMove.WITHDRAW);
+        if (frozen != null) {
+            return frozen;
         }
         int left = itemsLeft(guild, player.getUUID(), tab);
         if (left == 0) {
@@ -216,6 +234,10 @@ public final class GuildBankService {
         if (!EconomyCompat.available()) {
             return error("no_economy");
         }
+        Component frozen = frozen(guild, GuildRules.BankMove.WITHDRAW);
+        if (frozen != null) {
+            return frozen;
+        }
         long left = lcLeft(guild, player.getUUID());
         if (left == 0) {
             return error("no_lc_withdraw");
@@ -254,6 +276,12 @@ public final class GuildBankService {
                 GuildLevels.perk(guild, GuildPerks.Kind.CLAIM_UPGRADE_DISCOUNT));
     }
 
+    /** Vault tabs the guild may own at its level: the price list's length, or the config cap plus the level's extra. */
+    public static int tabCap(Guild guild) {
+        return Math.min(EdenLD.CONFIG.hub.guild_tab_costs.size(),
+                cap(guild, EdenLD.CONFIG.guilds.tab_cap, GuildPerks.Kind.EXTRA_TABS));
+    }
+
     /** How many may be bought: the base cap (-1 = no cap of its own) plus the level's extra. */
     private static int cap(Guild guild, int base, GuildPerks.Kind extra) {
         return base < 0 ? Integer.MAX_VALUE : base + GuildLevels.perk(guild, extra);
@@ -273,6 +301,10 @@ public final class GuildBankService {
         Guild guild = leaderGuild(manager, player);
         if (guild == null) {
             return error("leader_only");
+        }
+        Component frozen = frozen(guild, GuildRules.BankMove.PURCHASE);
+        if (frozen != null) {
+            return frozen;
         }
         long cost = nextTabCost(guild);
         if (cost < 0) {
@@ -301,6 +333,10 @@ public final class GuildBankService {
         Guild guild = leaderGuild(manager, player);
         if (guild == null) {
             return error("leader_only");
+        }
+        Component frozen = frozen(guild, GuildRules.BankMove.PURCHASE);
+        if (frozen != null) {
+            return frozen;
         }
         long cost = nextUpgradeCost(guild, upgrade);
         if (cost < 0) {
@@ -378,6 +414,49 @@ public final class GuildBankService {
     private static Guild leaderGuild(GuildManager manager, ServerPlayer player) {
         Guild guild = manager.guildOf(player.getUUID());
         return guild != null && guild.rank(player.getUUID()).manages() ? guild : null;
+    }
+
+    // ---------------------------------------------------------------- staff (Moderation → Guilds)
+
+    /**
+     * Staff add ({@code delta} &gt; 0) or take (&lt; 0) bank LC; never below 0. The bank's own log gets a staff
+     * entry with the staff member's name and reason, so the members see it too.
+     */
+    @Nullable
+    public static Component staffLc(GuildManager manager, Guild guild, UUID staff, String staffName, long delta,
+                                    String reason) {
+        if (delta == 0) {
+            return null;
+        }
+        if (delta < 0 && -delta > guild.bank.balance) {
+            return error("bank_short", guild.bank.balance);
+        }
+        guild.bank.balance += delta;
+        log(guild, staff, staffName, GuildBank.LogType.STAFF_LC, -1, ItemStack.EMPTY, delta, reason);
+        manager.markChanged();
+        return null;
+    }
+
+    /** Freezes ({@code on}) or thaws the bank; logged in the bank's log as well. */
+    public static void staffFreeze(GuildManager manager, Guild guild, UUID staff, String staffName, boolean on,
+                                   String reason) {
+        guild.freeze = on ? new Guild.BankFreeze(staff, staffName, reason, System.currentTimeMillis()) : null;
+        log(guild, staff, staffName, on ? GuildBank.LogType.STAFF_FREEZE : GuildBank.LogType.STAFF_UNFREEZE, -1,
+                ItemStack.EMPTY, 0, reason);
+        manager.markChanged();
+    }
+
+    /** Items (all tabs) and LC {@code player} took out today: {items, lc}. */
+    public static long[] takenToday(Guild guild, UUID player) {
+        GuildBank.Usage usage = guild.bank.usage.get(player);
+        if (usage == null || usage.day != today()) {
+            return new long[]{0, 0};
+        }
+        long items = 0;
+        for (int count : usage.items.values()) {
+            items += count;
+        }
+        return new long[]{items, usage.lc};
     }
 
     /** True while the bank still holds LC or items — the guild can't be disbanded then. */

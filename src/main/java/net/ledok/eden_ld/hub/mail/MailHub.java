@@ -52,10 +52,53 @@ public final class MailHub {
      * line goes out on the server thread). Nothing without Economy_LD or unread mail. The caller decides whether
      * the player wants it ({@code JoinNotices}).
      */
-    public static void unreadLine(ServerPlayer player) {
+    /**
+     * The mail lines a player gets on joining: unread letters from the administration always (with the newest one's
+     * title), the other unread letters only when {@code otherUnread} (the Unread mail notification is on).
+     */
+    public static void joinLines(ServerPlayer player, boolean otherUnread) {
         if (LOADED) {
-            Economy.unreadLine(player);
+            Economy.joinLines(player, otherUnread);
         }
+    }
+
+    /**
+     * Staff mail just sent ({@code MailStaff}): every online recipient — everyone when {@code all} — is told in chat,
+     * with the title in their language ({@code titles}: language → title; else {@code defaultLanguage}'s).
+     */
+    public static void announceStaffMail(MinecraftServer server, boolean all, java.util.Set<java.util.UUID> players,
+                                         java.util.Map<String, String> titles, String defaultLanguage) {
+        java.util.Collection<ServerPlayer> online = all ? server.getPlayerList().getPlayers()
+                : players.stream().map(uuid -> server.getPlayerList().getPlayer(uuid))
+                        .filter(java.util.Objects::nonNull).toList();
+        // As the letter was stored: the default language when it has a title, else the first language that has one.
+        String fallback = titles.getOrDefault(defaultLanguage,
+                titles.isEmpty() ? "" : titles.values().iterator().next());
+        for (ServerPlayer player : online) {
+            if (net.ledok.eden_ld.tutorial.Tutorial.isActive(player)) {
+                continue; // they hear about it on their next join, once out of the tutorial
+            }
+            String title = titles.getOrDefault(net.ledok.eden_ld.hub.lang.ServerLang.locale(player), fallback);
+            player.sendSystemMessage(staffLine(Component.translatable("message.eden_ld.mail.admin_new",
+                    titleOf(PlaceholdersCompat.fill(title, player)))));
+        }
+    }
+
+    /** "«Title»" for a chat line; empty titles read "(no title)". */
+    private static Component titleOf(String title) {
+        return title.isBlank() ? Component.translatable("message.eden_ld.mail.admin_untitled")
+                : Component.literal("«" + title + "»").withStyle(net.minecraft.ChatFormatting.WHITE);
+    }
+
+    /** A staff-mail line: ✉ in the theme's gold, then the text, then [Open mail]. */
+    private static Component staffLine(Component text) {
+        return Component.literal("✉ ").withStyle(net.minecraft.ChatFormatting.GOLD)
+                .append(text.copy().withStyle(net.minecraft.ChatFormatting.GOLD))
+                .append(" ")
+                .append(Component.translatable("message.eden_ld.mail.open_button")
+                        .withStyle(net.minecraft.ChatFormatting.AQUA, net.minecraft.ChatFormatting.UNDERLINE)
+                        .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND, "/hub mail"))));
     }
 
     /**
@@ -131,17 +174,48 @@ public final class MailHub {
             });
         }
 
-        static void unreadLine(ServerPlayer player) {
+        static void joinLines(ServerPlayer player, boolean otherUnread) {
             if (!net.ledok.economy_ld.manager.EconomyManager.getInstance().isRunning()) {
                 return;
             }
-            net.ledok.economy_ld.mail.EconomyMail.unread(player.getUUID()).whenComplete((count, error) ->
+            // A cheap count first: the whole mailbox is loaded only when something is unread.
+            net.ledok.economy_ld.mail.EconomyMail.unread(player.getUUID())
+                    .thenCompose(unread -> unread == null || unread <= 0
+                            ? java.util.concurrent.CompletableFuture.completedFuture(List.<net.ledok.economy_ld.mail.Mail>of())
+                            : net.ledok.economy_ld.mail.EconomyMail.list(player.getUUID()))
+                    .whenComplete((mails, error) ->
                     player.server.execute(() -> {
                         if (error != null) {
-                            EdenLD.LOGGER.warn("[Mail] Can't count the unread mail of {}", player.getGameProfile().getName(), error);
+                            EdenLD.LOGGER.warn("[Mail] Can't load the mail of {}", player.getGameProfile().getName(), error);
                             return;
                         }
-                        if (player.hasDisconnected() || count == null || count <= 0) {
+                        if (player.hasDisconnected() || mails == null) {
+                            return;
+                        }
+                        // Newest first: the first unread staff letter is the newest.
+                        net.ledok.economy_ld.mail.Mail newestStaff = null;
+                        int staff = 0;
+                        int count = 0;
+                        for (net.ledok.economy_ld.mail.Mail mail : mails) {
+                            if (mail.read()) {
+                                continue;
+                            }
+                            if (mail.kind() == net.ledok.economy_ld.mail.MailKind.ADMIN) {
+                                staff++;
+                                if (newestStaff == null) {
+                                    newestStaff = mail;
+                                }
+                            } else {
+                                count++;
+                            }
+                        }
+                        if (newestStaff != null) {
+                            Component title = titleOf(staffTitle(newestStaff, player));
+                            player.sendSystemMessage(staffLine(staff == 1
+                                    ? Component.translatable("message.eden_ld.mail.admin_unread_one", title)
+                                    : Component.translatable("message.eden_ld.mail.admin_unread_many", staff, title)));
+                        }
+                        if (!otherUnread || count <= 0) {
                             return;
                         }
                         player.sendSystemMessage(Component.translatable(count == 1 ? "message.eden_ld.mail.unread_one"
@@ -153,6 +227,13 @@ public final class MailHub {
                                         .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
                                                 net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND, "/hub mail")))));
                     }));
+        }
+
+        /** A staff letter's title in the reader's language (else its default), placeholders filled. */
+        private static String staffTitle(net.ledok.economy_ld.mail.Mail mail, ServerPlayer reader) {
+            net.ledok.economy_ld.mail.MailContent.Text text = mail.content()
+                    .forLanguage(net.ledok.eden_ld.hub.lang.ServerLang.locale(reader));
+            return text == null ? "" : PlaceholdersCompat.fill(text.title(), reader);
         }
 
         static void push(ServerPlayer player) {

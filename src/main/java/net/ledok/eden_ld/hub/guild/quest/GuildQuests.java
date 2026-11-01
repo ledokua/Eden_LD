@@ -107,7 +107,8 @@ public final class GuildQuests {
         return Math.max(0, java.time.Duration.between(now, next).toMillis());
     }
 
-    private static long millisUntilReset(GuildQuestDefinition.Period period) {
+    /** Time left until the period's board is drawn anew. */
+    public static long millisUntilReset(GuildQuestDefinition.Period period) {
         return period == GuildQuestDefinition.Period.DAILY ? DailyQuests.millisUntilReset() : millisUntilWeeklyReset();
     }
 
@@ -328,6 +329,40 @@ public final class GuildQuests {
     }
 
     // ---------------------------------------------------------------- view
+
+    /** One quest on a guild's board: its slot as stored, and each member's progress ({@code by}). */
+    public record BoardQuest(GuildQuestDefinition.Period period, GuildQuestDefinition quest, int goal, int progress,
+                             boolean done, java.util.Map<UUID, Integer> by) {
+    }
+
+    /** The guild's current daily and weekly boards (rolled over first, as members see them); unknown quests left out. */
+    public static List<BoardQuest> board(MinecraftServer server, Guild guild) {
+        ensure(server, guild);
+        List<BoardQuest> out = new ArrayList<>();
+        for (GuildQuestDefinition.Period period : GuildQuestDefinition.Period.values()) {
+            ListTag slots = guild.quests.getList(period == GuildQuestDefinition.Period.DAILY ? DAILY : WEEKLY,
+                    Tag.TAG_COMPOUND);
+            for (int i = 0; i < slots.size(); i++) {
+                CompoundTag slot = slots.getCompound(i);
+                GuildQuestDefinition quest = GuildQuestRegistry.get(ResourceLocation.tryParse(slot.getString("quest")));
+                if (quest == null) {
+                    continue;
+                }
+                java.util.Map<UUID, Integer> by = new java.util.LinkedHashMap<>();
+                CompoundTag contributions = slot.getCompound("by");
+                for (String key : contributions.getAllKeys()) {
+                    try {
+                        by.put(UUID.fromString(key), contributions.getInt(key));
+                    } catch (IllegalArgumentException ignored) {
+                        // Not a member's key: nothing to show for it.
+                    }
+                }
+                out.add(new BoardQuest(period, quest, slot.getInt("goal"), slot.getInt("progress"),
+                        slot.getBoolean("done"), by));
+            }
+        }
+        return out;
+    }
 
     public static void pushMembers(MinecraftServer server, Guild guild) {
         for (UUID member : guild.members.keySet()) {

@@ -56,9 +56,11 @@ public final class EdenPermissions {
     public static final String TUTORIAL = "eden_ld.admin.tutorial";
     /** Players' reports (other mods file them): Moderation → Reports, {@code /hub reports}, and the chat lines about them. */
     public static final String REPORTS = "eden_ld.admin.reports";
+    /** Reading a guild's chat history in Moderation → Guilds (the Chat sub-tab; with {@link #GUILDS}). */
+    public static final String GUILD_CHAT = "eden_ld.admin.guild_chat";
 
     private static final List<String> ALL = List.of(THEMES, BACKGROUNDS, EMOJIS, GUILDS, PARTIES, DUNGEONS, DAILIES, COMMANDS, MAIL,
-            MAIL_LOG, PUNISH_LOG, NEWS, WORLD, TUTORIAL, REPORTS);
+            MAIL_LOG, PUNISH_LOG, NEWS, WORLD, TUTORIAL, REPORTS, GUILD_CHAT);
 
     /** Which nodes each online player had when their command list was last sent (bit per {@link #ALL} entry). */
     private static final Map<UUID, Integer> SENT = new ConcurrentHashMap<>();
@@ -98,7 +100,8 @@ public final class EdenPermissions {
     public static int staff(ServerPlayer player) {
         int granted = granted(player);
         int punish = net.ledok.eden_ld.hub.moderation.PunishStaff.staff(player);
-        if (granted == 0) {
+        // Reading guild chat is an add-on to the Guilds section: alone it opens nothing.
+        if ((granted & ~(1 << ALL.indexOf(GUILD_CHAT))) == 0) {
             return punish;
         }
         int staff = net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_MODERATION | punish;
@@ -111,7 +114,8 @@ public final class EdenPermissions {
         if ((granted & (1 << ALL.indexOf(NEWS))) != 0) {
             staff |= net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_NEWS;
         }
-        String[] nodes = {BACKGROUNDS, THEMES, DAILIES, DUNGEONS, EMOJIS, GUILDS, PARTIES, COMMANDS, WORLD, REPORTS};
+        String[] nodes = {BACKGROUNDS, THEMES, DAILIES, DUNGEONS, EMOJIS, GUILDS, PARTIES, COMMANDS, WORLD, REPORTS,
+                GUILD_CHAT};
         int[] bits = {net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_BACKGROUNDS,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_THEMES,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_DAILIES,
@@ -121,7 +125,8 @@ public final class EdenPermissions {
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_PARTIES,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_COMMANDS,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_WORLD,
-                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_REPORTS};
+                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_REPORTS,
+                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_GUILD_CHAT};
         for (int i = 0; i < nodes.length; i++) {
             if ((granted & (1 << ALL.indexOf(nodes[i]))) != 0) {
                 staff |= bits[i];

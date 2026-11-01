@@ -224,7 +224,7 @@ final class GuildQuestsView {
         }
     }
 
-    private static Component countdown(long millis) {
+    static Component countdown(long millis) {
         long seconds = Math.max(0, millis / 1000);
         long days = seconds / 86_400;
         long hours = seconds / 3600 % 24;

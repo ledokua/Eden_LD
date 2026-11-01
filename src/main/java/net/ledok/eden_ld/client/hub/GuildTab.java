@@ -74,7 +74,7 @@ final class GuildTab {
     private static final float LANE = 6;
 
     /** Guild colors offered on creation and in settings: bright chat colors that read on parchment and in chat. */
-    private static final List<ColorOption> COLORS = List.of(
+    static final List<ColorOption> COLORS = List.of(
             color("dark_red", ChatFormatting.DARK_RED),
             color("red", ChatFormatting.RED),
             color("gold", ChatFormatting.GOLD),
@@ -107,7 +107,7 @@ final class GuildTab {
     private static String directoryQuery = "";
     private static TextField directoryField;
 
-    private record ColorOption(String key, int rgb) {
+    record ColorOption(String key, int rgb) {
     }
 
     private static ColorOption color(String key, ChatFormatting formatting) {
@@ -639,6 +639,11 @@ final class GuildTab {
             chat.item(EdenParchment.text(tr("chat_empty"), EdenParchment.INK_DIM, (int) (linesWidth - 20)));
         }
         for (HubPayloads.ChatEntry entry : HubState.guildChat) {
+            if (entry.sender().equals(Guild.ChatLine.SYSTEM)) {
+                // From Eden itself (staff renamed the guild, …): no face, no name.
+                chat.item(EdenParchment.text(entry.text(), EdenParchment.INK_MID, (int) (linesWidth - 6 - LANE)));
+                continue;
+            }
             if (HubState.ignores(entry.sender())) {
                 continue;
             }
@@ -1043,7 +1048,7 @@ final class GuildTab {
     }
 
     /** A small colored square + the color's name. */
-    private static Component colorLabel(ColorOption option) {
+    static Component colorLabel(ColorOption option) {
         return Component.empty()
                 .append(Component.literal("■ ").withColor(option.rgb() & 0xFFFFFF))
                 .append(tr("color." + option.key()));

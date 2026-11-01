@@ -262,7 +262,8 @@ the hub only — chat and nameplates keep the LuckPerms role prefixes), and a co
   upgrades, permissions, full vault access) — except transferring leadership and disbanding,
   which stay with the leader. Promotions go up to one step below your own rank. A leader has
   to transfer before leaving (and becomes vice-leader when they do).
-- **Guild chat**: `/g <message>` and the chat panel in the tab (history kept). In the hub's guild
+- **Guild chat**: `/g <message>` and the chat panel in the tab (history kept: the last 50 lines; staff
+  renaming, retagging or recoloring the guild adds a line there too, and online members get it in chat). In the hub's guild
   and party chat, names show in their LuckPerms name color (`eden_ld.name_color`), clicking a
   name adds `@name` to your message, and Tab completes an `@` mention from the members.
 - **Friendly fire is off** between guildmates exactly as between partymates (damage,
@@ -296,6 +297,10 @@ the hub only — chat and nameplates keep the LuckPerms role prefixes), and a co
     level, `hub.guild_claim_upgrade_costs`; see **Guild claims** below). With guild claims
     active, the upgrades box shows the guild's claims in use / limit.
   - A guild whose bank still holds LC or items can't be disbanded.
+  - **Frozen by staff** (1.3.21, Moderation → Guilds): every withdrawal (items and LC) and every purchase
+    (tabs, upgrades) is refused for everyone in the guild — "The guild bank is frozen by staff: <reason>" —
+    while deposits still work. The Bank sub-tab says so (with the reason) and grays out the controls it
+    refuses; staff LC changes and freezes show in the audit log with the staff member's name and reason.
 - **Guild claims (Open Parties and Claims, optional).** Eden registers guilds as an OPAC party
   system named `eden_ld_guilds`. To make guilds own claims, set in OPAC's server config
   (`<world>/serverconfig/openpartiesandclaims-server.toml`; both need a restart):
@@ -788,6 +793,11 @@ claimed; the join message about them opens this tab (`/hub mail`), and `/shop-re
 - **On join**, about 3 seconds in (after the join messages): "You have 3 unread letters. **[Open mail]**"
   (it runs `/hub mail`) — only when there is unread mail, not during the tutorial, and not with
   Settings → Notifications → Unread mail off.
+- **Letters from the administration** (1.3.21): when staff send one (Moderation → Mail), every recipient online gets
+  "✉ New mail from the administration: «Title» **[Open mail]**" at once (the title in their language). On join, unread
+  staff letters get their own line ("✉ You have an unread letter from the administration: «Title»", or the count and
+  the newest title) — even with the Unread mail notification off, but not during the tutorial; the "unread letters"
+  line then counts only the rest.
 - Claiming (mail and purchases) is refused while BusyLib reports the player busy (duel, dungeon run, the
   tutorial).
 - Expired mail is deleted with whatever it still holds (Economy_LD's `mail.systemExpiryDays`, 7 days,
@@ -875,8 +885,38 @@ the sections you may use:
   is filed, and "There are 3 open reports. **[Open]**" about 3 seconds after joining while any are
   open; [Open] runs `/hub reports`. A player may file 5 reports per 10 minutes; the world keeps the
   newest 2000 (`data/eden_ld/reports.dat`; past that, handled ones older than 90 days go first).
-- **Guilds** (`eden_ld.admin.guilds`) and **Parties** (`eden_ld.admin.parties`): every one with its
-  leader and members (online dot), and **Disband**.
+- **Guilds** (`eden_ld.admin.guilds`, 1.3.21): every guild in a list (`[TAG] name` in its color,
+  members, leader; ❄ while its bank is frozen), and the picked one in sub-tabs:
+  - **Overview**: founded, join mode, message of the day, level and XP (into the level / to the next,
+    and in all), members / limit with the member upgrades bought, claims in use / limit with the claim
+    upgrades and what members' Prime adds (without OPAC guild claims: says so), the bank's LC and vault
+    tabs bought / the cap, pending applications (name, how long ago), and the guild's **staff log**
+    (newest first: when, who, what, and the reason; the newest 200 are kept with the guild).
+  - **Members**: online dot or when they were last here (their player file's date, as Players shows),
+    rank, the date they joined (members from before 1.3.21 show "—"), the claims their Prime brings,
+    what they took from the bank today (items, LC), and on how many of the current board's quests
+    they helped.
+  - **Bank**: the balance, every vault tab as a read-only grid (hover an item for its tooltip; only
+    the tab looked at is sent, and stacks too large to send whole come without their details), the
+    tab's rights per rank and each rank's daily LC limit, and the **audit log** with a filter —
+    all / deposits / withdrawals / purchases / rights / staff, and one player.
+  - **Chat** (also needs `eden_ld.admin.guild_chat`; hidden without it, and the server refuses the
+    data): the guild's stored chat (the last 50 lines), read-only, newest at the bottom.
+  - **Quests**: the daily and weekly boards — each quest, its progress and goal (or done), when the
+    board resets, and the three members who helped most.
+
+  **Staff actions**, each confirmed with a **reason** (required, up to 200 characters), checked on
+  the server, written to the server log and the guild's staff log, and answered with a toast:
+  **Rename**, **Tag** and **Color** (the founding rules: unique name of 3–24 characters, unique tag of
+  1–5 letters or digits; the members are told in chat and in the guild's chat, and tags above heads
+  follow); per member **Rank** (anything below leader), **Kick** (not the leader) and **Make leader**
+  (the old leader becomes vice-leader and the guild's claims follow, as in a normal transfer);
+  **Guild XP** (add or take; levels follow as with `/guild-admin xp`), **New quests** (as
+  `/guild-admin quests reset`), **Bank LC** (add or take, never below 0; in the bank's own log for the
+  members too) and **Freeze bank** / **Unfreeze bank** (see the guild bank above); **Disband** as
+  before (the reason goes to the server log only — the guild is gone).
+- **Parties** (`eden_ld.admin.parties`): every one with its leader and members (online dot), and
+  **Disband**.
 - **World settings** (`eden_ld.admin.world`): a column of pages — **GLOBAL**, then every dimension,
   each marked with how many things it changes and ⬜ when it has a border — each a settings page with a
   search box. GLOBAL: the server-wide gamerules (as `/gamerule`) — **Global**, the six with one value for the

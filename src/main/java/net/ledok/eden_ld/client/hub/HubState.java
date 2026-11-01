@@ -59,6 +59,8 @@ public final class HubState {
     public static HubPayloads.GuildData guildData;
     /** Last guild bank data (only while the bank view is/was open). */
     public static HubPayloads.BankData bankData;
+    /** What staff did to the bank (frozen, staff log reasons), sent after each bank data by 1.3.21+ servers. */
+    public static HubPayloads.BankStaff bankStaff;
     /** The Guild tab's open sub-tab. */
     static GuildView guildView = GuildView.MEMBERS;
     /** The guild's level and quest board (sub-tabs Quests and Level, the header's XP bar). */
@@ -106,6 +108,7 @@ public final class HubState {
         guildData = null;
         guildChat.clear();
         bankData = null;
+        bankStaff = null;
         guildView = GuildView.MEMBERS;
         guildQuests = null;
         profileTarget = null;

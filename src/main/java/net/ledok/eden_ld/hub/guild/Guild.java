@@ -20,8 +20,24 @@ public final class Guild {
     /** How outsiders get in: only by invite, by an application officers accept, or freely. */
     public enum JoinMode { INVITE_ONLY, APPLICATIONS, OPEN }
 
-    /** One chat line, styled as the game's chat shows it (hover and click included). */
+    /**
+     * One chat line, styled as the game's chat shows it (hover and click included). A {@link #SYSTEM} sender (nil
+     * uuid, no name) is a line from Eden itself, e.g. staff renaming the guild.
+     */
     public record ChatLine(UUID sender, String name, net.minecraft.network.chat.Component text, long time) {
+        public static final UUID SYSTEM = new UUID(0L, 0L);
+    }
+
+    /**
+     * One staff action on this guild (Moderation → Guilds): when, who, what ({@code action}, e.g. {@code rename}),
+     * their reason, and the specifics ({@code details}, e.g. "Old → New"). The newest {@link GuildRules#STAFF_LOG_LIMIT}
+     * are kept.
+     */
+    public record StaffEntry(long time, UUID staff, String staffName, String action, String reason, String details) {
+    }
+
+    /** The bank frozen by staff: withdrawals and purchases refused for everyone until lifted (deposits still work). */
+    public record BankFreeze(UUID by, String byName, String reason, long since) {
     }
 
     public final UUID id;
@@ -55,6 +71,12 @@ public final class Guild {
      */
     public UUID opacOwner;
     public int opacBonus;
+
+    /** Staff actions on this guild, oldest first. */
+    public final List<StaffEntry> staffLog = new ArrayList<>();
+    /** Set while staff keep the bank frozen; null otherwise. */
+    @org.jetbrains.annotations.Nullable
+    public BankFreeze freeze;
 
     public Guild(UUID id, String name, String tag, int color, long created) {
         this.id = id;
@@ -130,6 +152,26 @@ public final class Guild {
             opac.putInt("bonus", opacBonus);
             tag.put("opac", opac);
         }
+        ListTag staffList = new ListTag();
+        for (StaffEntry entry : staffLog) {
+            CompoundTag e = new CompoundTag();
+            e.putLong("time", entry.time());
+            e.putUUID("staff", entry.staff());
+            e.putString("name", entry.staffName());
+            e.putString("action", entry.action());
+            e.putString("reason", entry.reason());
+            e.putString("details", entry.details());
+            staffList.add(e);
+        }
+        tag.put("staff_log", staffList);
+        if (freeze != null) {
+            CompoundTag f = new CompoundTag();
+            f.putUUID("by", freeze.by());
+            f.putString("name", freeze.byName());
+            f.putString("reason", freeze.reason());
+            f.putLong("since", freeze.since());
+            tag.put("bank_freeze", f);
+        }
         return tag;
     }
 
@@ -172,6 +214,16 @@ public final class Guild {
             CompoundTag entry = chatList.getCompound(i);
             guild.chat.add(new ChatLine(entry.getUUID("sender"), entry.getString("name"),
                     chatText(entry.getString("text"), registries), entry.getLong("time")));
+        }
+        ListTag staffList = tag.getList("staff_log", Tag.TAG_COMPOUND);
+        for (int i = 0; i < staffList.size(); i++) {
+            CompoundTag e = staffList.getCompound(i);
+            guild.staffLog.add(new StaffEntry(e.getLong("time"), e.getUUID("staff"), e.getString("name"),
+                    e.getString("action"), e.getString("reason"), e.getString("details")));
+        }
+        if (tag.contains("bank_freeze", Tag.TAG_COMPOUND)) {
+            CompoundTag f = tag.getCompound("bank_freeze");
+            guild.freeze = new BankFreeze(f.getUUID("by"), f.getString("name"), f.getString("reason"), f.getLong("since"));
         }
         return guild;
     }

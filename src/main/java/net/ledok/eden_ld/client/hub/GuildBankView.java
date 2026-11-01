@@ -2,6 +2,7 @@ package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.client.EdenParchment;
+import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.BankAction;
 import net.ledok.eden_ld.hub.HubPayloads.BankAction.Action;
 import net.ledok.eden_ld.hub.HubPayloads.BankData;
@@ -104,6 +105,7 @@ final class GuildBankView {
     static void closed() {
         ClientPlayNetworking.send(new BankView(BankView.CLOSED));
         HubState.bankData = null;
+        HubState.bankStaff = null;
         closeLog();
     }
 
@@ -208,6 +210,10 @@ final class GuildBankView {
         if (!bank.economy()) {
             box.item(EdenParchment.text(tr("bank.no_economy"), EdenParchment.DANGER));
         }
+        Component frozen = frozenText();
+        if (frozen != null) {
+            box.item(EdenParchment.text(frozen, EdenParchment.DANGER, (int) inner));
+        }
 
         Flex row = Flex.row().gap(3).alignItems(Align.CENTER);
         row.sizing(Sizing.fixed(inner), Sizing.content());
@@ -225,8 +231,9 @@ final class GuildBankView {
         row.item(deposit);
 
         Button withdraw = EdenParchment.fitButton(tr("bank.withdraw"), 40, 16, () -> sendLc(Action.WITHDRAW_LC));
-        withdraw.enabled(bank.economy() && bank.lcLeft() != 0);
+        withdraw.enabled(bank.economy() && bank.lcLeft() != 0 && frozen == null);
         withdraw.tooltip(!bank.economy() ? tr("bank.no_economy")
+                : frozen != null ? frozen
                 : bank.lcLeft() < 0 ? tr("bank.withdraw_unlimited")
                 : bank.lcLeft() == 0 ? tr("bank.withdraw_none")
                 : tr("bank.withdraw_left", bank.lcLeft()));
@@ -272,8 +279,10 @@ final class GuildBankView {
             Button buy = EdenParchment.fitButton(tr("bank.buy_tab", cost), 40, 12,
                     () -> confirm(screen, tr("bank.confirm_buy_tab", number, cost), tr("bank.buy"),
                             () -> send(BankAction.of(Action.BUY_TAB))));
-            buy.enabled(bank.balance() >= cost);
-            if (bank.balance() < cost) {
+            buy.enabled(bank.balance() >= cost && frozenText() == null);
+            if (frozenText() != null) {
+                buy.tooltip(frozenText());
+            } else if (bank.balance() < cost) {
                 buy.tooltip(tr("bank.bank_short", cost));
             }
             header.item(buy);
@@ -358,8 +367,10 @@ final class GuildBankView {
         Button button = null;
         if (leader) {
             button = EdenParchment.fitButton(cost < 0 ? tr("bank.max") : tr("bank.buy"), 34, 14, buy);
-            button.enabled(cost >= 0 && bank.balance() >= cost);
-            if (cost >= 0 && bank.balance() < cost) {
+            button.enabled(cost >= 0 && bank.balance() >= cost && frozenText() == null);
+            if (cost >= 0 && frozenText() != null) {
+                button.tooltip(frozenText());
+            } else if (cost >= 0 && bank.balance() < cost) {
                 button.tooltip(tr("bank.bank_short", cost));
             }
         }
@@ -418,7 +429,8 @@ final class GuildBankView {
                 && bank.contents().size() >= GuildBank.TAB_SIZE;
 
         if (shown) {
-            boolean canTake = access == GuildBank.Access.WITHDRAW.ordinal() && tab.itemsLeft() != 0;
+            Component frozen = frozenText();
+            boolean canTake = access == GuildBank.Access.WITHDRAW.ordinal() && tab.itemsLeft() != 0 && frozen == null;
             int tabIndex = bank.viewTab();
             int itemsLeft = tab.itemsLeft();
             Grid vault = Grid.of(9).cell(SLOT, SLOT);
@@ -430,7 +442,8 @@ final class GuildBankView {
                         count -> send(BankAction.item(Action.WITHDRAW_ITEM, tabIndex, index, count)),
                         tr("bank.amount_take"), true);
                 if (!canTake) {
-                    node.tooltip(access == GuildBank.Access.WITHDRAW.ordinal() ? tr("bank.items_left", 0)
+                    node.tooltip(frozen != null && access == GuildBank.Access.WITHDRAW.ordinal() ? frozen
+                            : access == GuildBank.Access.WITHDRAW.ordinal() ? tr("bank.items_left", 0)
                             : tr("bank.view_only"));
                 }
                 vault.item(node);
@@ -737,6 +750,10 @@ final class GuildBankView {
             case BUY_UPGRADE -> tr("CLAIMS".equals(entry.detail()) ? "bank.log.buy_claims" : "bank.log.buy_members",
                     name, entry.amount());
             case QUEST_REWARD -> tr("bank.log.quest_reward", entry.amount());
+            case STAFF_LC -> entry.amount() >= 0 ? tr("bank.log.staff_lc_add", name, entry.amount(), staffReason(entry))
+                    : tr("bank.log.staff_lc_take", name, -entry.amount(), staffReason(entry));
+            case STAFF_FREEZE -> tr("bank.log.staff_freeze", name, staffReason(entry));
+            case STAFF_UNFREEZE -> tr("bank.log.staff_unfreeze", name, staffReason(entry));
             case RIGHTS -> {
                 Component rank = rankName(entry.detail());
                 if (rank == null) {
@@ -747,6 +764,25 @@ final class GuildBankView {
                         entry.amount() < 0 ? tr("bank.unlimited") : Component.literal(entry.amount() + " " + net.ledok.eden_ld.client.HubGlyphs.LC_TEXT));
             }
         };
+    }
+
+    /** A staff entry's reason (from the server's BankStaff, matched by time); "" when it didn't come. */
+    private static String staffReason(BankLog entry) {
+        HubPayloads.BankStaff staff = HubState.bankStaff;
+        if (staff != null) {
+            for (HubPayloads.BankStaff.StaffNote note : staff.notes()) {
+                if (note.time() == entry.time()) {
+                    return note.reason();
+                }
+            }
+        }
+        return "";
+    }
+
+    /** "Frozen by staff: reason …" while staff keep the bank frozen; null otherwise. */
+    private static Component frozenText() {
+        HubPayloads.BankStaff staff = HubState.bankStaff;
+        return staff != null && staff.frozen() ? tr("bank.frozen", staff.frozenReason()) : null;
     }
 
     private static Component rankName(String name) {

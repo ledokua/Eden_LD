@@ -208,7 +208,7 @@ public final class PunishStaff {
     }
 
     /** When an offline player was last here (their data file's date); 0 when unknown. */
-    private static long lastSeen(MinecraftServer server, UUID player) {
+    static long lastSeen(MinecraftServer server, UUID player) {
         java.io.File file = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.PLAYER_DATA_DIR)
                 .resolve(player + ".dat").toFile();
         return file.isFile() ? file.lastModified() : 0;
