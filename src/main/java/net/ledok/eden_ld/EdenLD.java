@@ -68,6 +68,7 @@ public class EdenLD implements ModInitializer {
         CombatTeamsCompat.initialize();
         net.ledok.eden_ld.compat.PlaceholdersCompat.initialize();
         net.ledok.eden_ld.compat.opac.OpacCompat.initialize();
+        net.ledok.eden_ld.compat.xaero.XaeroHook.initialize();
         net.ledok.eden_ld.compat.FtbTeamsCompat.initialize();
         net.ledok.eden_ld.world.WorldRules.initialize();
         net.ledok.eden_ld.world.Hazards.initialize();

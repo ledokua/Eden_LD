@@ -66,6 +66,8 @@ dependencies {
 
     // Open Parties and Claims — optional: guilds as OPAC's party system (guild-owned claims)
     modCompileOnly("xaero.pac:open-parties-and-claims-fabric-1.21.1:0.31.6") { transitive = false }
+    // Xaero's Minimap — optional: guild and party members on each other's minimap and world map (compat/xaero)
+    modCompileOnly files("libs/xaerominimap-fabric-1.21.1-26.6.0.jar")
 
     // Economy_LD — optional: mail storage and API behind the hub's Mail tab (copy of its built jar;
     // refresh it when Economy_LD's mail API changes). In the dev client too, to test the Mail tab.

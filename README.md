@@ -1756,6 +1756,11 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   its messages (`command.realm_keys.*`, `message.realm_keys.*`, `dimension.realm_keys.*`, English and Ukrainian, from
   its own files), so its "Path Opened!" title when the tutorial unlocks a dimension, and its command replies, show as
   text instead of keys. Refresh them if a new Realm Keys version adds messages.
+- **Xaero's Minimap** (26.6.0, on the server too) — guild and Eden party members show on each other's minimap and world
+  map at any distance (1.3.17): Eden registers a synced player tracker system with the minimap's server side, like
+  its own FTB Teams support, and the minimap sends the positions every quarter second. It counts as a party system,
+  so each player's Open Parties and Claims location switches ("Share location with party", "Receive locations from
+  party") apply. Needed because OPAC's own parties are off when Eden's guilds are its party system.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may
