@@ -347,13 +347,17 @@ https://spark.lucko.me/8ANNIwmcOF, 16:54–16:59 all ticks https://spark.lucko.m
 TPS fell to ~14.7; ServerCore config (activation range on, villagers 8 blocks / 60 s wakeups, mob cap 10–20%)
 brought it back to 20 with every dynamic setting at its minimum (view distance 6). Measure each with spark first.
 
-- [ ] **Villager AI** — `VillagerEntity.tick` was 28% of all server time (Brain 22%,
+- [x] **Villager AI** — `VillagerEntity.tick` was 28% of all server time (Brain 22%,
       `FindPointOfInterestTask.findPathToPoi` 13%) with ~300 villagers loaded, mostly CTOV villages next to players.
-      Idea: back off the POI search for a villager whose last search failed (no free bed / job site in reach)
-      instead of pathing to candidates again on every attempt.
-- [ ] **Create's pathfinding hook** — Create 6.0.11-fabric's `LandPathNodeMaker` `blockPathType` handler calls
-      `ExtensionOverrides.overrides()`, which builds ASM `Type.getDescriptor()` strings on every node lookup
-      (~5.5% of slow ticks). A mixin that caches the answer per block class.
+      Built in 1.3.18 (AcquirePoi reschedule 100 + rand(100) ticks, `villagers.json`); goes live 2026-11-02 12:00.
+- [x] **Create's pathfinding hook** — `ExtensionOverrides.overrides()` built descriptor strings on every call (32 hook
+      callers, the pathfinding one 6.6% of all time). Fixed in the Create port itself (6.0.11-fabric.2, allocation-free
+      cache hit), not in Eden; goes live 2026-11-02 12:00.
+- [ ] **Origins (Apoli) checks** — fresh profile 17:54–17:57 (https://spark.lucko.me/H38vYsyz0e, 22 players): Apoli's
+      `modifyAttribute` wraps every attribute read (3.6% of all time; `PowerHolderComponent.getPowerTypes` streams 2.4%)
+      and `phaseThroughBlocks` asks `PhasingPowerType.shouldPhase` on every block collision shape (1.6%), for mobs too.
+      Idea: a per-entity cache of power types invalidated on power changes, and skip non-players (only players have
+      Origins powers here). Apoli is a pre-release (2.12.0-pre.2): check upstream first.
 - [ ] **Entity tick wrappers** — every entity tick runs through three `@WrapMethod` layers: Arenas_LD
       `tickAsRunMob`, Eden `tickInPhase`, Observable `track`. Give `tickInPhase` a fast path (no phase: call the
       original directly, no lambda), ask the Arenas session for the same; check Observable is idle when not profiling.
