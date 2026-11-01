@@ -18,6 +18,11 @@ public interface EmiReloadManagerAccessor {
         throw new AssertionError();
     }
 
+    @Accessor(value = "loadedResourcesMask", remap = false)
+    static int eden_ld$loadedResourcesMask() {
+        throw new AssertionError();
+    }
+
     @Accessor(value = "thread", remap = false)
     static Thread eden_ld$thread() {
         throw new AssertionError();

@@ -251,6 +251,10 @@ needs a README pass too.
       2026-10-09 16:58 (Eden 1.1.0, rebuilt); running on the live server since the 2026-10-09 restart
       (/ignore and /unignore registered). Still to check in game: the Friends tab menu and IGNORED group.
 
+- [ ] **EMI missing recipes after joining** (2026-11-01, MCP eden's report `server-updates/2026-11-02-emi-missing-recipes`)
+      — 1.3.22: `EmiReloadFix` settle reload. Recipe/tag syncs that come after EMI's reload started (a lone one only
+      sets its bit and waits) and EMI Loot packets during the bake mark EMI stale; 3 s after the last one, with a world
+      and nothing baking, EMI reloads (max 2 per join). Not run in game: check a player log for "EMI got more recipes…".
 - [x] **EMI stuck on "Reloading..." after a rejoin** (2026-10-07, diagnosed from the owner's client logs) —
       `EmiReloadFix`: EMI's tags/recipes mask is cleared when the client leaves a world, a reload that
       stopped at "World is null" is redone once the world and recipes are there, and `/emireload`.
