@@ -69,6 +69,12 @@ public abstract class PhaseServerLevelMixin {
 
     @WrapMethod(method = "tickPassenger")
     private void eden_ld$tickPassengerInPhase(Entity vehicle, Entity passenger, Operation<Void> original) {
-        PhaseContext.run(Phases.of(passenger), () -> original.call(vehicle, passenger));
+        UUID phase = Phases.of(passenger);
+        if (phase == null) {
+            // Almost always: no phase, no lambda.
+            original.call(vehicle, passenger);
+            return;
+        }
+        PhaseContext.run(phase, () -> original.call(vehicle, passenger));
     }
 }

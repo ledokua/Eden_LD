@@ -129,6 +129,14 @@ public final class PrivateBlocks {
     }
 
     /** A click, button or tick of an open private menu: its scope again (false = no private menu open). */
+    /**
+     * Whether a private block's menu is remembered for the player — the cheap check before {@link #pushMenu} on every
+     * tick (almost always false: only tutorial players with a private block open).
+     */
+    public static boolean hasMenu(ServerPlayer player) {
+        return !MENUS.isEmpty() && MENUS.containsKey(player.getUUID());
+    }
+
     public static boolean pushMenu(ServerPlayer player) {
         OpenMenu menu = MENUS.get(player.getUUID());
         if (menu == null) {

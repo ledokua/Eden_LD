@@ -39,6 +39,10 @@ public final class PhaseContext {
     }
 
     public static void run(@Nullable UUID phase, Runnable body) {
+        if (phase == null) {
+            body.run();
+            return;
+        }
         call(phase, () -> {
             body.run();
             return null;

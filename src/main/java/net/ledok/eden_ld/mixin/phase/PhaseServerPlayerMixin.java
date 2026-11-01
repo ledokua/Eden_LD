@@ -32,11 +32,20 @@ public abstract class PhaseServerPlayerMixin {
 
     @WrapMethod(method = "tick")
     private void eden_ld$tickInMenuScope(Operation<Void> original) {
+        // Every player, every tick: without a private menu open (almost always), no scope and no lambda.
+        if (!PrivateBlocks.hasMenu((ServerPlayer) (Object) this)) {
+            original.call();
+            return;
+        }
         eden_ld$inMenuScope(() -> original.call());
     }
 
     @WrapMethod(method = "doTick")
     private void eden_ld$doTickInMenuScope(Operation<Void> original) {
+        if (!PrivateBlocks.hasMenu((ServerPlayer) (Object) this)) {
+            original.call();
+            return;
+        }
         eden_ld$inMenuScope(() -> original.call());
     }
 
