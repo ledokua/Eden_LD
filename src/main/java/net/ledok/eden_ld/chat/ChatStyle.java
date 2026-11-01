@@ -130,6 +130,11 @@ public final class ChatStyle {
                         "chat.eden_ld.tag.hover", Component.translatable("chat.eden_ld.channel." + id)))));
     }
 
+    /** A waypoint shared with Xaero's Minimap ("Share" in its waypoint menu): passed on exactly as typed. */
+    public static boolean isSharedWaypoint(String text) {
+        return text.contains("xaero-waypoint:") || text.contains("xaero_waypoint:");
+    }
+
     /** The message formatting the server allows (config {@code chat.markdown} / {@code chat.color_tags}). */
     public static ChatFormat.Options formatOptions() {
         return new ChatFormat.Options(EdenLD.CONFIG.chat.markdown, EdenLD.CONFIG.chat.color_tags);
@@ -141,6 +146,11 @@ public final class ChatStyle {
      * nothing changed (the signed text shows as is).
      */
     public static Content content(ServerPlayer sender, String typed) {
+        if (isSharedWaypoint(typed)) {
+            // Xaero's Minimap reads the shared waypoint out of the line's text ("xaero-waypoint:Name:N:x:y:z:…"):
+            // no emoji, formatting or links, or a part like ":fire:" turns into an emoji and the waypoint is lost.
+            return new Content(Component.literal(typed), false, List.of());
+        }
         // Standard emojis (😂 👍🏽 🇺🇦, from keyboards or Discord) become one character each.
         String text = net.ledok.eden_ld.chat.emoji.UnicodeEmoji.toCharacters(typed);
         TextColor base = LegacyText.color(LuckPermsCompat.metaString(sender, META_CHAT_COLOR));
@@ -204,7 +214,7 @@ public final class ChatStyle {
      * in item names are escaped, so a name never formats the message.
      */
     public static String expandShortcuts(ServerPlayer sender, String text) {
-        if (text.indexOf(':') < 0) {
+        if (text.indexOf(':') < 0 || isSharedWaypoint(text)) {
             return text;
         }
         Matcher matcher = EmojiRegistry.SHORTCODE.matcher(text);

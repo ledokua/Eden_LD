@@ -1761,6 +1761,10 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   its own FTB Teams support, and the minimap sends the positions every quarter second. It counts as a party system,
   so each player's Open Parties and Claims location switches ("Share location with party", "Receive locations from
   party") apply. Needed because OPAC's own parties are off when Eden's guilds are its party system.
+  **Sharing a waypoint** (1.3.20): Xaero's own *Share* (waypoint menu) posts the waypoint into the chat channel you're
+  typing in — on the Guild or Party tab, only your guild or party gets it. Eden passes such a line on exactly as typed
+  (no emoji, formatting or links, which could break it), and Xaero's **[Add]** on it works from Eden's chat (vanilla
+  1.21.1 refuses its slash-less click; Eden hands it to Xaero).
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may
