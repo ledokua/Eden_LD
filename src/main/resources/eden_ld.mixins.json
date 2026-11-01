@@ -4,6 +4,7 @@
   "package": "net.ledok.eden_ld.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "AcquirePoiIntervalMixin",
     "AreaEffectCloudPvpMixin",
     "BorderPacketMixin",
     "CookingPotBlockMixin",

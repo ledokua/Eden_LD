@@ -27,6 +27,7 @@ public class EdenConfig {
     public Commands commands = new Commands();
     public Hazards hazards = new Hazards();
     public Tutorial tutorial = new Tutorial();
+    public Villagers villagers = new Villagers();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -358,6 +359,17 @@ public class EdenConfig {
          * when the server starts and on /reload.
          */
         public List<String> busy_blocked = new ArrayList<>(List.of("pay", "withdraw", "kit", "kits"));
+    }
+
+    /** Villager AI costs (opening-day spark profile: their point-of-interest search was 13% of the server thread). */
+    public static class Villagers {
+        /**
+         * How long a villager without a bed, job site or meeting point waits between searches for one (ticks; the
+         * wait is this plus a random part up to this again). Vanilla: 20 (+ up to 20). Each search pathfinds to up to
+         * 5 free spots within 48 blocks, and unreachable beds and workstations (village structures) make it fail and
+         * repeat. Higher = cheaper, and such a villager finds its bed or job a few seconds later. 20 or less = vanilla.
+         */
+        public int poi_search_interval_ticks = 100;
     }
 
     public static class Combat {
