@@ -340,6 +340,28 @@ needs a README pass too.
       new `waystone_order` payload), dragged in from / out to the right column; guild bank stacks dragged
       between the inventory and the vault. VectorLib also has `TreeView` (not used by the hub yet).
 
+## Optimizations
+
+From the opening-day lag (owner, 2026-11-01; MCP eden's profiles: opening → 16:54 slow ticks only
+https://spark.lucko.me/8ANNIwmcOF, 16:54–16:59 all ticks https://spark.lucko.me/kG56nQgT9Z). 20–26 players,
+TPS fell to ~14.7; ServerCore config (activation range on, villagers 8 blocks / 60 s wakeups, mob cap 10–20%)
+brought it back to 20 with every dynamic setting at its minimum (view distance 6). Measure each with spark first.
+
+- [ ] **Villager AI** — `VillagerEntity.tick` was 28% of all server time (Brain 22%,
+      `FindPointOfInterestTask.findPathToPoi` 13%) with ~300 villagers loaded, mostly CTOV villages next to players.
+      Idea: back off the POI search for a villager whose last search failed (no free bed / job site in reach)
+      instead of pathing to candidates again on every attempt.
+- [ ] **Create's pathfinding hook** — Create 6.0.11-fabric's `LandPathNodeMaker` `blockPathType` handler calls
+      `ExtensionOverrides.overrides()`, which builds ASM `Type.getDescriptor()` strings on every node lookup
+      (~5.5% of slow ticks). A mixin that caches the answer per block class.
+- [ ] **Entity tick wrappers** — every entity tick runs through three `@WrapMethod` layers: Arenas_LD
+      `tickAsRunMob`, Eden `tickInPhase`, Observable `track`. Give `tickInPhase` a fast path (no phase: call the
+      original directly, no lambda), ask the Arenas session for the same; check Observable is idle when not profiling.
+- [ ] **Player tick wrapper** — `ServerPlayer#tick`/`doTick` run inside `eden_ld$inMenuScope`
+      (`PrivateBlocks.pushMenu` + `PhaseContext.run`) every tick for every player; fast path when no private menu.
+- [ ] **Streams per tick** — `java.util.stream` was ~11% of slow ticks; find the callers in the profile tree
+      (Apoli's `InventoryUtil.forEachStack` is one, 1.3%).
+
 ## Handed off
 
 - [x] **Duels_LD onto Eden's parties** (prompt `docs/prompts/duels-eden-parties.md`) — done by the
