@@ -6,6 +6,7 @@
   "mixins": [
     "AcquirePoiIntervalMixin",
     "AreaEffectCloudPvpMixin",
+    "AttributeMapAliasMixin",
     "BorderPacketMixin",
     "CookingPotBlockMixin",
     "CookingPotMenuMixin",
