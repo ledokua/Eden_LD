@@ -14,7 +14,7 @@ delivery, prime role sync, player profiles). It replaces the old Yggdrasil_LD mo
 
 ## Contents
 
-[Legacy content](#legacy-content-yggdrasil_ld) · [Liquid Mana](#liquid-mana) ·
+[Legacy content](#legacy-content-yggdrasil_ld) · [Liquid Mana](#liquid-mana) · [Gear salvage](#gear-salvage-create) ·
 [Flight control](#flight-control) · [World rules](#world-rules) · [Hazards](#hazards) · [Tutorial](#tutorial) · [Chat](#chat) ·
 [Minestar integration](#minestar-integration) ·
 [Configuration](#configuration) · [Commands](#commands) · [Addon API](#addon-api) ·
@@ -42,6 +42,31 @@ from `yggdrasil_ld:` on 2026-09-28 (mana placed or bucketed under the old ids do
 A translucent violet fluid that heals living entities standing in it — by default 5% of max health
 every second (both configurable). Source blocks behave like water (infinite, bucketable), sit in the
 `minecraft:water` fluid tag, and are unbreakable by explosions.
+
+## Gear salvage (Create)
+
+Loot gear can be salvaged with Create (1.3.24): a **mechanical press** turns a weapon or armor piece into
+**scrap** of its power-level tier, and **crushing wheels** turn scrap into a chance of Limit Breaker
+enhancement stones.
+
+- **12 scrap items**: `eden_ld:weapon_scrap_1` … `_6` and `eden_ld:armor_scrap_1` … `_6` (Weapon/Armor
+  Scrap I–VI, stack 64, placeholder textures), each with a tooltip naming its source levels ("From gear of
+  power level 11–20"; "51+" for VI). Tiers: I 1–10, II 11–20, III 21–30, IV 31–40, V 41–50, VI 51+.
+- **`eden_ld:power_level` ingredient** (a Fabric custom ingredient, so it works in any recipe type, Create's
+  included): a stack matching `base` whose Dungeon Difficulty power level — `dd.rsf` in its custom_data, the
+  number behind "Power Level: N" — is in [`min`, `max`]. `min` defaults to 1, no `max` means open-ended, and
+  gear without a level (crafted, vanilla) never matches, so crafted gear can't feed the press:
+
+  ```json
+  {"fabric:type": "eden_ld:power_level", "base": {"tag": "falleneden:gear/weapons/all"}, "min": 11, "max": 20}
+  ```
+- **Recipes** live on the server as a DataRewriter file, `config/datarewriter/salvage.json5` (template:
+  [`docs/salvage/salvage.json5`](docs/salvage/salvage.json5)), so bands and chances change with `/reload`:
+  12 `create:pressing` (gear of `#falleneden:gear/weapons/all` / `#falleneden:gear/armor/all` by band → 1
+  scrap) and 12 `create:crushing` (scrap → normal stone 10/15/22/30/40/50 %, blessed stone –/–/1/2/5/10 %,
+  experience nugget 25 %). The scrap tooltips are fixed in the mod: change the bands there too if they move.
+- **EMI** shows the press recipes with their level range in the top left ("Power level 11–20"), since the
+  ingredient itself shows as the gear tag. The two gear tags get names ("Gear: Weapons", "Gear: Armor").
 
 ## Flight control
 
@@ -1805,6 +1830,11 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   typing in — on the Guild or Party tab, only your guild or party gets it. Eden passes such a line on exactly as typed
   (no emoji, formatting or links, which could break it), and Xaero's **[Add]** on it works from Eden's chat (vanilla
   1.21.1 refuses its slash-less click; Eden hands it to Xaero).
+- **HD skins** (1.3.24, client) — square 128×128 and 256×256 player skins are kept instead of discarded (vanilla
+  takes only 64×64 and 64×32), with vanilla's base-layer transparency fix scaled to the size; bigger skins are still
+  discarded. Players without Eden see the default skin for HD players, as before. Entity Texture Features' skin
+  features stay off for HD skins (its markers sit at 64-pixel spots); EMF, Xaero's maps, FTB and Eden's own faces
+  draw by UV and just get sharper.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may

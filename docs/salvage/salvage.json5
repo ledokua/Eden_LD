@@ -1,0 +1,538 @@
+// Gear salvage with Create (Eden_LD 1.3.24+; spec: Documents/Minestar/FallenEden/Salvage/SPEC.md).
+// Mechanical press: loot gear -> weapon/armor scrap of its power-level tier. Only gear with a Dungeon
+// Difficulty power level matches ("eden_ld:power_level" reads custom_data "dd.rsf"); crafted gear has none.
+// Crushing wheels: scrap -> a chance of Limit Breaker enhancement stones (+ a small experience nugget chance).
+//
+// Tune freely and /reload: "min"/"max" are the power-level bands (no "max" = open-ended), "chance" is 0..1.
+// Changing a band doesn't change the scrap's tooltip ("From gear of power level 11-20"), which is fixed in
+// Eden_LD; keep bands 1-10, 11-20, ... 51+ or tell the Eden_LD session.
+{
+  "recipes": {
+    "add": [
+      // ---- Mechanical press: loot gear -> scrap ----
+      // weapon scrap I: weapons of power level 1-10
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_1",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 1,
+            "max": 10
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_1"
+          }
+        ]
+      },
+      // weapon scrap II: weapons of power level 11-20
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_2",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 11,
+            "max": 20
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_2"
+          }
+        ]
+      },
+      // weapon scrap III: weapons of power level 21-30
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_3",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 21,
+            "max": 30
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_3"
+          }
+        ]
+      },
+      // weapon scrap IV: weapons of power level 31-40
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_4",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 31,
+            "max": 40
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_4"
+          }
+        ]
+      },
+      // weapon scrap V: weapons of power level 41-50
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_5",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 41,
+            "max": 50
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_5"
+          }
+        ]
+      },
+      // weapon scrap VI: weapons of power level 51+
+      {
+        "id": "eden_ld:salvage/pressing/weapon_scrap_6",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/weapons/all"
+            },
+            "min": 51
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:weapon_scrap_6"
+          }
+        ]
+      },
+      // armor scrap I: armor of power level 1-10
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_1",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 1,
+            "max": 10
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_1"
+          }
+        ]
+      },
+      // armor scrap II: armor of power level 11-20
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_2",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 11,
+            "max": 20
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_2"
+          }
+        ]
+      },
+      // armor scrap III: armor of power level 21-30
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_3",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 21,
+            "max": 30
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_3"
+          }
+        ]
+      },
+      // armor scrap IV: armor of power level 31-40
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_4",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 31,
+            "max": 40
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_4"
+          }
+        ]
+      },
+      // armor scrap V: armor of power level 41-50
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_5",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 41,
+            "max": 50
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_5"
+          }
+        ]
+      },
+      // armor scrap VI: armor of power level 51+
+      {
+        "id": "eden_ld:salvage/pressing/armor_scrap_6",
+        "type": "create:pressing",
+        "ingredients": [
+          {
+            "fabric:type": "eden_ld:power_level",
+            "base": {
+              "tag": "falleneden:gear/armor/all"
+            },
+            "min": 51
+          }
+        ],
+        "results": [
+          {
+            "id": "eden_ld:armor_scrap_6"
+          }
+        ]
+      },
+      // ---- Crushing wheels: scrap -> enhancement stones ----
+      // weapon scrap I: stone 10%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_1",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_1"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.1
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // weapon scrap II: stone 15%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_2",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_2"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.15
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // weapon scrap III: stone 22%, blessed 1%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_3",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_3"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.22
+          },
+          {
+            "id": "limit_breaker:weapon_blessed_enhancement_stone",
+            "chance": 0.01
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // weapon scrap IV: stone 30%, blessed 2%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_4",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_4"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.3
+          },
+          {
+            "id": "limit_breaker:weapon_blessed_enhancement_stone",
+            "chance": 0.02
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // weapon scrap V: stone 40%, blessed 5%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_5",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_5"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.4
+          },
+          {
+            "id": "limit_breaker:weapon_blessed_enhancement_stone",
+            "chance": 0.05
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // weapon scrap VI: stone 50%, blessed 10%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/weapon_scrap_6",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:weapon_scrap_6"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:weapon_enhancement_stone",
+            "chance": 0.5
+          },
+          {
+            "id": "limit_breaker:weapon_blessed_enhancement_stone",
+            "chance": 0.1
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap I: stone 10%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_1",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_1"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.1
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap II: stone 15%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_2",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_2"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.15
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap III: stone 22%, blessed 1%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_3",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_3"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.22
+          },
+          {
+            "id": "limit_breaker:armor_blessed_enhancement_stone",
+            "chance": 0.01
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap IV: stone 30%, blessed 2%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_4",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_4"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.3
+          },
+          {
+            "id": "limit_breaker:armor_blessed_enhancement_stone",
+            "chance": 0.02
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap V: stone 40%, blessed 5%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_5",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_5"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.4
+          },
+          {
+            "id": "limit_breaker:armor_blessed_enhancement_stone",
+            "chance": 0.05
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      },
+      // armor scrap VI: stone 50%, blessed 10%, experience nugget 25%
+      {
+        "id": "eden_ld:salvage/crushing/armor_scrap_6",
+        "type": "create:crushing",
+        "ingredients": [
+          {
+            "item": "eden_ld:armor_scrap_6"
+          }
+        ],
+        "processing_time": 150,
+        "results": [
+          {
+            "id": "limit_breaker:armor_enhancement_stone",
+            "chance": 0.5
+          },
+          {
+            "id": "limit_breaker:armor_blessed_enhancement_stone",
+            "chance": 0.1
+          },
+          {
+            "id": "create:experience_nugget",
+            "chance": 0.25
+          }
+        ]
+      }
+    ]
+  }
+}

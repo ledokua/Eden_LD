@@ -12,7 +12,8 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Optional EMI support, loaded only by EMI (the "emi" entrypoint): its panels show beside the
  * Moderation window, and items drag from them onto the mail's attachment slots. With Stylish Effects,
- * its panels also keep clear of the effect widgets ({@link StylishEffectsEmi}).
+ * its panels also keep clear of the effect widgets ({@link StylishEffectsEmi}). Salvage press recipes show
+ * their power-level range ({@link SalvageEmi}).
  */
 public class EdenEmiPlugin implements EmiPlugin {
 
@@ -29,6 +30,7 @@ public class EdenEmiPlugin implements EmiPlugin {
         if (FabricLoader.getInstance().isModLoaded("stylisheffects")) {
             StylishEffectsEmi.register(registry);
         }
+        SalvageEmi.register(registry);
     }
 
     private static ItemStack first(EmiIngredient ingredient) {

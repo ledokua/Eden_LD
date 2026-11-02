@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "eden_ld:item/armor_scrap_2"
+  }
+}

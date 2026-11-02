@@ -63,6 +63,7 @@
     "FontRenderOutputMixin",
     "FontSetMixin",
     "GameRendererMixin",
+    "HttpTextureHdSkinMixin",
     "InBedChatScreenMixin",
     "MinecraftMixin",
     "PlayerRendererMixin",

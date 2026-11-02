@@ -2,6 +2,7 @@ package net.ledok.eden_ld;
 
 import net.ledok.eden_ld.mana.LiquidMana;
 import net.ledok.eden_ld.legacy.LegacyItems;
+import net.ledok.eden_ld.salvage.Salvage;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -20,6 +21,8 @@ public class EdenCreativeTab {
                     output.accept(new ItemStack(item));
                 }
                 output.accept(new ItemStack(LiquidMana.LIQUID_MANA_BUCKET));
+                Salvage.WEAPON_SCRAP.forEach(output::accept);
+                Salvage.ARMOR_SCRAP.forEach(output::accept);
             })
             .build();
 

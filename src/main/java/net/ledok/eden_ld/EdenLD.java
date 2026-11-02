@@ -39,6 +39,7 @@ public class EdenLD implements ModInitializer {
 
         LegacyItems.initialize();
         LiquidMana.initialize();
+        net.ledok.eden_ld.salvage.Salvage.initialize();
         EdenCreativeTab.initialize();
         FlightControl.initialize();
         HubServer.initialize();

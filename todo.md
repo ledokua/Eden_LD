@@ -6,6 +6,8 @@ needs a README pass too.
 
 ## Now
 
+- [ ] **Gear salvage with Create** (owner, 2026-11-02, Eden 1.3.24; `Documents/Minestar/FallenEden/Salvage/SPEC.md`) — 12 scrap items, `eden_ld:power_level` ingredient, EMI level label; recipes in DataRewriter `salvage.json5` (`docs/salvage/`); 9 tests — not run in game with Create (full-pack test on Prism Server), not committed.
+- [ ] **HD skins** (owner, 2026-11-02, Eden 1.3.24; `Documents/Minestar/FallenEden/HD-skins/SPEC.md`) — 128×128/256×256 square skins kept (`HttpTextureHdSkinMixin`, HEAD so ETF's alpha hook is skipped); 7 tests — not run in a client, not committed; the Minestar site must accept 128 uploads.
 - [ ] **Moderation → Guilds page** (owner, 2026-11-01, Eden 1.3.21) — Overview / Members / Bank / Chat (`eden_ld.admin.guild_chat`) / Quests sub-tabs, staff actions with reasons and a staff log, bank freeze; 12 tests — not run in game, not committed.
 - [x] **Wire ArenasApi into the activity admin** (owner, 2026-10-19; `docs/PLAN-activity-admin.md`) — Eden 1.3.5
       built the Eden side; 1.3.7 wires ArenasApi 4.9.0 (`ArenasAdmin`, reflection-checked so an older Arenas_LD
