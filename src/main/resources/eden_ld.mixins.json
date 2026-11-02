@@ -31,6 +31,7 @@
     "ServerPlayerTabListMixin",
     "SpellRelationMixin",
     "ThrownPotionPvpMixin",
+    "TwoPartBlockResendMixin",
     "WorldBorderAccessor",
     "WorldBorderCommandMixin",
     "phase.PhaseEntityMixin",

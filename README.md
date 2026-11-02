@@ -1837,6 +1837,13 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   run scaled to the size. Other shapes are discarded as vanilla does. Players without Eden see the default skin for HD players, as before. Entity Texture Features' skin
   features stay off for HD skins (its markers sit at 64-pixel spots); EMF, Xaero's maps, FTB and Eden's own faces
   draw by UV and just get sharper.
+- **Refused clicks and breaks on two-part blocks** (1.3.26, server) — when the server refuses a click or a break on a
+  door, a tall plant, a waystone or a bed (Open Parties and Claims protection, Waystones' creative-only global
+  waystones, tutorial-locked blocks…), the player's game no longer keeps a ghost half (a half-open door, a vanished
+  waystone half) until a relog. Vanilla re-sends only the clicked block and its neighbor on the clicked face, or only
+  the hit block for a break; Eden re-sends the other half too (any block with the vanilla `half` or bed `part`
+  property), to that player only, and the upper half of a refused two-tall placement. The log line
+  "[Blocks] Refused clicks and breaks re-send both halves of two-part blocks." shows it's in place.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may
