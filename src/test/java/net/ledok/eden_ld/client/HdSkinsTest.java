@@ -3,31 +3,57 @@ package net.ledok.eden_ld.client;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** Which skins are kept as HD, and vanilla's 64×64 opaque areas scaled by width / 64. */
+/** Which skins are kept as HD (and shrunk), and vanilla's areas and legacy copies scaled by width / 64. */
 class HdSkinsTest {
 
     @Test
-    void squareHdSkinsAreKept() {
-        assertTrue(HdSkins.isHd(128, 128));
-        assertTrue(HdSkins.isHd(256, 256));
+    void everyWebsiteSizeIsKept() {
+        // The Minestar website's sizes: squares 128…1024 and the 2:1 legacy layout up to 1024×512.
+        assertEquals(new HdSkins.Plan(128, 128, false), HdSkins.plan(128, 128));
+        assertEquals(new HdSkins.Plan(256, 256, false), HdSkins.plan(256, 256));
+        assertEquals(new HdSkins.Plan(256, 128, true), HdSkins.plan(256, 128));
+        assertEquals(new HdSkins.Plan(128, 64, true), HdSkins.plan(128, 64));
+    }
+
+    @Test
+    void widerThan256IsShrunkTo256() {
+        assertEquals(new HdSkins.Plan(256, 256, false), HdSkins.plan(512, 512));
+        assertEquals(new HdSkins.Plan(256, 256, false), HdSkins.plan(1024, 1024));
+        assertEquals(new HdSkins.Plan(256, 128, true), HdSkins.plan(512, 256));
+        assertEquals(new HdSkins.Plan(256, 128, true), HdSkins.plan(1024, 512));
     }
 
     @Test
     void vanillaSizesStayWithVanilla() {
-        assertFalse(HdSkins.isHd(64, 64));
-        assertFalse(HdSkins.isHd(64, 32));
+        assertNull(HdSkins.plan(64, 64));
+        assertNull(HdSkins.plan(64, 32));
     }
 
     @Test
-    void otherSizesAreNotKept() {
-        assertFalse(HdSkins.isHd(128, 64));
-        assertFalse(HdSkins.isHd(512, 512));
-        assertFalse(HdSkins.isHd(1024, 1024));
-        assertFalse(HdSkins.isHd(192, 192));
-        assertFalse(HdSkins.isHd(100, 100));
+    void otherSizesAreLeftToVanillaToDiscard() {
+        assertNull(HdSkins.plan(2048, 2048));
+        assertNull(HdSkins.plan(192, 192));
+        assertNull(HdSkins.plan(100, 100));
+        assertNull(HdSkins.plan(128, 96));
+        assertNull(HdSkins.plan(384, 384));
+    }
+
+    @Test
+    void legacyCopiesScaleVanillas() {
+        int[][] at64 = HdSkins.legacyCopies(64);
+        int[][] at256 = HdSkins.legacyCopies(256);
+        assertArrayEquals(new int[]{4, 16, 16, 32, 4, 4}, at64[0]);
+        assertArrayEquals(new int[]{52, 20, -8, 32, 4, 12}, at64[11]);
+        for (int i = 0; i < at64.length; i++) {
+            for (int j = 0; j < at64[i].length; j++) {
+                assertEquals(at64[i][j] * 4, at256[i][j]);
+            }
+        }
+        assertArrayEquals(new int[]{64, 0, 128, 64}, HdSkins.hatArea(128));
     }
 
     @Test

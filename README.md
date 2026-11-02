@@ -1830,9 +1830,11 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   typing in — on the Guild or Party tab, only your guild or party gets it. Eden passes such a line on exactly as typed
   (no emoji, formatting or links, which could break it), and Xaero's **[Add]** on it works from Eden's chat (vanilla
   1.21.1 refuses its slash-less click; Eden hands it to Xaero).
-- **HD skins** (1.3.24, client) — square 128×128 and 256×256 player skins are kept instead of discarded (vanilla
-  takes only 64×64 and 64×32), with vanilla's base-layer transparency fix scaled to the size; bigger skins are still
-  discarded. Players without Eden see the default skin for HD players, as before. Entity Texture Features' skin
+- **HD skins** (1.3.24, all website sizes since 1.3.25, client) — every size the Minestar website accepts is kept
+  instead of discarded (vanilla takes only 64×64 and 64×32): squares 128…1024 and the 2:1 legacy layout 128×64…1024×512.
+  Anything wider than 256 is shrunk to 256 when it loads (filtered resize; video memory), a legacy skin is made square
+  the way vanilla turns 64×32 into 64×64 (right arm and leg mirrored into the left), and vanilla's transparency fixes
+  run scaled to the size. Other shapes are discarded as vanilla does. Players without Eden see the default skin for HD players, as before. Entity Texture Features' skin
   features stay off for HD skins (its markers sit at 64-pixel spots); EMF, Xaero's maps, FTB and Eden's own faces
   draw by UV and just get sharper.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
