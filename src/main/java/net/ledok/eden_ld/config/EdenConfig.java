@@ -28,6 +28,7 @@ public class EdenConfig {
     public Hazards hazards = new Hazards();
     public Tutorial tutorial = new Tutorial();
     public Villagers villagers = new Villagers();
+    public Saving saving = new Saving();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -370,6 +371,17 @@ public class EdenConfig {
          * repeat. Higher = cheaper, and such a villager finds its bed or job a few seconds later. 20 or less = vanilla.
          */
         public int poi_search_interval_ticks = 100;
+    }
+
+    /** World saving costs (live spark profile: the 5-minute autosave froze the server 2–4 s, mostly writing .dat files). */
+    public static class Saving {
+        /**
+         * Write world data files ({@code .dat} in each world's {@code data/}: every mod's saved data, Lootr's chests)
+         * off the server thread: the server thread builds the data, one writer thread compresses and writes it
+         * through {@code <world>/eden_ld_saving/} and moves it into place. {@code /save-all flush} and the server stop
+         * wait for it. False = vanilla (written on the server thread during the save).
+         */
+        public boolean async_saved_data = true;
     }
 
     public static class Combat {

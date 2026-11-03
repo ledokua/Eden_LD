@@ -1564,10 +1564,22 @@ All platform calls are asynchronous; nothing blocks the server thread.
 their banks, XP and quest boards), and `claim_times.dat` (OPAC claim times, only with Open Parties and Claims).
 Back up or move the folder as a whole, with the server stopped.
 
+**World data files are written off the server thread** (1.3.27, `saving.json` → `async_saved_data`, default on). The
+5-minute autosave used to freeze the server for 2–4 s, most of it in writing `.dat` files (every mod's saved data,
+Lootr's per-chest files): gzip and a synced file write on the server thread. Now the server thread only builds each
+file's data (a copy, taken at the save) and marks it saved; one writer thread compresses it into
+`<world>/eden_ld_saving/` and moves it over the real file in one step, so a file is always the old or the new one, never
+half-written. A file still waiting when the next save comes gets the newer data instead. `/save-all flush` and the
+server stop wait until everything is written; loading a file waits for its pending write; Lootr's `/lootr` refresh and
+cull wait before they list and delete its files. The log says
+"[Saving] World data (.dat) files are written off the server thread." at the first save. Write errors are logged with
+the file name. Leftovers in `eden_ld_saving/` (a killed server) are deleted at the next start. Player data and
+`level.dat` are still written by vanilla during the save.
+
 Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section**:
 `minestar.json`, `liquid_mana.json`, `flight.json`, `hub.json`, `combat.json`, `dailies.json`,
 `guilds.json`, `activities.json`, `chat.json`, `chat_system_only.json`, `tab_list.json`, `profile.json`,
-`commands.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP mode, difficulty and border, see
+`commands.json`, `saving.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP mode, difficulty and border, see
 [World rules](#world-rules)) and the `daily_quests/`, `guild_quests/` and `lang/` folders.
 Missing files and settings are created with their defaults on launch (new settings appear by
 themselves after an update); a file that can't be read keeps its defaults and says so in the log.
@@ -1710,6 +1722,9 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     "private_blocks": ["potions_ld:alchemy_table", "minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
                        "minecraft:furnace", "minecraft:smoker", "minecraft:blast_furnace", "minecraft:brewing_stand"],
     "locked_blocks": ["#minecraft:all_signs", "minecraft:chiseled_bookshelf", "#minecraft:trapdoors"]
+  },
+  "saving": {
+    "async_saved_data": true
   }
 }
 ```
