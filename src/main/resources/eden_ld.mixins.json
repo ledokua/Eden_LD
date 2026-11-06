@@ -33,6 +33,8 @@
     "ServerPlayerPvpMixin",
     "ServerPlayerStatMixin",
     "ServerPlayerTabListMixin",
+    "SpellBindingOffersMixin",
+    "SpellBindingUnbindMixin",
     "SpellRelationMixin",
     "ThrownPotionPvpMixin",
     "TwoPartBlockResendMixin",

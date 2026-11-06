@@ -1869,6 +1869,13 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   each log of a felled tree once, as its original block (`minecraft:oak_log`, not `treechop:chopped_log`): the logs the
   tree drops. Chops before the fall drop nothing and count nothing; a log mined normally (chopping off, sneaking) still
   counts once through the stat.
+- **Spell Engine binding table** (1.10.9, 1.3.31) — unbinding gives the spell's scroll back and needs no spare scroll.
+  With no `learn` on any spell, the table offered nothing for a book unless another scroll of the same spell was in the
+  second slot. Now it also offers every spell the book holds (free, shown as "already bound"), and Unbind removes the
+  spell and puts one scroll of it, made like a loot scroll, in the player's inventory (logged as `[Spells] … unbound …`).
+  The bind takes the scroll, the unbind gives one back, so no scroll is ever made twice. The bind's level cost isn't
+  refunded. Spell books can't go in a grindstone; only scrolls can (Spell Engine's `grindable` tag), and they still turn
+  into paper. Server-side.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may
