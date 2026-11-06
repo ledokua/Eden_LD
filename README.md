@@ -1840,7 +1840,10 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   map at any distance (1.3.17): Eden registers a synced player tracker system with the minimap's server side, like
   its own FTB Teams support, and the minimap sends the positions every quarter second. It counts as a party system,
   so each player's Open Parties and Claims location switches ("Share location with party", "Receive locations from
-  party") apply. Needed because OPAC's own parties are off when Eden's guilds are its party system.
+  party") apply. Needed because OPAC's own parties are off when Eden's guilds are its party system. Since 1.3.29 Eden
+  registers on the first server tick (and retries for 5 minutes): the minimap creates its server data in its own
+  SERVER_STARTED listener, which runs after Eden's, so 1.3.17–1.3.28 never registered on a dedicated server. The log
+  says "[Xaero] Guild and party members are tracked on each other's minimap and world map." once it's in place.
   **Sharing a waypoint** (1.3.20): Xaero's own *Share* (waypoint menu) posts the waypoint into the chat channel you're
   typing in — on the Guild or Party tab, only your guild or party gets it. Eden passes such a line on exactly as typed
   (no emoji, formatting or links, which could break it), and Xaero's **[Add]** on it works from Eden's chat (vanilla

@@ -24,18 +24,23 @@ final class XaeroTracker implements ISyncedPlayerTrackerSystem {
     private XaeroTracker() {
     }
 
-    static void register(MinecraftServer server) {
+    /**
+     * Registers with the minimap's server data. False while that data isn't there yet: the minimap creates it in its own
+     * SERVER_STARTED listener, registered from its server entrypoint, so after Eden's ({@link XaeroHook} tries again).
+     * True once registered, or when registering failed for good (logged).
+     */
+    static boolean register(MinecraftServer server) {
         try {
             MinecraftServerData data = MinecraftServerData.get(server);
             if (data == null) {
-                EdenLD.LOGGER.warn("[Xaero] The minimap's server data isn't there: guild and party members stay off the maps.");
-                return;
+                return false;
             }
             data.getSyncedPlayerTrackerSystemManager().register(EdenLD.MOD_ID, new XaeroTracker());
             EdenLD.LOGGER.info("[Xaero] Guild and party members are tracked on each other's minimap and world map.");
         } catch (RuntimeException | LinkageError e) {
             EdenLD.LOGGER.warn("[Xaero] Couldn't register the guild and party tracker: members stay off the maps.", e);
         }
+        return true;
     }
 
     /** 1 (a party member's level) when the two share a guild or an Eden party, else 0. */
