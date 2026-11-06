@@ -30,6 +30,8 @@ public final class DailyQuestRegistry {
     private static final String DIRECTORY = "daily_quests";
     private static volatile Map<ResourceLocation, DailyQuestDefinition> quests = Map.of();
     private static volatile java.util.Set<ResourceLocation> objectives = java.util.Set.of();
+    private static volatile net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets statTargets =
+            net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.NONE;
 
     private DailyQuestRegistry() {
     }
@@ -45,6 +47,11 @@ public final class DailyQuestRegistry {
     }
 
     /** Whether any quest in the pool counts this objective type (cheap guard for busy hooks). */
+    /** Whether a {@code stat} quest counts this stat (by name): the per-tick stats skip the quest lookup otherwise. */
+    public static boolean countsStat(String name) {
+        return statTargets.counts(name);
+    }
+
     public static boolean usesObjective(ResourceLocation type) {
         return objectives.contains(type);
     }
@@ -173,6 +180,8 @@ public final class DailyQuestRegistry {
             quests = byId;
             objectives = byId.values().stream().map(DailyQuestDefinition::objective)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            statTargets = net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.of(
+                    byId.values().stream().filter(quest -> quest.objective().equals(DailyQuests.STAT)).map(DailyQuestDefinition::target).toList());
             EdenLD.LOGGER.info("[Dailies] Loaded {} daily quest(s).", byId.size());
         }
     }

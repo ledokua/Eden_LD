@@ -382,6 +382,19 @@ public class EdenConfig {
          * wait for it. False = vanilla (written on the server thread during the save).
          */
         public boolean async_saved_data = true;
+
+        /**
+         * Write a player's advancement file only when their progress changed (and once per session). False = vanilla:
+         * every online player's file at every save.
+         */
+        public boolean skip_unchanged_advancement_saves = true;
+
+        /**
+         * Don't load recipe-unlock advancements ({@code <namespace>:recipes/…}): they only unlock recipes in the vanilla
+         * recipe book (crafting doesn't need them; EMI shows all recipes) and were 90% of players' advancement files.
+         * Needs a restart or /reload. False = vanilla.
+         */
+        public boolean skip_recipe_advancements = true;
     }
 
     public static class Combat {

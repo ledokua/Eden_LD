@@ -60,11 +60,47 @@ public final class ChatStyle {
         return meta != null ? meta : LegacyText.color(EdenLD.CONFIG.chat.default_name_color);
     }
 
+    /** A player's styled name, reused for {@link #NAME_TICKS} ticks while their vanilla name (team) stays the same. */
+    private record StyledName(String vanilla, int tick, Component styled) {
+    }
+
+    private static final java.util.Map<java.util.UUID, StyledName> NAMES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int NAME_TICKS = 20;
+
+    /**
+     * The styled names are reused: {@code getDisplayName} is asked constantly (Axiom recalculates every player's
+     * permissions every tick, which builds a command source and with it the name), and the LuckPerms lookups behind
+     * the style were 2.5% of the live server thread. A LuckPerms change clears them at once; anything else (a config
+     * color, a team) shows within a second.
+     */
+    public static void initialize() {
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(started ->
+                LuckPermsCompat.onUserDataChange(NAMES::clear));
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                NAMES.remove(handler.getPlayer().getUUID()));
+    }
+
     /**
      * {@code prefix + name + suffix}. The vanilla display name keeps its hover card, click and
-     * insertion; a scoreboard team color (Duels_LD matches) wins over the group color.
+     * insertion; a scoreboard team color (Duels_LD matches) wins over the group color. A copy each time, so a caller
+     * that changes it can't change the shared one.
      */
     public static Component displayName(ServerPlayer player, Component vanilla) {
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return styledName(player, vanilla);
+        }
+        String key = vanilla.getString() + '|' + vanilla.getStyle().getColor();
+        int now = server.getTickCount();
+        StyledName cached = NAMES.get(player.getUUID());
+        if (cached == null || now - cached.tick() >= NAME_TICKS || now < cached.tick() || !cached.vanilla().equals(key)) {
+            cached = new StyledName(key, now, styledName(player, vanilla));
+            NAMES.put(player.getUUID(), cached);
+        }
+        return cached.styled().copy();
+    }
+
+    private static Component styledName(ServerPlayer player, Component vanilla) {
         String[] parts = LuckPermsCompat.prefixSuffix(player);
         MutableComponent name = vanilla.copy();
         TextColor color = nameColor(player);

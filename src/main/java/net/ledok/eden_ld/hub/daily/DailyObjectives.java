@@ -39,6 +39,29 @@ public final class DailyObjectives {
         return false;
     }
 
+    /**
+     * The stat names some {@code stat} quest targets ({@code a|b} alternatives split once), or every stat when one has no
+     * target. Built when the quests load; {@code DailyProgressHooks} asks it before looking at anyone's quests.
+     */
+    public record StatTargets(boolean all, java.util.Set<String> names) {
+        public static final StatTargets NONE = new StatTargets(false, java.util.Set.of());
+
+        public static StatTargets of(java.util.List<java.util.Optional<String>> targets) {
+            java.util.Set<String> names = new java.util.HashSet<>();
+            for (java.util.Optional<String> target : targets) {
+                if (target.isEmpty()) {
+                    return new StatTargets(true, java.util.Set.of());
+                }
+                names.addAll(java.util.Arrays.asList(target.get().split("\\|")));
+            }
+            return new StatTargets(false, java.util.Set.copyOf(names));
+        }
+
+        public boolean counts(String name) {
+            return all || names.contains(name);
+        }
+    }
+
     /** Distance stats ({@code ..._one_cm}) count centimeters; quests show them in blocks. */
     public static boolean inCentimeters(ResourceLocation type, java.util.Optional<String> target) {
         return type.getNamespace().equals(net.ledok.eden_ld.EdenLD.MOD_ID) && type.getPath().equals("stat")

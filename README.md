@@ -1585,6 +1585,13 @@ cull wait before they list and delete its files. The log says
 the file name. Leftovers in `eden_ld_saving/` (a killed server) are deleted at the next start. Player data and
 `level.dat` are still written by vanilla during the save.
 
+**Player advancements** (1.3.35, `saving.json`): `skip_unchanged_advancement_saves` (default on) writes a player's
+advancement file only when their progress changed (and once per session), instead of every online player's file at
+every save. `skip_recipe_advancements` (default on) doesn't load recipe-unlock advancements (`<namespace>:recipes/…`),
+which were 90% of those files and were checked on every inventory change; they only unlock recipes in the vanilla
+recipe book (crafting doesn't need them, EMI shows every recipe), and nothing in the pack refers to them. Their old
+entries leave each player's file at its next save, without a warning each.
+
 Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section**:
 `minestar.json`, `liquid_mana.json`, `flight.json`, `hub.json`, `combat.json`, `dailies.json`,
 `guilds.json`, `activities.json`, `chat.json`, `chat_system_only.json`, `tab_list.json`, `profile.json`,

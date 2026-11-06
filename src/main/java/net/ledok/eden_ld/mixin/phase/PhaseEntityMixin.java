@@ -6,6 +6,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -22,6 +23,13 @@ public abstract class PhaseEntityMixin implements Phased {
     @Nullable
     private UUID eden_ld$phase;
 
+    /** Whether this entity is in {@code Phases}' count (it has a phase and hasn't left the world). */
+    @Unique
+    private boolean eden_ld$counted;
+
+    @Shadow
+    public abstract boolean isRemoved();
+
     @Override
     @Nullable
     public UUID eden_ld$phase() {
@@ -33,6 +41,16 @@ public abstract class PhaseEntityMixin implements Phased {
         UUID before = eden_ld$phase;
         eden_ld$phase = phase;
         Phases.changed((Entity) (Object) this, before, phase);
+        eden_ld$recount();
+    }
+
+    @Unique
+    private void eden_ld$recount() {
+        boolean counts = eden_ld$phase != null && !isRemoved();
+        if (counts != eden_ld$counted) {
+            eden_ld$counted = counts;
+            Phases.counted(counts);
+        }
     }
 
     @Inject(method = "saveWithoutId", at = @At("TAIL"))
@@ -54,6 +72,18 @@ public abstract class PhaseEntityMixin implements Phased {
         if (eden_ld$phase != null && reason.shouldDestroy()) {
             Phases.changed((Entity) (Object) this, eden_ld$phase, null);
         }
+    }
+
+    /** Gone from the world (destroyed, chunk unloaded, logged out): out of the count; loading it again counts it again. */
+    @Inject(method = "setRemoved", at = @At("TAIL"))
+    private void eden_ld$uncount(Entity.RemovalReason reason, CallbackInfo ci) {
+        eden_ld$recount();
+    }
+
+    /** Back in the world as the same entity (a player changing dimension). */
+    @Inject(method = "unsetRemoved", at = @At("TAIL"))
+    private void eden_ld$countAgain(CallbackInfo ci) {
+        eden_ld$recount();
     }
 
     @Inject(method = "push(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true)

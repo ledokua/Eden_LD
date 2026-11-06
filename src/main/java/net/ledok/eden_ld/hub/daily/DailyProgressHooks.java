@@ -120,7 +120,10 @@ public final class DailyProgressHooks {
             changed = DailyQuests.report(player, DailyQuests.CRAFT_ITEMS, DailyQuests.itemMatcher(new ItemStack(item)), amount);
         }
         String name = stat.getName();
-        changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
+        // Most stats tick every tick (walking, play time): only those a stat quest names go to the quests.
+        if (DailyQuestRegistry.countsStat(name) || net.ledok.eden_ld.hub.guild.quest.GuildQuestRegistry.countsStat(name)) {
+            changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
+        }
         if (changed) {
             HubServer.pushDailies(player);
         }

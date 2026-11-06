@@ -34,6 +34,8 @@ public final class GuildQuestRegistry {
     private static final String DIRECTORY = "guild_quests";
     private static volatile Map<ResourceLocation, GuildQuestDefinition> quests = Map.of();
     private static volatile Set<ResourceLocation> objectives = Set.of();
+    private static volatile net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets statTargets =
+            net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.NONE;
 
     private GuildQuestRegistry() {
     }
@@ -53,6 +55,11 @@ public final class GuildQuestRegistry {
     }
 
     /** Whether any guild quest counts this objective type (cheap guard for busy hooks). */
+    /** Whether a {@code stat} quest counts this stat (by name): the per-tick stats skip the quest lookup otherwise. */
+    public static boolean countsStat(String name) {
+        return statTargets.counts(name);
+    }
+
     public static boolean usesObjective(ResourceLocation type) {
         return objectives.contains(type);
     }
@@ -141,6 +148,9 @@ public final class GuildQuestRegistry {
             loaded.forEach(quest -> byId.put(quest.id(), quest));
             quests = byId;
             objectives = byId.values().stream().map(GuildQuestDefinition::objective).collect(Collectors.toUnmodifiableSet());
+            statTargets = net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.of(byId.values().stream()
+                    .filter(quest -> quest.objective().equals(net.ledok.eden_ld.hub.daily.DailyQuests.STAT))
+                    .map(GuildQuestDefinition::target).toList());
             EdenLD.LOGGER.info("[Guild quests] Loaded {} guild quest(s).", byId.size());
         }
     }

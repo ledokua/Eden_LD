@@ -36,6 +36,14 @@ public final class Phases {
     /** Phase → its non-player entities (in memory; rebuilt as entities load). */
     private static final Map<UUID, Set<UUID>> ENTITIES = new ConcurrentHashMap<>();
 
+    /**
+     * Entities in the world with a phase, players included ({@code PhaseEntityMixin} counts each one once: phase set,
+     * phase cleared or the entity left the world). While it's 0 — nobody in the tutorial — everyone sees and touches
+     * everyone, without asking each entity: the visibility check runs for every tracked entity on every player move,
+     * and the interface check behind {@link #of} was 2.9% of the live server thread.
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger PHASED = new java.util.concurrent.atomic.AtomicInteger();
+
     private Phases() {
     }
 
@@ -56,7 +64,7 @@ public final class Phases {
      * a target dummy, the guide) is everyone's, so any phase may hit it.
      */
     public static boolean together(Entity a, @Nullable Entity b) {
-        if (b == null) {
+        if (b == null || PHASED.get() == 0) {
             return true;
         }
         UUID phaseA = of(a);
@@ -66,6 +74,9 @@ public final class Phases {
 
     /** Whether {@code viewer} sees (and hears) {@code entity}: the same phase, or a shared decoration or NPC. */
     public static boolean sees(Entity viewer, Entity entity) {
+        if (PHASED.get() == 0) {
+            return true;
+        }
         UUID phase = of(entity);
         if (Objects.equals(of(viewer), phase)) {
             return true;
@@ -86,6 +97,15 @@ public final class Phases {
         }
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         return list.contains(id.toString()) || list.contains(id.getNamespace() + ":");
+    }
+
+    /** {@code PhaseEntityMixin}: an entity in the world gained a phase (+1) or lost it / left the world (-1). */
+    public static void counted(boolean phased) {
+        if (phased) {
+            PHASED.incrementAndGet();
+        } else {
+            PHASED.decrementAndGet();
+        }
     }
 
     // ---------------------------------------------------------------- index
