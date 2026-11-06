@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@code skip_unchanged_advancement_saves}): the 5-minute autosave rewrote every online player's file (up to 400 KB of
  * JSON each) every time. It starts out changed, so each player's file is written once per session; that also drops
  * entries of advancements that no longer exist. With {@code skip_recipe_advancements} the file's {@code recipes/}
- * entries are left out when it's read, as those advancements aren't loaded ({@link ServerAdvancementsRecipeMixin}).
+ * entries are left out when it's read, as those advancements aren't loaded ({@code ServerAdvancementsRecipeMixin}).
  */
 @Mixin(PlayerAdvancements.class)
 public abstract class PlayerAdvancementsSaveMixin {
@@ -53,7 +53,7 @@ public abstract class PlayerAdvancementsSaveMixin {
     @ModifyVariable(method = "load", at = @At("STORE"))
     private JsonElement eden_ld$withoutRecipes(JsonElement json) {
         if (EdenLD.CONFIG.saving.skip_recipe_advancements && json instanceof JsonObject object) {
-            object.keySet().removeIf(ServerAdvancementsRecipeMixin::isRecipeAdvancement);
+            object.keySet().removeIf(net.ledok.eden_ld.world.RecipeAdvancements::isRecipeAdvancement);
         }
         return json;
     }

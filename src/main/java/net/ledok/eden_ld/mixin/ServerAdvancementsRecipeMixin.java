@@ -40,11 +40,4 @@ public abstract class ServerAdvancementsRecipeMixin {
         }
         return kept;
     }
-
-    /** A player file key: {@code namespace:recipes/…}. */
-    @Unique
-    static boolean isRecipeAdvancement(String id) {
-        int colon = id.indexOf(':');
-        return id.startsWith("recipes/", colon + 1);
-    }
 }
