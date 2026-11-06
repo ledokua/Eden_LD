@@ -1872,9 +1872,10 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   would send. Clicks and breaks that went through send nothing extra.
 - **TreeChop** (0.19.3a, 1.3.28) — optional; chopping a log only shaves it and a felled tree's logs are harvested
   without the player, so neither gives the "mined" stat that `break_blocks` daily and guild quests count. Eden counts
-  each log of a felled tree once, as its original block (`minecraft:oak_log`, not `treechop:chopped_log`): the logs the
-  tree drops. Chops before the fall drop nothing and count nothing; a log mined normally (chopping off, sneaking) still
-  counts once through the stat.
+  each log the fall takes off once, as its original block (`minecraft:oak_log`, not `treechop:chopped_log`): the logs
+  the tree drops. The stump TreeChop leaves standing counts when it's mined, like any log mined normally (chopping off,
+  sneaking), through the stat. Chops before the fall drop nothing and count nothing. (1.3.28–1.3.32 also counted the
+  stump at the fall: one too many per tree.)
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may

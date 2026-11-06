@@ -50,31 +50,39 @@ public final class DailyProgressHooks {
 
     /**
      * The only class touching TreeChop types. Chopping a log only shaves it (no drop, no mined stat) and the felled tree's
-     * logs are harvested without the player either, so break_blocks never saw them. Each log of a felled tree counts once,
-     * as its original block (a chopped log remembers it), the way mining it would have: the logs the tree drops. Chops
-     * before the fall drop nothing and count nothing; logs mined normally (TreeChop off, sneaking) count through the stat.
+     * logs are harvested without the player either, so break_blocks never saw them. Each log the fall takes off counts
+     * once, as its original block (a chopped log remembers it), the way mining it would have: the logs the tree drops.
+     * The stump TreeChop leaves standing is still a log, so it doesn't count until it's mined (through the stat, like any
+     * log mined normally: TreeChop off, sneaking). Chops before the fall drop nothing and count nothing.
      */
     private static final class TreeChopHook {
-        /** A fell's logs, read before they're gone (after the fall they're air). */
-        private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.level.block.Block>> FELLING =
-                new java.util.HashMap<>();
+        private record Log(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block block) {
+        }
+
+        /** A fell's logs with their original blocks, read before the fall (afterwards they're gone). */
+        private static final java.util.Map<java.util.UUID, java.util.List<Log>> FELLING = new java.util.HashMap<>();
 
         static void register() {
             ht.treechop.api.TreeChopEvents.BEFORE_FELL.register((level, player, pos, fellData) -> {
-                java.util.List<net.minecraft.world.level.block.Block> logs = new java.util.ArrayList<>();
+                java.util.List<Log> logs = new java.util.ArrayList<>();
                 for (net.minecraft.core.BlockPos log : fellData.getTree().getLogBlocksOrEmpty()) {
-                    logs.add(ht.treechop.common.chop.ChopUtil.getLogBlock(level, log));
+                    logs.add(new Log(log.immutable(), ht.treechop.common.chop.ChopUtil.getLogBlock(level, log)));
                 }
                 FELLING.put(player.getUUID(), logs);
                 return true;
             });
             ht.treechop.api.TreeChopEvents.AFTER_FELL.register((level, player, pos, fellData) -> {
-                java.util.List<net.minecraft.world.level.block.Block> logs = FELLING.remove(player.getUUID());
+                java.util.List<Log> logs = FELLING.remove(player.getUUID());
                 if (logs == null) {
                     return true;
                 }
+                // Only the logs the fall took off: the stump is still a log.
                 java.util.Map<net.minecraft.world.level.block.Block, Integer> perBlock = new java.util.LinkedHashMap<>();
-                logs.forEach(block -> perBlock.merge(block, 1, Integer::sum));
+                for (Log log : logs) {
+                    if (!ht.treechop.common.chop.ChopUtil.isBlockALog(level, log.pos())) {
+                        perBlock.merge(log.block(), 1, Integer::sum);
+                    }
+                }
                 boolean changed = false;
                 for (var entry : perBlock.entrySet()) {
                     changed |= DailyQuests.report(player, DailyQuests.BREAK_BLOCKS,
