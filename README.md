@@ -1892,6 +1892,11 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   the tree drops. The stump TreeChop leaves standing counts when it's mined, like any log mined normally (chopping off,
   sneaking), through the stat. Chops before the fall drop nothing and count nothing. (1.3.28–1.3.32 also counted the
   stump at the fall: one too many per tree.)
+- **More Relics** (1.4.0, 1.3.37, server) — Liandry's Torment scales with its wearer: each second each stack deals
+  `combat.liandry_power_per_second` (default 10%) of the caster's `combat.liandry_spell_school` (default
+  `spell_power:arcane`) as their magic damage, instead of 3% of the target's max health from nobody. Eden remembers who
+  put the torment on (Spell Engine passes the caster) and their spell power at that moment; an unknown caster (after a
+  restart) deals nothing. Its damage-taken bonus stays. Does nothing without More Relics.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may

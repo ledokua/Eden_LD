@@ -16,6 +16,8 @@
     "GameProfileInfoAccessor",
     "GameRuleValueMixin",
     "LevelDimensionMixin",
+    "LiandrysTormentMixin",
+    "LivingEntityEffectSourceMixin",
     "LivingEntityHazardMixin",
     "LootrDataFilesMixin",
     "MinecraftServerSaveFlushMixin",

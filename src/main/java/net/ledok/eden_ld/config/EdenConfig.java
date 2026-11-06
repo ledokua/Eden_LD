@@ -405,6 +405,15 @@ public class EdenConfig {
         public int pvp_tag_seconds = 30;
         /** Tagged players also can't fly (elytra and wings) — enforced through the flight rules. */
         public boolean pvp_tag_blocks_flight = true;
+
+        /**
+         * More Relics' Liandry's Torment: damage per second per stack, as a share of the caster's spell power in
+         * {@link #liandry_spell_school} when the torment landed (More Relics: 3% of the target's max health, any
+         * stacks). 0 = no damage (its damage-taken bonus stays).
+         */
+        public double liandry_power_per_second = 0.10;
+        /** The spell power attribute Liandry's Torment scales with. */
+        public String liandry_spell_school = "spell_power:arcane";
     }
 
     /**
