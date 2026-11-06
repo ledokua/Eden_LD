@@ -74,6 +74,7 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.world.WorldRules.initialize();
         net.ledok.eden_ld.world.Hazards.initialize();
         net.ledok.eden_ld.world.AsyncSavedData.initialize();
+        net.ledok.eden_ld.world.BlockResync.initialize();
         net.ledok.eden_ld.tutorial.Tutorial.initialize();
         net.ledok.eden_ld.hub.HubTours.initialize();
 

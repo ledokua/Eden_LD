@@ -1864,6 +1864,12 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   the hit block for a break; Eden re-sends the other half too (any block with the vanilla `half` or bed `part`
   property), to that player only, and the upper half of a refused two-tall placement. The log line
   "[Blocks] Refused clicks and breaks re-send both halves of two-part blocks." shows it's in place.
+- **Refused clicks and breaks on any block** (1.3.32, server) — a click the server refused (the use didn't go through)
+  and a break it kept (refused, or not broken yet) also send that block's state and its block entity data to the player
+  again, once the server has answered the client's prediction (end of the next tick). A block entity the client's
+  predicted break removed otherwise came back empty, and data a mod changed on the client stayed, until a relog.
+  Two-part blocks get both halves; the block entity data is the block entity's own update packet, or what a chunk load
+  would send. Clicks and breaks that went through send nothing extra.
 - **TreeChop** (0.19.3a, 1.3.28) — optional; chopping a log only shaves it and a felled tree's logs are harvested
   without the player, so neither gives the "mined" stat that `break_blocks` daily and guild quests count. Eden counts
   each log of a felled tree once, as its original block (`minecraft:oak_log`, not `treechop:chopped_log`): the logs the
