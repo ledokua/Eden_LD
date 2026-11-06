@@ -552,6 +552,34 @@ public final class HubPayloads {
         }
     }
 
+    /** One item of the Minestar website shop: its price per purchase and how many items a purchase gives. */
+    public record WebsitePrice(String item, int price, int count) {
+    }
+
+    /**
+     * S2C: what the Minestar website shop sells ({@code config/eden_ld/website_shop.json}), for the purple price line in
+     * tooltips. Sent on join and after /reload; an empty list clears it.
+     */
+    public record WebsitePrices(String currency, List<WebsitePrice> prices) implements CustomPacketPayload {
+        public static final Type<WebsitePrices> TYPE = new Type<>(id("website_prices"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, WebsitePrices> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.currency, 16);
+                    writeList(buf, p.prices, (b, price) -> {
+                        b.writeUtf(price.item(), 256);
+                        b.writeVarInt(price.price());
+                        b.writeVarInt(price.count());
+                    });
+                },
+                buf -> new WebsitePrices(buf.readUtf(16),
+                        readList(buf, b -> new WebsitePrice(b.readUtf(256), b.readVarInt(), b.readVarInt()))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: start the tour of this hub tab (the help window's ▶). */
     public record TourStart(String tab) implements CustomPacketPayload {
         public static final Type<TourStart> TYPE = new Type<>(id("tour_start"));
@@ -3524,6 +3552,7 @@ public final class HubPayloads {
 
     public static void register() {
         PayloadTypeRegistry.playS2C().register(OpenHub.TYPE, OpenHub.CODEC);
+        PayloadTypeRegistry.playS2C().register(WebsitePrices.TYPE, WebsitePrices.CODEC);
         PayloadTypeRegistry.playS2C().register(MentionPing.TYPE, MentionPing.CODEC);
         PayloadTypeRegistry.playC2S().register(GuildQuestsRequest.TYPE, GuildQuestsRequest.CODEC);
         PayloadTypeRegistry.playS2C().register(GuildQuestsData.TYPE, GuildQuestsData.CODEC);

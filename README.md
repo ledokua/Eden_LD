@@ -1557,6 +1557,15 @@ Active only when the Minestar platform mod is installed (server side); Eden_LD r
 
 All platform calls are asynchronous; nothing blocks the server thread.
 
+## Website prices in tooltips
+
+Items the Minestar website shop sells show one more tooltip line, in Prime purple: "Available on the website · 200 LP",
+or "· 20 LP for 8" for packs (uk_ua: «Можна придбати на сайті · 200 LP» / «… · 20 LP за 8 шт.») (1.3.34). The list
+lives on the server in **`config/eden_ld/website_shop.json`**: `currency` and `items`, item id → `price` per purchase
+and `count` items per purchase (exact ids; an entry without a price is skipped). It's sent to players on join and
+again after `/reload`, so prices change with the website without a pack update. A missing file is created empty;
+a broken one shows nothing and says so in the log. Needs Eden on the client (it's a tooltip).
+
 ## Configuration
 
 **World data** (per world, saved by the server) lives in **`<world>/data/eden_ld/`**:

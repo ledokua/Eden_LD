@@ -1635,6 +1635,8 @@
   "message.eden_ld.activities.no_lobby": "У %s ще немає лобі.",
   "message.eden_ld.activities.locked_level": "🔒 Рів. %s+",
   "message.eden_ld.activities.required_level": "Рів. %s+",
+  "tooltip.eden_ld.website_shop": "Можна придбати на сайті · %s %s",
+  "tooltip.eden_ld.website_shop.pack": "Можна придбати на сайті · %s %s за %s шт.",
   "message.eden_ld.activities.closed": "Зачинено на техобслуговування",
   "message.eden_ld.activities.unknown": "Ця активність зараз недоступна.",
   "message.eden_ld.activities.unlocked": "Нова активність відкрита: %s!",
