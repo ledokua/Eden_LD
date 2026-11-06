@@ -1827,7 +1827,9 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   and Eden's level check (and the maintenance lock) is its entry gate (see Eden Hub → Activities). With
   Arenas_LD 4.9.0+ the Moderation window also gets its controller actions and live status (teleport, rename,
   admin screen, runs and instances, end run, warnings, forget); an older one just hides them
-  (`docs/PLAN-activity-admin.md`).
+  (`docs/PLAN-activity-admin.md`). With Arenas_LD 4.16.0+ its lobbies also show the level a difficulty (or
+  an arena) needs in green once the player has it ("Lv 25+", `message.eden_ld.activities.required_level`); below it
+  they keep showing Eden's "🔒 Lv 25+" refusal. An older Arenas_LD shows only the refusal.
 - **Duels_LD** (1.4.0+) — optional; Activities → Ranked PvP (see Eden Hub → Ranked PvP). Duels uses Eden's parties
   for 2v2. With Duels_LD 1.6.0+ also Activities → Duels (wager duels; see Eden Hub → Duels); an older one just hides
   that filter.

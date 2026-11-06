@@ -53,8 +53,22 @@ final class ArenasIntegration implements ActivitySource {
                         run.durationTicks() * 50L, run.wave(), run.players(), forced);
             }
         });
+        if (requirementApi()) {
+            ArenasRequirement.register();
+        }
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
+        }
+    }
+
+    /** The running Arenas_LD shows a met requirement (4.16.0+); an older one only shows the gate's refusal. */
+    private static boolean requirementApi() {
+        try {
+            ArenasApi.class.getMethod("registerEntryRequirement",
+                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$EntryRequirement"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
         }
     }
 

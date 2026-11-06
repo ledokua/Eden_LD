@@ -1634,6 +1634,7 @@
   "gui.eden_ld.hub.settings.notify.duels.hint": "A sound and a notice when your match starts, and a Home card while you search.",
   "message.eden_ld.activities.no_lobby": "%s has no lobby to open yet.",
   "message.eden_ld.activities.locked_level": "🔒 Lv %s+",
+  "message.eden_ld.activities.required_level": "Lv %s+",
   "message.eden_ld.activities.closed": "Closed for maintenance",
   "message.eden_ld.activities.unknown": "That activity isn't available right now.",
   "message.eden_ld.activities.unlocked": "New activity unlocked: %s!",

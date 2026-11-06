@@ -1634,6 +1634,7 @@
   "gui.eden_ld.hub.settings.notify.duels.hint": "Звук і сповіщення, коли починається ваш бій, і картка на головній під час пошуку.",
   "message.eden_ld.activities.no_lobby": "У %s ще немає лобі.",
   "message.eden_ld.activities.locked_level": "🔒 Рів. %s+",
+  "message.eden_ld.activities.required_level": "Рів. %s+",
   "message.eden_ld.activities.closed": "Зачинено на техобслуговування",
   "message.eden_ld.activities.unknown": "Ця активність зараз недоступна.",
   "message.eden_ld.activities.unlocked": "Нова активність відкрита: %s!",

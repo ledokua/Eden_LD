@@ -36,4 +36,19 @@ public final class ActivityGate {
         }
         return Component.translatable("message.eden_ld.activities.locked_level", required);
     }
+
+    /**
+     * What the activity (difficulty null) or difficulty needs, for Arenas_LD to show in green where {@link #check} lets
+     * the player in ("Lv 25+"). Null when it needs no level, or for an unknown or closed activity.
+     */
+    @Nullable
+    public static Component requirement(ServerPlayer player, ResourceLocation id, @Nullable String difficulty) {
+        MinecraftServer server = player.getServer();
+        Activity activity = server == null ? null : Activities.get(server, id);
+        if (activity == null || Activities.closed(server, id)) {
+            return null;
+        }
+        int required = activity.levelFor(difficulty);
+        return required <= 0 ? null : Component.translatable("message.eden_ld.activities.required_level", required);
+    }
 }
