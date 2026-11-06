@@ -1859,6 +1859,11 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   the hit block for a break; Eden re-sends the other half too (any block with the vanilla `half` or bed `part`
   property), to that player only, and the upper half of a refused two-tall placement. The log line
   "[Blocks] Refused clicks and breaks re-send both halves of two-part blocks." shows it's in place.
+- **TreeChop** (0.19.3a, 1.3.28) — optional; chopping a log only shaves it and a felled tree's logs are harvested
+  without the player, so neither gives the "mined" stat that `break_blocks` daily and guild quests count. Eden counts
+  each log of a felled tree once, as its original block (`minecraft:oak_log`, not `treechop:chopped_log`): the logs the
+  tree drops. Chops before the fall drop nothing and count nothing; a log mined normally (chopping off, sneaking) still
+  counts once through the stat.
 - Any mod whose flight uses Fabric's `EntityElytraEvents` is covered by flight control.
 - **ChatPatches** — not needed (Eden's chat has its duplicate counter, message copy and more) and no longer in the
   pack. Where it's installed anyway, a right-click on an emoji or sticker still stars / saves it (its own menu may

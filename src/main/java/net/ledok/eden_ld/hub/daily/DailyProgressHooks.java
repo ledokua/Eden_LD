@@ -7,7 +7,8 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Eden's built-in progress sources: mob kills (projectiles count for their shooter),
- * crafting, and — with Spell Engine — finished spell casts (targets: spell id or #spell tag).
+ * crafting, — with Spell Engine — finished spell casts (targets: spell id or #spell tag), and — with TreeChop — the
+ * logs of a felled tree (break_blocks).
  */
 public final class DailyProgressHooks {
 
@@ -23,6 +24,9 @@ public final class DailyProgressHooks {
         });
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("spell_engine")) {
             SpellCastHook.register();
+        }
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("treechop")) {
+            TreeChopHook.register();
         }
     }
 
@@ -40,6 +44,46 @@ public final class DailyProgressHooks {
                 if (DailyQuests.report(player, DailyQuests.CAST_SPELLS, matcher, 1)) {
                     HubServer.pushDailies(player);
                 }
+            });
+        }
+    }
+
+    /**
+     * The only class touching TreeChop types. Chopping a log only shaves it (no drop, no mined stat) and the felled tree's
+     * logs are harvested without the player either, so break_blocks never saw them. Each log of a felled tree counts once,
+     * as its original block (a chopped log remembers it), the way mining it would have: the logs the tree drops. Chops
+     * before the fall drop nothing and count nothing; logs mined normally (TreeChop off, sneaking) count through the stat.
+     */
+    private static final class TreeChopHook {
+        /** A fell's logs, read before they're gone (after the fall they're air). */
+        private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.level.block.Block>> FELLING =
+                new java.util.HashMap<>();
+
+        static void register() {
+            ht.treechop.api.TreeChopEvents.BEFORE_FELL.register((level, player, pos, fellData) -> {
+                java.util.List<net.minecraft.world.level.block.Block> logs = new java.util.ArrayList<>();
+                for (net.minecraft.core.BlockPos log : fellData.getTree().getLogBlocksOrEmpty()) {
+                    logs.add(ht.treechop.common.chop.ChopUtil.getLogBlock(level, log));
+                }
+                FELLING.put(player.getUUID(), logs);
+                return true;
+            });
+            ht.treechop.api.TreeChopEvents.AFTER_FELL.register((level, player, pos, fellData) -> {
+                java.util.List<net.minecraft.world.level.block.Block> logs = FELLING.remove(player.getUUID());
+                if (logs == null) {
+                    return true;
+                }
+                java.util.Map<net.minecraft.world.level.block.Block, Integer> perBlock = new java.util.LinkedHashMap<>();
+                logs.forEach(block -> perBlock.merge(block, 1, Integer::sum));
+                boolean changed = false;
+                for (var entry : perBlock.entrySet()) {
+                    changed |= DailyQuests.report(player, DailyQuests.BREAK_BLOCKS,
+                            DailyQuests.blockMatcher(entry.getKey()), entry.getValue());
+                }
+                if (changed) {
+                    HubServer.pushDailies(player);
+                }
+                return true;
             });
         }
     }

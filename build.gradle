@@ -68,6 +68,9 @@ dependencies {
     modCompileOnly("xaero.pac:open-parties-and-claims-fabric-1.21.1:0.31.6") { transitive = false }
     // Xaero's Minimap — optional: guild and party members on each other's minimap and world map (compat/xaero)
     modCompileOnly files("libs/xaerominimap-fabric-1.21.1-26.6.0.jar")
+    // TreeChop — optional: a felled tree's logs count for break_blocks quests (DailyProgressHooks), since its chops and
+    // felling never award the mined stat. A copy of the pack's jar.
+    modCompileOnly files("libs/TreeChop-1.21.1-fabric-0.19.3a.jar")
 
     // Economy_LD — optional: mail storage and API behind the hub's Mail tab (copy of its built jar;
     // refresh it when Economy_LD's mail API changes). In the dev client too, to test the Mail tab.
