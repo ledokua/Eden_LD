@@ -530,6 +530,7 @@ final class ActivitiesSection {
         }
         CompoundTag status = detail.getCompound("status");
         boolean canEnd = supported.contains(AdminAction.FORCE_END);
+        boolean canReset = supported.contains(AdminAction.RESET_COOLDOWN);
         // An unloaded controller: nothing is known about its instances and runs, which isn't "none".
         boolean unknown = (status.getInt("warnings") & ActivityLiveStatus.Warning.CONTROLLER_NOT_LOADED.bit()) != 0;
 
@@ -539,6 +540,7 @@ final class ActivitiesSection {
         if (instances.isEmpty()) {
             box.item(text(tr(unknown ? "unknown" : "no_instances"), DIM, (int) w));
         }
+        boolean anyCooling = false;
         for (int i = 0; i < instances.size(); i++) {
             int index = i;
             CompoundTag instance = instances.getCompound(i);
@@ -547,9 +549,25 @@ final class ActivitiesSection {
             row.sizing(Sizing.fixed(w), Sizing.content());
             Component label = tr("state." + state.name().toLowerCase(Locale.ROOT));
             row.item(chip(label, stateColor(state)));
-            // The chip: its label at 0.8 scale, padding 6, frame 2; then the row's 4 gap.
+            // An instance on cooldown can be made free again (Arenas_LD 4.21.1+).
+            Button reset = null;
+            if (canReset && state == ActivityLiveStatus.State.COOLDOWN) {
+                anyCooling = true;
+                reset = small("gui.eden_ld.moderation.activities.reset_cooldown", 40, () -> {
+                    CompoundTag args = new CompoundTag();
+                    CompoundTag at = new CompoundTag();
+                    at.putString("dim", instance.getString("dim"));
+                    at.putInt("x", instance.getInt("x"));
+                    at.putInt("y", instance.getInt("y"));
+                    at.putInt("z", instance.getInt("z"));
+                    args.put("instance", at);
+                    act("reset_cooldown", id, args);
+                });
+            }
+            // The chip: its label at 0.8 scale, padding 6, frame 2; then the row's 4 gap (and the button's).
             float chipW = Minecraft.getInstance().font.width(label) * 0.8f + 8;
-            row.item(new LiveLine(w - chipW - 4, () -> {
+            float lineW = w - chipW - 4 - (reset == null ? 0 : reset.width() + 4);
+            row.item(new LiveLine(lineW, () -> {
                 CompoundTag now = liveInstance(entry, index);
                 MutableComponent line = Component.literal(place(now));
                 long ticks = now.getLong("cooldown") - ticksSincePoll();
@@ -561,7 +579,14 @@ final class ActivitiesSection {
                 }
                 return line;
             }, TEXT));
+            if (reset != null) {
+                row.item(reset);
+            }
             box.item(row);
+        }
+        if (anyCooling) {
+            box.item(small("gui.eden_ld.moderation.activities.reset_all_cooldowns", 80,
+                    () -> act("reset_cooldown", id, null)));
         }
 
         // Runs in progress: difficulty, phase, time; the players; End run.

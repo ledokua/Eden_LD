@@ -36,6 +36,8 @@ final class ArenasIntegration implements ActivitySource {
 
     /** The running Arenas_LD has the admin calls (4.9.0+). */
     private static final boolean ADMIN = adminApi();
+    /** The running Arenas_LD resets instance cooldowns (4.21.1+). */
+    private static final boolean RESET_COOLDOWNS = resetCooldownsApi();
     /** The running Arenas_LD tells a player's own lobby and opens it (4.21.0+). */
     private static final boolean OWN_LOBBY = ownLobbyApi();
 
@@ -68,6 +70,16 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("registerEntryRequirement",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$EntryRequirement"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean resetCooldownsApi() {
+        try {
+            ArenasApi.class.getMethod("resetCooldowns", MinecraftServer.class, ResourceLocation.class,
+                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$InstanceRef"), String.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -139,7 +151,14 @@ final class ArenasIntegration implements ActivitySource {
 
     @Override
     public Set<AdminAction> adminActions() {
-        return ADMIN ? EnumSet.allOf(AdminAction.class) : Set.of();
+        if (!ADMIN) {
+            return Set.of();
+        }
+        EnumSet<AdminAction> actions = EnumSet.allOf(AdminAction.class);
+        if (!RESET_COOLDOWNS) {
+            actions.remove(AdminAction.RESET_COOLDOWN);
+        }
+        return actions;
     }
 
     @Override
@@ -165,6 +184,12 @@ final class ArenasIntegration implements ActivitySource {
     public Component forceEnd(MinecraftServer server, ResourceLocation id, @Nullable InstanceRef instance) {
         return ADMIN ? ArenasAdmin.forceEnd(server, id, instance) : ActivitySource.unsupported();
     }
+    @Override
+    @Nullable
+    public Component resetCooldowns(MinecraftServer server, ResourceLocation id, @Nullable InstanceRef instance, String actor) {
+        return RESET_COOLDOWNS ? ArenasAdmin.resetCooldowns(server, id, instance, actor) : ActivitySource.unsupported();
+    }
+
 
     @Override
     @Nullable

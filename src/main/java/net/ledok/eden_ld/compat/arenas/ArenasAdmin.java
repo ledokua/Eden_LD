@@ -53,6 +53,15 @@ final class ArenasAdmin {
         return ArenasApi.forceEnd(server, id, at);
     }
 
+    /** Arenas_LD 4.21.1+ ({@link ArenasIntegration} checks): one instance, or every one (null); refused when none is cooling down. */
+    @Nullable
+    static Component resetCooldowns(MinecraftServer server, ResourceLocation id, @Nullable ActivitySource.InstanceRef instance,
+                                    String actor) {
+        ArenasApi.InstanceRef at = instance == null ? null
+                : new ArenasApi.InstanceRef(ResourceKey.create(Registries.DIMENSION, instance.dimension()), instance.pos());
+        return ArenasApi.resetCooldowns(server, id, at, actor);
+    }
+
     /** Refused while the controller still exists. */
     @Nullable
     static Component forget(MinecraftServer server, ResourceLocation id) {

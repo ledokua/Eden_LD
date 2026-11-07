@@ -527,6 +527,7 @@ public final class AdminTools {
             case "rename" -> ActivitySource.AdminAction.RENAME;
             case "admin" -> ActivitySource.AdminAction.OPEN_ADMIN;
             case "force_end" -> ActivitySource.AdminAction.FORCE_END;
+            case "reset_cooldown" -> ActivitySource.AdminAction.RESET_COOLDOWN;
             default -> ActivitySource.AdminAction.FORGET;
         };
         if (!source.adminActions().contains(needed)) {
@@ -590,6 +591,25 @@ public final class AdminTools {
                 }
                 done = Component.translatable(instance == null ? "message.eden_ld.admin.activity_ended_all"
                         : "message.eden_ld.admin.activity_ended");
+            }
+            case RESET_COOLDOWN -> {
+                // No "instance" = every instance; one that doesn't parse is refused, never widened to all.
+                ActivitySource.InstanceRef instance = null;
+                if (args.contains("instance")) {
+                    instance = args.contains("instance", Tag.TAG_COMPOUND) ? instance(args.getCompound("instance")) : null;
+                    if (instance == null) {
+                        notice(admin, Component.translatable("message.eden_ld.admin.activity_bad_instance"), false);
+                        return null;
+                    }
+                }
+                refused = source.resetCooldowns(server, id, instance, name);
+                if (refused == null) {
+                    EdenLD.LOGGER.info("{} reset the cooldown of {} of activity {}", name,
+                            instance == null ? "every instance" : "the instance at " + instance.dimension() + " "
+                                    + instance.pos().toShortString(), id);
+                }
+                done = Component.translatable(instance == null ? "message.eden_ld.admin.activity_cooldowns_reset_all"
+                        : "message.eden_ld.admin.activity_cooldown_reset");
             }
             default -> {
                 refused = source.forget(server, id);

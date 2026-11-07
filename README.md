@@ -1848,7 +1848,9 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   they keep showing Eden's "🔒 Lv 25+" refusal. An older Arenas_LD shows only the refusal. With Arenas_LD 4.21.0+ the
   Activities tab shows a **"My lobby: <activity> (2/4)"** button at the top while the player is in a lobby; it opens
   that lobby's screen from anywhere ("In a run: <activity>" during its run). Refreshed every 2 seconds while the tab
-  shows.
+  shows. With Arenas_LD 4.21.1+ the Moderation window's live instance list also has **Reset** on each
+  instance on cooldown and **Reset all cooldowns** (same permission as ending runs), making those instances free at
+  once.
 - **Duels_LD** (1.4.0+) — optional; Activities → Ranked PvP (see Eden Hub → Ranked PvP). Duels uses Eden's parties
   for 2v2. With Duels_LD 1.6.0+ also Activities → Duels (wager duels; see Eden Hub → Duels); an older one just hides
   that filter.
