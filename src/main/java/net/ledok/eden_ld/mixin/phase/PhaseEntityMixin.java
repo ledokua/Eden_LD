@@ -3,6 +3,8 @@ package net.ledok.eden_ld.mixin.phase;
 import net.ledok.eden_ld.tutorial.phase.Phased;
 import net.ledok.eden_ld.tutorial.phase.Phases;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,9 +25,13 @@ public abstract class PhaseEntityMixin implements Phased {
     @Nullable
     private UUID eden_ld$phase;
 
-    /** Whether this entity is in {@code Phases}' count (it has a phase and hasn't left the world). */
+    /** The dimension this entity is counted in by {@code Phases} (it has a phase and is in the world), else null. */
     @Unique
-    private boolean eden_ld$counted;
+    @Nullable
+    private ResourceKey<Level> eden_ld$countedIn;
+
+    @Shadow
+    public abstract Level level();
 
     @Shadow
     public abstract boolean isRemoved();
@@ -46,11 +52,23 @@ public abstract class PhaseEntityMixin implements Phased {
 
     @Unique
     private void eden_ld$recount() {
-        boolean counts = eden_ld$phase != null && !isRemoved();
-        if (counts != eden_ld$counted) {
-            eden_ld$counted = counts;
-            Phases.counted(counts);
+        Level level = level();
+        ResourceKey<Level> where = eden_ld$phase != null && !isRemoved() && level != null ? level.dimension() : null;
+        if (!java.util.Objects.equals(where, eden_ld$countedIn)) {
+            if (eden_ld$countedIn != null) {
+                Phases.counted(eden_ld$countedIn, false);
+            }
+            if (where != null) {
+                Phases.counted(where, true);
+            }
+            eden_ld$countedIn = where;
         }
+    }
+
+    /** Moved to another level as the same entity (a player changing dimension): counted there now. */
+    @Inject(method = "setLevel", at = @At("TAIL"))
+    private void eden_ld$countInNewLevel(Level level, CallbackInfo ci) {
+        eden_ld$recount();
     }
 
     @Inject(method = "saveWithoutId", at = @At("TAIL"))

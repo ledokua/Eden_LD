@@ -37,12 +37,14 @@ public final class Phases {
     private static final Map<UUID, Set<UUID>> ENTITIES = new ConcurrentHashMap<>();
 
     /**
-     * Entities in the world with a phase, players included ({@code PhaseEntityMixin} counts each one once: phase set,
-     * phase cleared or the entity left the world). While it's 0 — nobody in the tutorial — everyone sees and touches
-     * everyone, without asking each entity: the visibility check runs for every tracked entity on every player move,
-     * and the interface check behind {@link #of} was 2.9% of the live server thread.
+     * Entities with a phase in each dimension, players included ({@code PhaseEntityMixin} counts each one once, in the
+     * dimension it's in: phase set or cleared, entity gone from the world or moved to another). Where it's 0 — every
+     * dimension but the tutorial's — everyone sees and touches everyone without asking each entity: the visibility check
+     * runs for every tracked entity on every player move, and the interface check behind {@link #of} was 3.8% of the
+     * live server thread. (1.3.36 counted the whole server; the tutorial's own phased entities kept that above 0.)
      */
-    private static final java.util.concurrent.atomic.AtomicInteger PHASED = new java.util.concurrent.atomic.AtomicInteger();
+    private static final Map<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, java.util.concurrent.atomic.AtomicInteger>
+            PHASED = new ConcurrentHashMap<>();
 
     private Phases() {
     }
@@ -64,7 +66,7 @@ public final class Phases {
      * a target dummy, the guide) is everyone's, so any phase may hit it.
      */
     public static boolean together(Entity a, @Nullable Entity b) {
-        if (b == null || PHASED.get() == 0) {
+        if (b == null || nobodyPhased(a.level())) {
             return true;
         }
         UUID phaseA = of(a);
@@ -74,7 +76,7 @@ public final class Phases {
 
     /** Whether {@code viewer} sees (and hears) {@code entity}: the same phase, or a shared decoration or NPC. */
     public static boolean sees(Entity viewer, Entity entity) {
-        if (PHASED.get() == 0) {
+        if (nobodyPhased(viewer.level())) {
             return true;
         }
         UUID phase = of(entity);
@@ -99,13 +101,14 @@ public final class Phases {
         return list.contains(id.toString()) || list.contains(id.getNamespace() + ":");
     }
 
-    /** {@code PhaseEntityMixin}: an entity in the world gained a phase (+1) or lost it / left the world (-1). */
-    public static void counted(boolean phased) {
-        if (phased) {
-            PHASED.incrementAndGet();
-        } else {
-            PHASED.decrementAndGet();
-        }
+    private static boolean nobodyPhased(net.minecraft.world.level.Level level) {
+        java.util.concurrent.atomic.AtomicInteger count = PHASED.get(level.dimension());
+        return count == null || count.get() <= 0;
+    }
+
+    /** {@code PhaseEntityMixin}: a phased entity is now counted in {@code dimension} (+1) or not any more (-1). */
+    public static void counted(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension, boolean phased) {
+        PHASED.computeIfAbsent(dimension, key -> new java.util.concurrent.atomic.AtomicInteger()).addAndGet(phased ? 1 : -1);
     }
 
     // ---------------------------------------------------------------- index

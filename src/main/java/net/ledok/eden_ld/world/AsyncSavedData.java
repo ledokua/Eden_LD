@@ -40,8 +40,12 @@ public final class AsyncSavedData {
     private static final String TEMP_FOLDER = "eden_ld_saving";
     private static final long FLUSH_TIMEOUT_SECONDS = 300;
 
+    /** A file's snapshot to write; {@code backup} (player files: {@code .dat_old}) gets the file it replaces. */
+    private record Job(CompoundTag tag, @org.jetbrains.annotations.Nullable Path backup) {
+    }
+
     /** The newest snapshot of each file not yet written. */
-    private static final Map<Path, CompoundTag> PENDING = new ConcurrentHashMap<>();
+    private static final Map<Path, Job> PENDING = new ConcurrentHashMap<>();
     private static final AtomicLong TEMP_NAMES = new AtomicLong();
     private static final ExecutorService WRITER = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "Eden_LD SavedData writer");
@@ -96,24 +100,46 @@ public final class AsyncSavedData {
     }
 
     static void queue(Path target, CompoundTag tag, Path temps) {
+        queue(target, new Job(tag, null), temps);
+    }
+
+    private static void queue(Path target, Job job, Path temps) {
         // Only the first snapshot of a file queues a write; a newer one waiting replaces it and goes in that write.
-        if (PENDING.put(target, tag) == null) {
+        if (PENDING.put(target, job) == null) {
             WRITER.execute(() -> write(target, temps));
         }
     }
 
+    /** Whether a save now may be handed to the writer: on the server thread of a running server. */
+    public static boolean canQueue() {
+        MinecraftServer current = server;
+        return current != null && current.isSameThread() && tempFolder != null;
+    }
+
+    /**
+     * A player file ({@code PlayerDataStorage}): the tag built on the server thread, written by the writer the way
+     * vanilla does (the old file becomes {@code backup}).
+     */
+    public static void queuePlayer(Path target, Path backup, CompoundTag tag) {
+        queue(target.toAbsolutePath().normalize(), new Job(tag, backup.toAbsolutePath().normalize()), tempFolder);
+    }
+
     private static void write(Path target, Path temps) {
         writing = target;
-        CompoundTag tag = PENDING.remove(target);
-        if (tag == null) {
+        Job job = PENDING.remove(target);
+        if (job == null) {
             writing = null;
             return;
         }
         Path temp = temps.resolve(TEMP_NAMES.incrementAndGet() + "-" + target.getFileName());
         try {
             Files.createDirectories(temps);
-            NbtIo.writeCompressed(tag, temp);
+            NbtIo.writeCompressed(job.tag(), temp);
             Files.createDirectories(target.getParent());
+            if (job.backup() != null) {
+                net.minecraft.Util.safeReplaceFile(target, temp, job.backup());
+                return;
+            }
             try {
                 Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {

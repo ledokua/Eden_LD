@@ -395,6 +395,19 @@ public class EdenConfig {
          * Needs a restart or /reload. False = vanilla.
          */
         public boolean skip_recipe_advancements = true;
+
+        /**
+         * In a save of all players (the autosave, /save-all, the stop), each player's file is built on the server thread
+         * and compressed and written by the same writer as world data (vanilla's {@code .dat_old} backup kept). A
+         * player's own save (logout) waits for their queued file first. False = vanilla.
+         */
+        public boolean async_player_saves = true;
+
+        /**
+         * level.dat: the world's generator and dimension settings (unchanged while the server runs) are encoded once per
+         * start and reused; every save re-encoded them (fabric-dimensions' codec: 10% of the autosave). False = vanilla.
+         */
+        public boolean cache_world_gen_settings = true;
     }
 
     public static class Combat {

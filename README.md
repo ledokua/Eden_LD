@@ -1592,6 +1592,11 @@ which were 90% of those files and were checked on every inventory change; they o
 recipe book (crafting doesn't need them, EMI shows every recipe), and nothing in the pack refers to them. Their old
 entries leave each player's file at its next save, without a warning each.
 
+**Player files and level.dat** (1.3.41, `saving.json`): `async_player_saves` (default on) hands each player's file, in a
+save of all players (the autosave, `/save-all`, the stop), to the same writer (vanilla's `.dat_old` backup kept); a
+player's own save (logout) and every read wait for their queued file first. `cache_world_gen_settings` (default on)
+encodes level.dat's world generator and dimension settings once per server start instead of at every save.
+
 Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section**:
 `minestar.json`, `liquid_mana.json`, `flight.json`, `hub.json`, `combat.json`, `dailies.json`,
 `guilds.json`, `activities.json`, `chat.json`, `chat_system_only.json`, `tab_list.json`, `profile.json`,
