@@ -1850,7 +1850,7 @@ Other mods can register flight rules, read cached Minestar profiles, read player
   that lobby's screen from anywhere ("In a run: <activity>" during its run). Refreshed every 2 seconds while the tab
   shows. With Arenas_LD 4.21.1+ the Moderation window's live instance list also has **Reset** on each
   instance on cooldown and **Reset all cooldowns** (same permission as ending runs), making those instances free at
-  once.
+  once. With 4.22.0+ each run in progress also has **Details**, which opens Arenas_LD's run details screen.
 - **Duels_LD** (1.4.0+) — optional; Activities → Ranked PvP (see Eden Hub → Ranked PvP). Duels uses Eden's parties
   for 2v2. With Duels_LD 1.6.0+ also Activities → Duels (wager duels; see Eden Hub → Duels); an older one just hides
   that filter.

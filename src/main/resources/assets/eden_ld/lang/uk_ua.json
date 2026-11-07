@@ -942,6 +942,8 @@
   "gui.eden_ld.moderation.activities.end_run": "Завершити",
   "gui.eden_ld.moderation.activities.end_run_confirm": "Завершити цей забіг у %s? Гравці (%s) вийдуть як після поразки, а забіг не піде в статистику.",
   "gui.eden_ld.moderation.activities.end_all": "Завершити всі забіги",
+  "gui.eden_ld.moderation.activities.run_details": "Деталі",
+  "message.eden_ld.admin.activity_no_run_details": "Там уже немає забігу.",
   "gui.eden_ld.moderation.activities.reset_cooldown": "Скинути",
   "gui.eden_ld.moderation.activities.reset_all_cooldowns": "Скинути всі перезарядки",
   "message.eden_ld.admin.activity_cooldown_reset": "Перезарядку скинуто: екземпляр вільний.",

@@ -62,6 +62,12 @@ final class ArenasAdmin {
         return ArenasApi.resetCooldowns(server, id, at, actor);
     }
 
+    /** Arenas_LD 4.22.0+ ({@link ArenasIntegration} checks): false when there's no run there to show. */
+    static boolean openRunDetails(ServerPlayer staff, ResourceLocation id, ActivitySource.InstanceRef instance) {
+        return ArenasApi.openRunDetails(staff, id,
+                new ArenasApi.InstanceRef(ResourceKey.create(Registries.DIMENSION, instance.dimension()), instance.pos()));
+    }
+
     /** Refused while the controller still exists. */
     @Nullable
     static Component forget(MinecraftServer server, ResourceLocation id) {

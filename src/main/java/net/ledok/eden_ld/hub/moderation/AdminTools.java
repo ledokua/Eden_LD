@@ -390,7 +390,8 @@ public final class AdminTools {
                 yield Component.translatable("message.eden_ld.admin.activity_saved");
             }
             case "activities/teleport", "activities/rename", "activities/admin", "activities/force_end",
-                 "activities/forget" -> activityAction(admin, action.action(), args);
+                 "activities/forget", "activities/reset_cooldown", "activities/run_details" ->
+                    activityAction(admin, action.action(), args);
             case "reports/view", "reports/handle", "reports/reopen", "reports/note" ->
                     ReportDesk.act(admin, action.action(), args);
             case "dungeons/reset" -> {
@@ -474,7 +475,11 @@ public final class AdminTools {
             default -> switch (area) {
                 case WORLD -> net.ledok.eden_ld.world.WorldAdmin.act(admin, action.action(), args);
                 case GUILD -> GuildDesk.act(admin, action.action(), target, args);
-                default -> null;
+                default -> {
+                    // A button whose action isn't wired here (a client newer than the server, or a missed case).
+                    EdenLD.LOGGER.warn("[Moderation] {} sent an unknown action {}/{}; nothing done.", name, area, action.action());
+                    yield null;
+                }
             };
         };
         if (done != null) {
@@ -484,9 +489,9 @@ public final class AdminTools {
         if (area.equals(ACTIVITIES)) {
             // Teleport and the admin screen take the admin away; an ended run shows in the live data.
             switch (action.action()) {
-                case "teleport", "admin" -> {
+                case "teleport", "admin", "run_details" -> {
                 }
-                case "force_end" -> sendLive(admin, args.getString("id"));
+                case "force_end", "reset_cooldown" -> sendLive(admin, args.getString("id"));
                 default -> send(admin, area, target);
             }
             return;
@@ -528,9 +533,12 @@ public final class AdminTools {
             case "admin" -> ActivitySource.AdminAction.OPEN_ADMIN;
             case "force_end" -> ActivitySource.AdminAction.FORCE_END;
             case "reset_cooldown" -> ActivitySource.AdminAction.RESET_COOLDOWN;
+            case "run_details" -> ActivitySource.AdminAction.RUN_DETAILS;
             default -> ActivitySource.AdminAction.FORGET;
         };
         if (!source.adminActions().contains(needed)) {
+            EdenLD.LOGGER.info("[Moderation] {} asked {} for activity {}, which its source ({}) doesn't support.",
+                    name, action, id, source.name());
             notice(admin, ActivitySource.unsupported(), false);
             return null;
         }
@@ -602,14 +610,28 @@ public final class AdminTools {
                         return null;
                     }
                 }
+                EdenLD.LOGGER.info("[Moderation] {} asks to reset the cooldown of {} of activity {}", name,
+                        instance == null ? "every instance" : instance.dimension() + " " + instance.pos().toShortString(), id);
                 refused = source.resetCooldowns(server, id, instance, name);
-                if (refused == null) {
+                if (refused != null) {
+                    EdenLD.LOGGER.info("[Moderation] Cooldown reset refused: {}", refused.getString());
+                } else {
                     EdenLD.LOGGER.info("{} reset the cooldown of {} of activity {}", name,
                             instance == null ? "every instance" : "the instance at " + instance.dimension() + " "
                                     + instance.pos().toShortString(), id);
                 }
                 done = Component.translatable(instance == null ? "message.eden_ld.admin.activity_cooldowns_reset_all"
                         : "message.eden_ld.admin.activity_cooldown_reset");
+            }
+            case RUN_DETAILS -> {
+                ActivitySource.InstanceRef instance = args.contains("instance", Tag.TAG_COMPOUND)
+                        ? instance(args.getCompound("instance")) : null;
+                if (instance == null) {
+                    notice(admin, Component.translatable("message.eden_ld.admin.activity_bad_instance"), false);
+                    return null;
+                }
+                refused = source.openRunDetails(admin, id, instance);
+                done = null;
             }
             default -> {
                 refused = source.forget(server, id);

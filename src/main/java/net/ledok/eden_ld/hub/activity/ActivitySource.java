@@ -60,8 +60,10 @@ public interface ActivitySource {
         FORCE_END,
         /** Drop an activity whose controller is gone. */
         FORGET,
-        /** Make an instance on cooldown (or every one) free again. Last: the bits of the others stay. */
-        RESET_COOLDOWN;
+        /** Make an instance on cooldown (or every one) free again. Appended: the bits of the others stay. */
+        RESET_COOLDOWN,
+        /** Open the source's details screen of a run in progress (players, stats). */
+        RUN_DETAILS;
 
         public int bit() {
             return 1 << ordinal();
@@ -122,6 +124,12 @@ public interface ActivitySource {
     /** Makes the instance at {@code instance} (or every instance, null) on cooldown free again; {@code actor} is logged. */
     @Nullable
     default Component resetCooldowns(MinecraftServer server, ResourceLocation id, @Nullable InstanceRef instance, String actor) {
+        return unsupported();
+    }
+
+    /** Opens the source's details screen of the run at {@code instance} for the staff member. */
+    @Nullable
+    default Component openRunDetails(ServerPlayer staff, ResourceLocation id, InstanceRef instance) {
         return unsupported();
     }
 

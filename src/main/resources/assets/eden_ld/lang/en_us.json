@@ -942,6 +942,8 @@
   "gui.eden_ld.moderation.activities.end_run": "End run",
   "gui.eden_ld.moderation.activities.end_run_confirm": "End this run of %s? Its players (%s) leave as on a loss, and it doesn't count in the stats.",
   "gui.eden_ld.moderation.activities.end_all": "End all runs",
+  "gui.eden_ld.moderation.activities.run_details": "Details",
+  "message.eden_ld.admin.activity_no_run_details": "No run there to show anymore.",
   "gui.eden_ld.moderation.activities.reset_cooldown": "Reset",
   "gui.eden_ld.moderation.activities.reset_all_cooldowns": "Reset all cooldowns",
   "message.eden_ld.admin.activity_cooldown_reset": "Cooldown reset: the instance is free.",

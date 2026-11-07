@@ -36,6 +36,8 @@ final class ArenasIntegration implements ActivitySource {
 
     /** The running Arenas_LD has the admin calls (4.9.0+). */
     private static final boolean ADMIN = adminApi();
+    /** The running Arenas_LD opens a run's details screen (4.22.0+). */
+    private static final boolean RUN_DETAILS = runDetailsApi();
     /** The running Arenas_LD resets instance cooldowns (4.21.1+). */
     private static final boolean RESET_COOLDOWNS = resetCooldownsApi();
     /** The running Arenas_LD tells a player's own lobby and opens it (4.21.0+). */
@@ -60,6 +62,8 @@ final class ArenasIntegration implements ActivitySource {
         if (requirementApi()) {
             ArenasRequirement.register();
         }
+        EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}.",
+                ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -70,6 +74,16 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("registerEntryRequirement",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$EntryRequirement"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean runDetailsApi() {
+        try {
+            ArenasApi.class.getMethod("openRunDetails", ServerPlayer.class, ResourceLocation.class,
+                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$InstanceRef"));
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -158,6 +172,9 @@ final class ArenasIntegration implements ActivitySource {
         if (!RESET_COOLDOWNS) {
             actions.remove(AdminAction.RESET_COOLDOWN);
         }
+        if (!RUN_DETAILS) {
+            actions.remove(AdminAction.RUN_DETAILS);
+        }
         return actions;
     }
 
@@ -189,6 +206,16 @@ final class ArenasIntegration implements ActivitySource {
     public Component resetCooldowns(MinecraftServer server, ResourceLocation id, @Nullable InstanceRef instance, String actor) {
         return RESET_COOLDOWNS ? ArenasAdmin.resetCooldowns(server, id, instance, actor) : ActivitySource.unsupported();
     }
+    @Override
+    @Nullable
+    public Component openRunDetails(ServerPlayer staff, ResourceLocation id, InstanceRef instance) {
+        if (!RUN_DETAILS) {
+            return ActivitySource.unsupported();
+        }
+        return ArenasAdmin.openRunDetails(staff, id, instance) ? null
+                : Component.translatable("message.eden_ld.admin.activity_no_run_details");
+    }
+
 
 
     @Override

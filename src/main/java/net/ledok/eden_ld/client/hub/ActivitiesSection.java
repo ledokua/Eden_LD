@@ -531,6 +531,7 @@ final class ActivitiesSection {
         CompoundTag status = detail.getCompound("status");
         boolean canEnd = supported.contains(AdminAction.FORCE_END);
         boolean canReset = supported.contains(AdminAction.RESET_COOLDOWN);
+        boolean canDetail = supported.contains(AdminAction.RUN_DETAILS);
         // An unloaded controller: nothing is known about its instances and runs, which isn't "none".
         boolean unknown = (status.getInt("warnings") & ActivityLiveStatus.Warning.CONTROLLER_NOT_LOADED.bit()) != 0;
 
@@ -613,8 +614,19 @@ final class ActivitiesSection {
                         args.put("instance", at);
                         act("force_end", id, args);
                     }));
-            // The row's padding (8) and its gaps (5 each) around the lines, the spacer and the button.
-            float lineW = w - 8 - 5 - (end == null ? 0 : 5 + end.width());
+            // The source's details screen of this run (Arenas_LD 4.22.0+: players, stats).
+            Button details = !canDetail ? null : small("gui.eden_ld.moderation.activities.run_details", 40, () -> {
+                CompoundTag args = new CompoundTag();
+                CompoundTag at = new CompoundTag();
+                at.putString("dim", run.getString("dim"));
+                at.putInt("x", run.getInt("x"));
+                at.putInt("y", run.getInt("y"));
+                at.putInt("z", run.getInt("z"));
+                args.put("instance", at);
+                act("run_details", id, args);
+            });
+            // The row's padding (8) and its gaps (5 each) around the lines, the spacer and the buttons.
+            float lineW = w - 8 - 5 - (end == null ? 0 : 5 + end.width()) - (details == null ? 0 : 5 + details.width());
             lines.item(new LiveLine(lineW, () -> {
                 CompoundTag now = liveRun(entry, index);
                 MutableComponent line = Component.empty();
@@ -639,6 +651,9 @@ final class ActivitiesSection {
                     .maxWidth((int) lineW).ellipsis(true));
             row.item(lines);
             row.item(PlayerTabs.spacer());
+            if (details != null) {
+                row.item(details);
+            }
             if (end != null) {
                 row.item(end);
             }
