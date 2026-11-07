@@ -19,11 +19,14 @@ public final class ChatMarker {
     private static final String PREFIX = "eden_ld:line:";
     private static final String MENTION = "eden_ld:mention:";
     private static final String TEAM = ":team";
+    /** A second invisible piece on deaths, advancements and joins: "p" about the reader's party, "g" their guild. */
+    private static final String CIRCLE = "eden_ld:circle:";
     /** How deep {@link #find} looks: a chat line nests the marker in its sender part, a few levels down. */
     private static final int MAX_DEPTH = 6;
 
     public enum Kind {
-        GLOBAL, LOCAL, PARTY, GUILD, DISCORD, DEATH, ADVANCEMENT;
+        /** JOIN: joining or leaving the server; clients before 1.3.42 don't know it and read the line as unmarked. */
+        GLOBAL, LOCAL, PARTY, GUILD, DISCORD, DEATH, ADVANCEMENT, JOIN;
 
         public String id() {
             return name().toLowerCase(Locale.ROOT);
@@ -32,9 +35,15 @@ public final class ChatMarker {
 
     /**
      * A line's kind; {@code team}: about the reader, their party or their guild (deaths,
-     * advancements); {@code sender}: who wrote it (chat lines — a player's own always show).
+     * advancements); {@code sender}: who wrote it (chat lines — a player's own always show); {@code party} /
+     * {@code guild}: a death, advancement or join about the reader or a member of their party / guild (the Party and
+     * Guild tabs show only those). A line without the circle piece (an older server) counts as {@code team} for both.
      */
-    public record Mark(Kind kind, boolean team, @Nullable java.util.UUID sender) {
+    public record Mark(Kind kind, boolean team, @Nullable java.util.UUID sender, boolean party, boolean guild) {
+
+        public Mark(Kind kind, boolean team, @Nullable java.util.UUID sender) {
+            this(kind, team, sender, team, team);
+        }
     }
 
     private ChatMarker() {
@@ -96,10 +105,34 @@ public final class ChatMarker {
         return Component.empty().append(marker(kind, team, sender)).append(line);
     }
 
+    /**
+     * As {@link #mark(Component, Kind, boolean, java.util.UUID)} for a death, advancement or join, saying whether it is
+     * about the reader's party and guild ({@code team} = either).
+     */
+    public static MutableComponent mark(Component line, Kind kind, @Nullable java.util.UUID subject, boolean party,
+                                        boolean guild) {
+        return Component.empty().append(marker(kind, party || guild, subject))
+                .append(Component.literal("").withStyle(Style.EMPTY.withInsertion(
+                        CIRCLE + (party ? "p" : "") + (guild ? "g" : ""))))
+                .append(line);
+    }
+
     /** The marker in a line (in its parts and translation arguments), or null for unmarked lines. */
     @Nullable
     public static Mark find(Component line) {
-        return find(line, 0);
+        Mark mark = find(line, 0);
+        if (mark == null || !(mark.kind() == Kind.DEATH || mark.kind() == Kind.ADVANCEMENT || mark.kind() == Kind.JOIN)) {
+            return mark;
+        }
+        // The circle piece sits beside the marker, at the top of the line.
+        for (Component sibling : line.getSiblings()) {
+            String insertion = sibling.getStyle().getInsertion();
+            if (insertion != null && insertion.startsWith(CIRCLE) && sibling.getString().isEmpty()) {
+                String circle = insertion.substring(CIRCLE.length());
+                return new Mark(mark.kind(), mark.team(), mark.sender(), circle.contains("p"), circle.contains("g"));
+            }
+        }
+        return mark;
     }
 
     @Nullable

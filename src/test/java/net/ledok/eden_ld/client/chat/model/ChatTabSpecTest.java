@@ -92,7 +92,32 @@ class ChatTabSpecTest {
         assertTrue(party.shows(line(Kind.PARTY, ME), rules));
         assertFalse(party.shows(line(Kind.GLOBAL, ME), rules));
         assertFalse(party.shows(line(Kind.GUILD, BOB), rules));
-        assertTrue(party.shows(line(Kind.DEATH, BOB), rules));
+        assertTrue(party.shows(new ChatMarker.Mark(Kind.DEATH, true, BOB, true, false), rules));
+    }
+
+    @Test
+    void partyAndGuildTabsShowOnlyTheirMembersDeathsAdvancementsAndJoins() {
+        ChatTabSpec party = ChatTabSpec.of(Channel.PARTY);
+        ChatTabSpec guild = ChatTabSpec.of(Channel.GUILD);
+        ChatRules rules = rules(0, Channel.GLOBAL, true);
+        for (Kind kind : new Kind[]{Kind.DEATH, Kind.ADVANCEMENT, Kind.JOIN}) {
+            ChatMarker.Mark partyMate = new ChatMarker.Mark(kind, true, null, true, false);
+            ChatMarker.Mark guildMate = new ChatMarker.Mark(kind, true, null, false, true);
+            ChatMarker.Mark stranger = new ChatMarker.Mark(kind, false, null, false, false);
+            assertTrue(party.shows(partyMate, rules), kind.name());
+            assertFalse(party.shows(guildMate, rules), kind.name());
+            assertFalse(party.shows(stranger, rules), kind.name());
+            assertTrue(guild.shows(guildMate, rules), kind.name());
+            assertFalse(guild.shows(partyMate, rules), kind.name());
+            assertFalse(guild.shows(stranger, rules), kind.name());
+            assertTrue(ChatTabSpec.of(Channel.GLOBAL).shows(stranger, rules), kind.name());
+            assertTrue(ChatTabSpec.ALL.shows(stranger, rules), kind.name());
+            assertTrue(ChatTabSpec.SYSTEM.shows(stranger, rules), kind.name());
+        }
+        // Joins in channel tabs follow chat_system_in_tabs, as the server's lines did.
+        ChatMarker.Mark join = new ChatMarker.Mark(Kind.JOIN, true, null, true, true);
+        assertFalse(party.shows(join, rules(0, Channel.GLOBAL, false)));
+        assertTrue(ChatTabSpec.ALL.shows(join, rules(0, Channel.GLOBAL, false)));
     }
 
     @Test

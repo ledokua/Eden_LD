@@ -408,6 +408,8 @@ public final class ChatChannels {
             GuildManager.get(server).appendChat(guild, line);
             GuildServer.broadcastChatLine(server, guild, line);
         }
+        // Codex_LD's chat hints, on every channel (typed and hub panels alike).
+        net.ledok.eden_ld.compat.CodexCompat.onChat(sender, text, channel.name().toLowerCase(Locale.ROOT));
         return null;
     }
 
@@ -473,8 +475,9 @@ public final class ChatChannels {
             Object[] kindArgs = translatable.getArgs();
             UUID subject = kindArgs.length > 0 && kindArgs[0] instanceof Component name ? entityId(name) : null;
             // The subject rides in the mark too: players who ignore them don't see it.
-            broadcastTo(server, message, viewer -> ChatMarker.mark(message, kind,
-                    subject != null && sameTeam(server, viewer.getUUID(), subject), subject));
+            broadcastTo(server, message, viewer -> ChatMarker.mark(message, kind, subject,
+                    subject != null && sameParty(server, viewer.getUUID(), subject),
+                    subject != null && sameGuild(server, viewer.getUUID(), subject)));
             return false;
         }
         boolean join = key.startsWith("multiplayer.player.joined");
@@ -487,17 +490,13 @@ public final class ChatChannels {
         if (player != null && LuckPermsCompat.metaBool(player, ChatStyle.META_SILENT_JOIN, false)) {
             return false;
         }
-        if (leave && EdenLD.CONFIG.chat.red_leave_messages) {
-            announcing = true;
-            try {
-                server.getPlayerList().broadcastSystemMessage(
-                        Component.translatable(key, args).withStyle(ChatFormatting.RED), false);
-            } finally {
-                announcing = false;
-            }
-            return false;
-        }
-        return true;
+        Component line = leave && EdenLD.CONFIG.chat.red_leave_messages
+                ? Component.translatable(key, args).withStyle(ChatFormatting.RED) : message;
+        // Marked so the Party and Guild tabs show only their members' (no subject: ignoring someone keeps their joins).
+        broadcastTo(server, line, viewer -> ChatMarker.mark(line, ChatMarker.Kind.JOIN, null,
+                player != null && sameParty(server, viewer.getUUID(), player),
+                player != null && sameGuild(server, viewer.getUUID(), player)));
+        return false;
     }
 
     /** Guest emojis in the recent chat and the player's guild and party chat, before those lines show. */
@@ -521,13 +520,18 @@ public final class ChatChannels {
         return marker != null && !marker.isBlank() && plain != null && plain.stripLeading().startsWith(marker);
     }
 
-    /** Whether the viewer is the subject, or shares their party or guild. */
-    private static boolean sameTeam(MinecraftServer server, UUID viewer, UUID subject) {
+    /** Whether the viewer is the subject, or shares their party. */
+    private static boolean sameParty(MinecraftServer server, UUID viewer, UUID subject) {
         if (viewer.equals(subject)) {
             return true;
         }
         Party party = PartyManager.get(server).partyOf(viewer);
-        if (party != null && party == PartyManager.get(server).partyOf(subject)) {
+        return party != null && party == PartyManager.get(server).partyOf(subject);
+    }
+
+    /** Whether the viewer is the subject, or shares their guild. */
+    private static boolean sameGuild(MinecraftServer server, UUID viewer, UUID subject) {
+        if (viewer.equals(subject)) {
             return true;
         }
         Guild guild = GuildManager.get(server).guildOf(viewer);

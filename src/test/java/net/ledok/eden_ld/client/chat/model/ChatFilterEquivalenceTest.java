@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * The tab filters show exactly what the 1.2.5 chat window showed: every marker, setting and pip choice, against a copy
- * of the old {@code ChatFilter.hidden} (with its inputs passed in).
+ * of the old {@code ChatFilter.hidden} (with its inputs passed in) — but for 1.3.42's one change: the Party and Guild
+ * views show only their members' deaths and advancements (an old-style mark counts as {@code team} for both).
  */
 class ChatFilterEquivalenceTest {
 
@@ -50,6 +51,7 @@ class ChatFilterEquivalenceTest {
             case PARTY -> oldChannelHidden(settings, 2, Channel.PARTY, own, selected);
             case GUILD -> oldChannelHidden(settings, 3, Channel.GUILD, own, selected);
             case DISCORD -> oldChannelHidden(settings, 4, Channel.GLOBAL, own, selected);
+            case JOIN -> throw new IllegalArgumentException("1.2.5 had no join marks");
         };
     }
 
@@ -87,6 +89,9 @@ class ChatFilterEquivalenceTest {
         Channel[] selections = Arrays.copyOf(Channel.values(), Channel.values().length + 1);
         int checked = 0;
         for (ChatMarker.Kind kind : ChatMarker.Kind.values()) {
+            if (kind == ChatMarker.Kind.JOIN) {
+                continue; // 1.3.42: joins were unmarked lines before
+            }
             for (boolean team : new boolean[]{false, true}) {
                 for (UUID sender : senders) {
                     ChatMarker.Mark mark = new ChatMarker.Mark(kind, team, sender);
@@ -110,11 +115,13 @@ class ChatFilterEquivalenceTest {
                 }
             }
         }
-        assertEquals(7 * 2 * 4 * 2 * 5 * (1 + 32 * 2 * 3 * 3), checked);
+        assertEquals((ChatMarker.Kind.values().length - 1) * 2 * 4 * 2 * 5 * (1 + 32 * 2 * 3 * 3), checked);
     }
 
     private static int compare(ChatMarker.Mark mark, boolean systemView, Settings settings, Channel selected) {
-        boolean before = oldHidden(mark, systemView, settings, selected);
+        boolean before = oldHidden(mark, systemView, settings, selected) || mark != null && !mark.team()
+                && (mark.kind() == ChatMarker.Kind.DEATH || mark.kind() == ChatMarker.Kind.ADVANCEMENT) && !systemView
+                && settings != null && settings.focus() && (selected == Channel.PARTY || selected == Channel.GUILD);
         boolean after = newHidden(mark, systemView, settings, selected);
         assertEquals(before, after, () -> mark + " system=" + systemView + " " + settings + " selected=" + selected);
         return 1;

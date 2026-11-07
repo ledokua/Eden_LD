@@ -68,7 +68,8 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
      * Spy and PM — in a channel's tab only while {@link ChatRules#systemInTabs()}, and in System alone when they're
      * system-only ({@code systemOnly}: other admins' command echoes, routine notices) under
      * {@link ChatRules#systemOnly()}; an ignored player's lines nowhere, the player's own aside; deaths and
-     * advancements by their own settings, in every tab; a channel's lines unless switched off in Settings → Chat — the
+     * advancements by their own settings, in every tab
+     * (Party's and Guild's only their members'; joins likewise, else as the server's lines); a channel's lines unless switched off in Settings → Chat — the
      * channel typed into always shows its own, and the player's lines ignore the switches. Discord lines have their
      * own switch (bit 4), even in Global.
      */
@@ -87,8 +88,13 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
         if (mark == null) {
             return true;
         }
-        if (kind == Kind.SYSTEM && mark.kind() != ChatMarker.Kind.DEATH && mark.kind() != ChatMarker.Kind.ADVANCEMENT) {
+        if (kind == Kind.SYSTEM && mark.kind() != ChatMarker.Kind.DEATH && mark.kind() != ChatMarker.Kind.ADVANCEMENT
+                && mark.kind() != ChatMarker.Kind.JOIN) {
             return false;
+        }
+        // Joins and leaves show as the server's lines did; the Party and Guild tabs take only their members'.
+        if (mark.kind() == ChatMarker.Kind.JOIN) {
+            return kind != Kind.CHANNEL || rules.systemInTabs() && inCircle(mark);
         }
         boolean own = mark.sender() != null && mark.sender().equals(rules.self());
         if (!own && rules.ignores(mark.sender())) {
@@ -96,13 +102,26 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
         }
         return switch (mark.kind()) {
             // A death or advancement carries its subject only for the ignore list; the switches apply to the player's own too.
-            case DEATH -> rules.shown(rules.deaths(), mark.team());
-            case ADVANCEMENT -> rules.shown(rules.advancements(), mark.team());
+            case DEATH -> rules.shown(rules.deaths(), mark.team()) && inCircle(mark);
+            case ADVANCEMENT -> rules.shown(rules.advancements(), mark.team()) && inCircle(mark);
+            case JOIN -> true;
             case GLOBAL -> channelShown(0, Channel.GLOBAL, own, rules);
             case LOCAL -> channelShown(1, Channel.LOCAL, own, rules);
             case PARTY -> channelShown(2, Channel.PARTY, own, rules);
             case GUILD -> channelShown(3, Channel.GUILD, own, rules);
             case DISCORD -> channelShown(4, Channel.GLOBAL, own, rules);
+        };
+    }
+
+    /** Whether a death, advancement or join belongs in this tab: Party's and Guild's take only their members'. */
+    private boolean inCircle(ChatMarker.Mark mark) {
+        if (kind != Kind.CHANNEL) {
+            return true;
+        }
+        return switch (channel) {
+            case PARTY -> mark.party();
+            case GUILD -> mark.guild();
+            default -> true;
         };
     }
 
