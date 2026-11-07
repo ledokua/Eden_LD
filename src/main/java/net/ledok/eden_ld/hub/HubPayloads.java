@@ -2228,6 +2228,55 @@ public final class HubPayloads {
         }
     }
 
+    /** C2S: what lobby is the player in (asked every 2 s while the Activities tab shows). */
+    public record OwnLobbyRequest() implements CustomPacketPayload {
+        public static final OwnLobbyRequest INSTANCE = new OwnLobbyRequest();
+        public static final Type<OwnLobbyRequest> TYPE = new Type<>(id("own_lobby_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OwnLobbyRequest> CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S: open the player's own lobby screen (the Activities tab's "My lobby" button). */
+    public record OwnLobbyOpen() implements CustomPacketPayload {
+        public static final OwnLobbyOpen INSTANCE = new OwnLobbyOpen();
+        public static final Type<OwnLobbyOpen> TYPE = new Type<>(id("own_lobby_open"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OwnLobbyOpen> CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * S2C: the lobby the player is in ({@code present} false: none), for the Activities tab's "My lobby" button: its
+     * activity's name, members of the most it takes, and whether its run started.
+     */
+    public record OwnLobbyData(boolean present, net.minecraft.network.chat.Component name, int members, int maxMembers,
+                               boolean inRun) implements CustomPacketPayload {
+        public static final OwnLobbyData NONE = new OwnLobbyData(false, net.minecraft.network.chat.Component.empty(), 0, 0, false);
+        public static final Type<OwnLobbyData> TYPE = new Type<>(id("own_lobby_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OwnLobbyData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeBoolean(p.present);
+                    net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(buf, p.name);
+                    buf.writeVarInt(p.members);
+                    buf.writeVarInt(p.maxMembers);
+                    buf.writeBoolean(p.inRun);
+                },
+                buf -> new OwnLobbyData(buf.readBoolean(), net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
+                        buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: the player saw the Activities tab — its new unlocks stop being new. */
     public record ActivitiesSeen() implements CustomPacketPayload {
         public static final ActivitiesSeen INSTANCE = new ActivitiesSeen();
@@ -3637,6 +3686,9 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(WaystoneOrder.TYPE, WaystoneOrder.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivitiesRequest.TYPE, ActivitiesRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivityOpen.TYPE, ActivityOpen.CODEC);
+        PayloadTypeRegistry.playC2S().register(OwnLobbyRequest.TYPE, OwnLobbyRequest.CODEC);
+        PayloadTypeRegistry.playC2S().register(OwnLobbyOpen.TYPE, OwnLobbyOpen.CODEC);
+        PayloadTypeRegistry.playS2C().register(OwnLobbyData.TYPE, OwnLobbyData.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivitiesSeen.TYPE, ActivitiesSeen.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsView.TYPE, DuelsView.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsQueue.TYPE, DuelsQueue.CODEC);

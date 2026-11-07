@@ -148,6 +148,7 @@ final class ActivitiesTab {
             }
         }
 
+        OwnLobbyButton.build(content);
         Flex filters = Flex.row().gap(3).alignItems(Align.CENTER);
         filters.sizing(Sizing.fill(), Sizing.content());
         List<Filter> shownFilters = new ArrayList<>();

@@ -181,6 +181,7 @@ public class EdenLDClient implements ClientModInitializer {
         });
 
         WebsitePriceTooltip.initialize();
+        net.ledok.eden_ld.client.hub.OwnLobbyButton.initialize();
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.HubTours.TYPE,
                 (payload, context) -> net.ledok.eden_ld.client.hub.HubHelp.onTours(payload.tabs()));
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.IgnoreData.TYPE, (payload, context) -> {

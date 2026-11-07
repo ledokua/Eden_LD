@@ -30,6 +30,20 @@ public interface ActivitySource {
     /** Opens the activity's lobby screen (or whatever "go there" means) for the player; false if unknown. */
     boolean open(ServerPlayer player, ResourceLocation activity);
 
+    /** The lobby the player is in: its activity's name, members of the most it takes, and whether its run started. */
+    record OwnLobby(Component name, int members, int maxMembers, boolean inRun) {
+    }
+
+    /** The player's own lobby in this source, if they're in one (cheap: asked every 2 s while the tab shows). */
+    default Optional<OwnLobby> ownLobby(ServerPlayer player) {
+        return Optional.empty();
+    }
+
+    /** Opens the player's own lobby screen from anywhere; false when they have none here. */
+    default boolean openOwnLobby(ServerPlayer player) {
+        return false;
+    }
+
     // ---------------------------------------------------------------- admin (Moderation → Activities)
 
     /** What the Moderation window may do with this source's activities. */

@@ -50,6 +50,16 @@ public final class ActivityServer {
                 (payload, context) -> send(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityOpen.TYPE,
                 (payload, context) -> open(context.player(), payload.id()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyRequest.TYPE,
+                (payload, context) -> sendOwnLobby(context.player()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyOpen.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            if (!Activities.openOwnLobby(player)) {
+                ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
+                        net.minecraft.network.chat.Component.translatable("message.eden_ld.activities.no_lobby"), false));
+                sendOwnLobby(player);
+            }
+        });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesSeen.TYPE,
                 (payload, context) -> seen(context.player()));
         // After the join sync settles (see HubServer): the badge and Home card for unseen unlocks.
@@ -65,6 +75,14 @@ public final class ActivityServer {
                 server.getPlayerList().getPlayers().forEach(player -> checkUnlocks(server, player));
             }
         });
+    }
+
+    /** The Activities tab's "My lobby" button: the lobby the player is in, or none. */
+    private static void sendOwnLobby(ServerPlayer player) {
+        HubPayloads.OwnLobbyData data = Activities.ownLobby(player)
+                .map(lobby -> new HubPayloads.OwnLobbyData(true, lobby.name(), lobby.members(), lobby.maxMembers(), lobby.inRun()))
+                .orElse(HubPayloads.OwnLobbyData.NONE);
+        ServerPlayNetworking.send(player, data);
     }
 
     // ---------------------------------------------------------------- unlocks

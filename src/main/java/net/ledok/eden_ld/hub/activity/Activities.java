@@ -28,6 +28,27 @@ public final class Activities {
     private Activities() {
     }
 
+    /** The lobby the player is in, from the first source that has one. */
+    public static Optional<ActivitySource.OwnLobby> ownLobby(ServerPlayer player) {
+        for (ActivitySource source : SOURCES) {
+            Optional<ActivitySource.OwnLobby> lobby = source.ownLobby(player);
+            if (lobby.isPresent()) {
+                return lobby;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Opens the player's own lobby screen; false when no source has one for them. */
+    public static boolean openOwnLobby(ServerPlayer player) {
+        for (ActivitySource source : SOURCES) {
+            if (source.openOwnLobby(player)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void register(ActivitySource source) {
         SOURCES.add(source);
         changed();

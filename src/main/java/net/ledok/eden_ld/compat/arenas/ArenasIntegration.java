@@ -36,6 +36,8 @@ final class ArenasIntegration implements ActivitySource {
 
     /** The running Arenas_LD has the admin calls (4.9.0+). */
     private static final boolean ADMIN = adminApi();
+    /** The running Arenas_LD tells a player's own lobby and opens it (4.21.0+). */
+    private static final boolean OWN_LOBBY = ownLobbyApi();
 
     private ArenasIntegration() {
     }
@@ -66,6 +68,16 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("registerEntryRequirement",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$EntryRequirement"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean ownLobbyApi() {
+        try {
+            ArenasApi.class.getMethod("ownLobby", ServerPlayer.class);
+            ArenasApi.class.getMethod("openOwnLobby", ServerPlayer.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -111,6 +123,16 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public boolean open(ServerPlayer player, ResourceLocation activity) {
         return ArenasApi.openLobbies(player, activity);
+    }
+
+    @Override
+    public Optional<OwnLobby> ownLobby(ServerPlayer player) {
+        return OWN_LOBBY ? ArenasOwnLobby.of(player) : Optional.empty();
+    }
+
+    @Override
+    public boolean openOwnLobby(ServerPlayer player) {
+        return OWN_LOBBY && ArenasOwnLobby.open(player);
     }
 
     // ---------------------------------------------------------------- admin (4.9.0+)
