@@ -62,7 +62,57 @@ public final class KitsCompat {
         }
     }
 
+    /** Ids of the hidden (API-only) kits whose id starts with {@code prefix}; empty without Kits_LD 0.3.0+. */
+    public static List<net.minecraft.resources.ResourceLocation> hiddenKitIds(String prefix) {
+        if (!ready()) {
+            return List.of();
+        }
+        try {
+            return Api.hiddenKitIds(prefix);
+        } catch (LinkageError e) {
+            return List.of();
+        }
+    }
+
+    /** Whether the kit exists (hidden or not); false without Kits_LD 0.3.0+. */
+    public static boolean exists(net.minecraft.resources.ResourceLocation kit) {
+        if (!ready()) {
+            return false;
+        }
+        try {
+            return Api.exists(kit);
+        } catch (LinkageError e) {
+            return false;
+        }
+    }
+
+    /** Copies of everything the kit gives (for previews); empty when it's missing. */
+    public static List<ItemStack> contents(net.minecraft.resources.ResourceLocation kit) {
+        if (!ready()) {
+            return List.of();
+        }
+        try {
+            return Api.contents(kit);
+        } catch (LinkageError e) {
+            return List.of();
+        }
+    }
+
     private static final class Api {
+        static List<net.minecraft.resources.ResourceLocation> hiddenKitIds(String prefix) {
+            return net.ledok.kitsld.api.KitsApi.hiddenKits(prefix).stream()
+                    .map(net.ledok.kitsld.api.KitsApi.KitView::id).toList();
+        }
+
+        static boolean exists(net.minecraft.resources.ResourceLocation kit) {
+            return net.ledok.kitsld.api.KitsApi.exists(kit);
+        }
+
+        static List<ItemStack> contents(net.minecraft.resources.ResourceLocation kit) {
+            return net.ledok.kitsld.api.KitsApi.kit(kit).map(net.ledok.kitsld.api.KitsApi.KitView::contents)
+                    .orElse(List.of());
+        }
+
         static boolean ready() {
             return net.ledok.kitsld.KitsLd.manager() != null;
         }

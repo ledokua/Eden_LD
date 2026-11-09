@@ -42,6 +42,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean RESET_COOLDOWNS = resetCooldownsApi();
     /** The running Arenas_LD tells a player's own lobby and opens it (4.21.0+). */
     private static final boolean OWN_LOBBY = ownLobbyApi();
+    /** The running Arenas_LD takes rental builds for runs (4.26.0+). */
+    private static final boolean RENTAL = rentalApi();
 
     private ArenasIntegration() {
     }
@@ -62,8 +64,11 @@ final class ArenasIntegration implements ActivitySource {
         if (requirementApi()) {
             ArenasRequirement.register();
         }
-        EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}.",
-                ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY);
+        if (RENTAL) {
+            ArenasRental.register();
+        }
+        EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}, "
+                + "rental builds {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY, RENTAL);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -94,6 +99,16 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("resetCooldowns", MinecraftServer.class, ResourceLocation.class,
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$InstanceRef"), String.class);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean rentalApi() {
+        try {
+            ArenasApi.class.getMethod("setRentalProvider",
+                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$RentalProvider"));
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
