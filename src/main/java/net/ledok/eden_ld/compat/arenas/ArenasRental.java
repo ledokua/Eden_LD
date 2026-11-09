@@ -10,12 +10,14 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
  * Rental builds in Arenas runs (Arenas 4.26.0+): Eden's stash behind Arenas' rental provider. Loadouts are Kits_LD's
- * hidden kits {@code falleneden:rental/<class>/<band>}. The only class touching the 4.26.0 types; registered only
+ * hidden kits {@code falleneden:rental/<class>/<level>}. The only class touching the 4.26.0 types; registered only
  * when the running Arenas_LD has them.
  */
 final class ArenasRental implements ArenasApi.RentalProvider {
@@ -24,8 +26,10 @@ final class ArenasRental implements ArenasApi.RentalProvider {
     /** Arenas asks for the classes once a second per lobby member: the kit list is read at most this often. */
     private static final long CLASSES_TTL_MS = 10_000L;
 
+    /** Each class's kit levels, ascending (from the kit ids). */
+    private Map<String, int[]> levels = Map.of();
     private List<String> classes = List.of();
-    private long classesRead;
+    private long read;
 
     private ArenasRental() {
     }
@@ -34,29 +38,58 @@ final class ArenasRental implements ArenasApi.RentalProvider {
         ArenasApi.setRentalProvider(new ArenasRental());
     }
 
+    /** Re-reads the kit list at most every {@link #CLASSES_TTL_MS}. */
+    private void refresh() {
+        long now = System.currentTimeMillis();
+        if (now - read <= CLASSES_TTL_MS) {
+            return;
+        }
+        Map<String, List<Integer>> found = new LinkedHashMap<>();
+        for (ResourceLocation id : KitsCompat.hiddenKitIds(PREFIX)) {
+            // falleneden:rental/<class>/<level>
+            String[] parts = id.getPath().split("/");
+            if (parts.length != 3) {
+                continue;
+            }
+            try {
+                found.computeIfAbsent(parts[1], key -> new ArrayList<>()).add(Integer.parseInt(parts[2]));
+            } catch (NumberFormatException ignored) {
+                // Not a level: not a rental loadout.
+            }
+        }
+        Map<String, int[]> sorted = new LinkedHashMap<>();
+        found.forEach((cls, list) -> sorted.put(cls, list.stream().mapToInt(Integer::intValue).sorted().toArray()));
+        levels = sorted;
+        classes = List.copyOf(sorted.keySet());
+        read = now;
+    }
+
     @Override
     public List<String> classes() {
-        long now = System.currentTimeMillis();
-        if (now - classesRead > CLASSES_TTL_MS) {
-            List<String> found = new ArrayList<>();
-            for (ResourceLocation id : KitsCompat.hiddenKitIds(PREFIX)) {
-                // falleneden:rental/<class>/<band>
-                String[] parts = id.getPath().split("/");
-                if (parts.length == 3 && !found.contains(parts[1])) {
-                    found.add(parts[1]);
-                }
-            }
-            classes = List.copyOf(found);
-            classesRead = now;
-        }
+        refresh();
         return classes;
     }
 
+    /**
+     * The class's kit for a player of this level: the highest {@code falleneden:rental/<class>/<N>} with N at or below
+     * the level (LeDok, 2026-11-09: kits 0/5/10/15 → level 12 gets 10, level 50 gets 15, level 0 gets 0). Null when
+     * the class has none that low.
+     */
     @Nullable
     @Override
-    public String kitFor(String playerClass, int band) {
-        ResourceLocation id = ResourceLocation.tryParse(PREFIX + playerClass + "/" + band);
-        return id != null && KitsCompat.exists(id) ? id.toString() : null;
+    public String kitFor(String playerClass, int level) {
+        refresh();
+        int[] kits = levels.get(playerClass);
+        if (kits == null) {
+            return null;
+        }
+        int best = -1;
+        for (int kit : kits) {
+            if (kit <= level) {
+                best = kit;
+            }
+        }
+        return best < 0 ? null : PREFIX + playerClass + "/" + best;
     }
 
     @Override
