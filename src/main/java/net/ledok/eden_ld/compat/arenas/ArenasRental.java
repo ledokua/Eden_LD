@@ -80,7 +80,7 @@ final class ArenasRental implements ArenasApi.RentalProvider {
         return EdenRentalApi.isRenting(player);
     }
 
-    /** The kit's contents for the lobby preview (part of the provider from Arenas 4.26.0's final build). */
+    @Override
     public List<ItemStack> preview(String kitId) {
         ResourceLocation kit = ResourceLocation.tryParse(kitId);
         return kit == null ? List.of() : KitsCompat.contents(kit);
