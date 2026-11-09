@@ -123,6 +123,10 @@ dependencies {
     modCompileOnly files("libs/Economy_LD-1.0.2.jar")
     // Codex_LD: chat hints hear every channel (compat/CodexCompat).
     modCompileOnly files("libs/Codex_LD-fabric-0.2.2.jar")
+    // Combat Roll — optional: rolls cost stamina (combat/Stamina). AsteorBar — optional: stamina in its oxygen bar
+    // (mixin/compat/asteorbar). Copies of the pack's jars.
+    modCompileOnly files("libs/combat_roll-fabric-2.0.6+1.21.1.jar")
+    modCompileOnly files("libs/asteorbar-fabric-1.21.1-1.5.4-dev.jar")
     modLocalRuntime files("libs/Economy_LD-1.0.2.jar")
     // Its bundled SQLite driver isn't unpacked from a local jar in the dev run.
     localRuntime "org.xerial:sqlite-jdbc:3.49.1.0"

@@ -32,6 +32,7 @@ public class EdenLDClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        net.ledok.eden_ld.client.fix.CrumblingTest.registerIfRequested();
         // Headings and {size:} spans in Markdown (mail) draw at their size.
         net.ledok.vectorlib.client.text.TextSizes.register();
         // FTB Library's sidebar buttons stay off the Moderation window.
@@ -109,6 +110,8 @@ public class EdenLDClient implements ClientModInitializer {
             net.ledok.eden_ld.client.hub.RemoteImages.clear();
             net.ledok.eden_ld.client.theme.HubThemes.select(net.ledok.eden_ld.client.theme.HubTheme.PARCHMENT_ID);
         });
+        net.ledok.eden_ld.client.ClientStamina.register();
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> net.ledok.eden_ld.combat.Stealth.install());
         ClientPlayNetworking.registerGlobalReceiver(net.ledok.eden_ld.combat.CombatTag.Sync.TYPE,
                 (payload, context) -> ClientCombatTag.onSync(payload.millis()));
         // The PvP toggle: the player's own state, and who else has PvP on or is dueling (targeting, nameplates).

@@ -12,7 +12,6 @@ import net.ledok.vectorlib.client.presentation.Spotlight;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
-import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -20,10 +19,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The hub's button in the player's inventory, under the crafting grid — where the recipe book button
- * would be; Not Enough Recipe Book removes that on Fallen Eden, and where it's kept the hub button sits
- * beside it. It opens the hub ({@link HubScreen#open}), and closing the hub comes back to the inventory. The PvP
- * button ({@link InventoryPvpButton}) sits right of it where the server runs the toggle.
+ * The hub's button in the player's inventory, above the panel's top-right edge in a row with Codex_LD's book
+ * (which sits at 158, -17): under the crafting grid other mods' buttons came and went (Not Enough Recipe Book 0.6 put
+ * one under ours). It opens the hub ({@link HubScreen#open}), and closing the hub comes back to the inventory. The PvP
+ * button ({@link InventoryPvpButton}) sits right of it, between it and the book, where the server runs the toggle.
  */
 public final class InventoryHubButton extends AbstractButton {
 
@@ -32,22 +31,19 @@ public final class InventoryHubButton extends AbstractButton {
     static final int SIZE = 18;
     /** Between this button and the PvP button. */
     private static final int GAP = 2;
-    /** Under the crafting grid's left column (in the inventory's own units). */
-    private static final int X = 97;
-    private static final int Y = 58;
-    /** Beside a recipe book button (vanilla's sits at 104, 61). */
-    private static final int X_BESIDE_RECIPE_BOOK = 126;
-    private static final int Y_BESIDE_RECIPE_BOOK = 61;
+    /** Left of the Codex book, bottoms level with it (in the inventory's own units). */
+    private static final int X = 118;
+    private static final int Y = -19;
 
     private final AbstractContainerScreenAccessor screen;
     private final int offsetX;
     private final int offsetY;
 
-    private InventoryHubButton(InventoryScreen screen, boolean recipeBook) {
+    private InventoryHubButton(InventoryScreen screen) {
         super(0, 0, SIZE, SIZE, Component.translatable("gui.eden_ld.hub.title"));
         this.screen = (AbstractContainerScreenAccessor) screen;
-        this.offsetX = recipeBook ? X_BESIDE_RECIPE_BOOK : X;
-        this.offsetY = recipeBook ? Y_BESIDE_RECIPE_BOOK : Y;
+        this.offsetX = X;
+        this.offsetY = Y;
         setTooltip(Tooltip.create(Component.translatable("gui.eden_ld.inventory.hub",
                 EdenLDClient.hubKey.getTranslatedKeyMessage())));
         place();
@@ -57,7 +53,7 @@ public final class InventoryHubButton extends AbstractButton {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             // Only where the server runs Eden (elsewhere the hub would wait for data forever).
             if (screen instanceof InventoryScreen inventory && ClientPlayNetworking.canSend(HubPayloads.ProfileRequest.TYPE)) {
-                InventoryHubButton hub = new InventoryHubButton(inventory, recipeBook(inventory));
+                InventoryHubButton hub = new InventoryHubButton(inventory);
                 Screens.getButtons(screen).add(hub);
                 // An older Eden server has no toggle: no button (its players count as PvP off).
                 if (ClientPlayNetworking.canSend(HubPayloads.PvpToggle.TYPE)) {
@@ -76,13 +72,6 @@ public final class InventoryHubButton extends AbstractButton {
             }
             return null;
         });
-    }
-
-    /** Whether the inventory kept vanilla's recipe book button (Not Enough Recipe Book's other modes). */
-    private static boolean recipeBook(InventoryScreen inventory) {
-        int left = ((AbstractContainerScreenAccessor) inventory).eden_ld$leftPos();
-        return Screens.getButtons(inventory).stream()
-                .anyMatch(widget -> widget instanceof ImageButton && widget.getX() == left + 104);
     }
 
     /** Follows the panel, which a recipe book opening beside it moves. */

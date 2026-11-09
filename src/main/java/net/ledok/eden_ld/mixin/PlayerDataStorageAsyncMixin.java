@@ -33,7 +33,17 @@ public abstract class PlayerDataStorageAsyncMixin {
     private void eden_ld$saveOffThread(Player player, CallbackInfo ci) {
         File file = new File(playerDir, player.getStringUUID() + ".dat");
         if (PlayerSaves.inSaveAll() && EdenLD.CONFIG.saving.async_player_saves && AsyncSavedData.canQueue()) {
-            CompoundTag tag = player.saveWithoutId(new CompoundTag());
+            CompoundTag tag;
+            try {
+                tag = player.saveWithoutId(new CompoundTag());
+            } catch (Exception e) {
+                // Vanilla's save() catches this and logs "Failed to save player data"; a broken item (e.g. a count-0
+                // stack in a Trinkets slot) must not take the whole autosave down. Fall through to vanilla for it.
+                EdenLD.LOGGER.warn("Async player save failed for {}, using the vanilla save instead",
+                        player.getName().getString(), e);
+                AsyncSavedData.awaitFile(file);
+                return;
+            }
             AsyncSavedData.queuePlayer(file.toPath(), new File(playerDir, player.getStringUUID() + ".dat_old").toPath(), tag.copy());
             ci.cancel();
             return;

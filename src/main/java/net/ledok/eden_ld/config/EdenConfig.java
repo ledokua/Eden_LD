@@ -29,6 +29,8 @@ public class EdenConfig {
     public Tutorial tutorial = new Tutorial();
     public Villagers villagers = new Villagers();
     public Saving saving = new Saving();
+    public Hoppers hoppers = new Hoppers();
+    public ClientFixes client_fixes = new ClientFixes();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -373,6 +375,27 @@ public class EdenConfig {
         public int poi_search_interval_ticks = 100;
     }
 
+    /** Client-side fixes for crashes between other mods (each player's own config; defaults on). */
+    public static class ClientFixes {
+        /**
+         * A block entity being mined (an Extended Drawers drawer showing an item, with Sodium, ImmediatelyFast and Better
+         * Block Entities) crashed the client with "Not building!". Each crumbling layer now gets the current crumbling
+         * buffer instead of one taken when the block entity started drawing. False = Sodium's behaviour.
+         */
+        public boolean fresh_crumbling_overlay = true;
+    }
+
+    /** Hopper costs (Observable: a hopper feeding an Extended Drawers access point took 328 µs every tick). */
+    public static class Hoppers {
+        /**
+         * When a hopper can't push into (or pull from) another mod's storage with 128+ slots (storage networks such as
+         * an Extended Drawers access point or Tom's Storage), it retries after 2, 4, 8, 16, then 20 ticks instead of
+         * every tick: each try checks every slot of the network. Reset when the hopper's contents or the block it
+         * faces change. Vanilla containers and small storages keep vanilla timing. False = vanilla.
+         */
+        public boolean back_off_on_large_storages = true;
+    }
+
     /** World saving costs (live spark profile: the 5-minute autosave froze the server 2–4 s, mostly writing .dat files). */
     public static class Saving {
         /**
@@ -427,6 +450,77 @@ public class EdenConfig {
         public double liandry_power_per_second = 0.10;
         /** The spell power attribute Liandry's Torment scales with. */
         public String liandry_spell_school = "spell_power:arcane";
+
+        /**
+         * Effects that hide a player the way mrpg_lib's stealth does (Infiltrator's Vanish): others see nothing, not even
+         * armor or held items; the player sees themself faded. Rogues' Stealth on its own leaves the armor showing.
+         * Needs mrpg_lib. Each player's own config draws it; the server's config decides the particles below.
+         */
+        public List<String> stealth_effects = new ArrayList<>(List.of("rogues:stealth"));
+        /** A player in stealth (mrpg_lib's or {@link #stealth_effects}) sends no effect particles. */
+        public boolean stealth_hides_effect_particles = true;
+
+        /** Most a player's {@code eden_ld:damage_reduction} can lower a hit, in percent (gear and buffs stack up to it). */
+        public double damage_reduction_cap = 80.0;
+        /** Share of the damage reduction that works against other players' hits (0.5 = half). */
+        public double damage_reduction_pvp_share = 0.5;
+        /**
+         * Damage types the reduction leaves alone, besides every hazard in {@code hazards.json} (falls, fire, lava,
+         * drowning…, which scale with health). {@code minecraft:magic} is poison and Instant Damage.
+         */
+        public List<String> damage_reduction_exempt = new ArrayList<>(List.of("minecraft:magic", "minecraft:generic_kill"));
+        /**
+         * Rebuild old RPG Series armor pieces in players' inventories with the current set stats (damage reduction, no
+         * armor points, 3% evasion), keeping Dungeon Difficulty's health and Limit Break's bonuses on them.
+         */
+        public boolean update_old_armor_stats = true;
+        /** Healing a player gets while PvP combat-tagged ({@link #pvp_tag_seconds}), as a share: 0.5 = half. 1 = off. */
+        public double pvp_healing_received = 0.5;
+
+        /**
+         * Attack speed diminishing returns: above {@code attack_speed_soft_cap} only {@code attack_speed_share_above_cap}
+         * of the rest counts, and the result never exceeds {@code attack_speed_hard_cap}. Soft cap 0 = off.
+         */
+        public double attack_speed_soft_cap = 4.5;
+        public double attack_speed_share_above_cap = 0.5;
+        public double attack_speed_hard_cap = 6.5;
+
+        /** Combat Roll costs stamina instead of charges (needs Combat Roll; Balance/COMBAT-REWORK.md section 6). */
+        public boolean stamina_enabled = true;
+        /** Least ticks between two rolls. */
+        public int roll_gap_ticks = 10;
+        /** Ticks regen waits after each roll. */
+        public int stamina_regen_pause_ticks = 10;
+        /** Stamina in AsteorBar's oxygen bar (ARGB), and while exhausted. */
+        public int stamina_color = 0xFFE8C23A;
+        public int stamina_exhausted_color = 0xFF8A8A8A;
+        /**
+         * Dodge types, picked from the worn armor's {@code falleneden:armor_roll/*} tags. Added to the base attributes
+         * (max stamina 100, regen 30/s, roll cost 25, exhaustion delay 2 s) and Combat Roll's distance (3 blocks);
+         * {@code invulnerable_ticks} replaces Combat Roll's.
+         */
+        public RollType roll_fast = new RollType(0, 0, 0, 0.5, 8);
+        public RollType roll_medium = new RollType(10, -8, 0.5, 0, 7);
+        public RollType roll_heavy = new RollType(20, -15, 1.0, -0.5, 6);
+
+        public static class RollType {
+            public double cost;
+            public double regen;
+            public double exhaustion_delay;
+            public double distance;
+            public int invulnerable_ticks;
+
+            public RollType() {
+            }
+
+            RollType(double cost, double regen, double exhaustionDelay, double distance, int invulnerableTicks) {
+                this.cost = cost;
+                this.regen = regen;
+                this.exhaustion_delay = exhaustionDelay;
+                this.distance = distance;
+                this.invulnerable_ticks = invulnerableTicks;
+            }
+        }
     }
 
     /**

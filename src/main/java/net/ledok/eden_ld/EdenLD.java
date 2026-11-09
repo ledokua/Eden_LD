@@ -53,6 +53,7 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.hub.moderation.PunishStaff.initialize();
         net.ledok.eden_ld.hub.moderation.ReportDesk.initialize();
         net.ledok.eden_ld.hub.JoinNotices.initialize();
+        net.ledok.eden_ld.world.HopperBackoffBenchmark.registerIfRequested();
         // Starter daily quests, shipped disabled: /datapack enable "eden_ld:test_dailies".
         net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
                 net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(
@@ -67,6 +68,9 @@ public class EdenLD implements ModInitializer {
                         net.fabricmc.fabric.api.resource.ResourcePackActivationType.NORMAL));
         net.ledok.eden_ld.combat.CombatTag.initialize();
         net.ledok.eden_ld.combat.PlayerPvp.initialize();
+        net.ledok.eden_ld.combat.Stealth.initialize();
+        net.ledok.eden_ld.combat.Stamina.initialize();
+        net.ledok.eden_ld.combat.ArmorStatsMigration.initialize();
         CombatTeamsCompat.initialize();
         net.ledok.eden_ld.compat.PlaceholdersCompat.initialize();
         net.ledok.eden_ld.compat.opac.OpacCompat.initialize();
