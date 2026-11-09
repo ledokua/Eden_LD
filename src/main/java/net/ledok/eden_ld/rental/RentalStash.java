@@ -66,6 +66,16 @@ public final class RentalStash {
 
     /** Running sessions by player (kept while they're offline; a restart forgets them, and the login ends them). */
     private static final Map<UUID, String> LIVE = new ConcurrentHashMap<>();
+    /**
+     * Health to set once the swapped gear's attributes are in (equipment and Trinkets apply their modifiers on the
+     * player's next ticks): the share of max health, by player.
+     */
+    private static final Map<UUID, Heal> HEAL = new ConcurrentHashMap<>();
+    /** Ticks to wait before {@link #HEAL}: past the equipment tick and Trinkets' own. */
+    private static final int HEAL_DELAY_TICKS = 3;
+
+    private record Heal(float share, int dueTick) {
+    }
 
     private static int ticks;
     /** While a renter dies: anything dropped on the ground then (by any mod) is removed. */
@@ -79,7 +89,11 @@ public final class RentalStash {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> LIVE.clear());
         // Once a second: rental items only ever stay with their renter (anything that slipped past the guards goes).
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (++ticks % 20 == 0) {
+            ++ticks;
+            if (!HEAL.isEmpty()) {
+                healDue(server);
+            }
+            if (ticks % 20 == 0) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                     sweep(player);
                 }
@@ -181,6 +195,8 @@ public final class RentalStash {
         }
         int given = tagAll(player, session);
         player.inventoryMenu.broadcastChanges();
+        // The loadout's armor changes max health: they start the fight full.
+        healLater(player, 1.0f);
         EdenLD.LOGGER.info("[Rental] {} began rental session {} ({}): {} own stacks put aside{}, {} loadout stacks given.",
                 player.getGameProfile().getName(), session, kit == null ? "custom loadout" : kit, own,
                 SKILLS ? " with the skill tree" : "", given);
@@ -238,6 +254,8 @@ public final class RentalStash {
             player.giveExperiencePoints(deathXp);
         }
         player.removeAttached(STASH);
+        // Their own gear's max health: the same share of it as they had of the loadout's.
+        healLater(player, player.getHealth() / Math.max(1.0f, player.getMaxHealth()));
         int dropped = 0;
         for (ItemStack stack : kept) {
             if (!inventory.add(stack) && !stack.isEmpty()) {
@@ -276,6 +294,7 @@ public final class RentalStash {
         // Tagged as they're given (anything else they hold now, loot from chests say, stays theirs).
         boolean given = KitsCompat.giveHidden(player, kit, stack -> RentalItems.tag(stack, session));
         player.inventoryMenu.broadcastChanges();
+        healLater(player, 1.0f);
         return given;
     }
 
@@ -376,6 +395,25 @@ public final class RentalStash {
         // Their experience doesn't drop either: given back at the end (the respawn starts at 0, as after any death).
         record.putInt("death_xp", record.getInt("death_xp") + experiencePoints(player));
         player.setAttached(STASH, record);
+    }
+
+    /** Sets the player's health to {@code share} of their max health a few ticks from now (see {@link #HEAL}). */
+    private static void healLater(ServerPlayer player, float share) {
+        HEAL.put(player.getUUID(), new Heal(Math.max(0.0f, Math.min(1.0f, share)), ticks + HEAL_DELAY_TICKS));
+    }
+
+    private static void healDue(MinecraftServer server) {
+        HEAL.entrySet().removeIf(entry -> {
+            if (entry.getValue().dueTick() > ticks) {
+                return false;
+            }
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player != null && player.isAlive()) {
+                // Never 0: a share of a sliver still leaves them alive.
+                player.setHealth(Math.max(1.0f, entry.getValue().share() * player.getMaxHealth()));
+            }
+            return true;
+        });
     }
 
     /** Marks a renter's death in progress (see {@link #onDeath}). */
