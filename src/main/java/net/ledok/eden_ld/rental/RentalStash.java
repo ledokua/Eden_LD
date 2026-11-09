@@ -68,6 +68,8 @@ public final class RentalStash {
     private static final Map<UUID, String> LIVE = new ConcurrentHashMap<>();
 
     private static int ticks;
+    /** While a renter dies: anything dropped on the ground then (by any mod) is removed. */
+    private static int dying;
 
     private RentalStash() {
     }
@@ -85,8 +87,9 @@ public final class RentalStash {
         });
         // Rental items never lie on the ground: dropped by any path the guards missed, they're gone.
         ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
-            if (entity instanceof ItemEntity item && RentalItems.isRental(item.getItem())) {
-                item.discard();
+            if (entity instanceof ItemEntity item && (dying > 0 || RentalItems.isRental(item.getItem()))
+                    || dying > 0 && entity instanceof net.minecraft.world.entity.ExperienceOrb) {
+                entity.discard();
             }
         });
         // Not into item frames, onto armor stands or to allays.
@@ -230,6 +233,10 @@ public final class RentalStash {
         for (Tag tag : record.getList("extra", Tag.TAG_COMPOUND)) {
             ItemStack.parse(player.registryAccess(), tag).ifPresent(kept::add);
         }
+        int deathXp = record.getInt("death_xp");
+        if (deathXp > 0) {
+            player.giveExperiencePoints(deathXp);
+        }
         player.removeAttached(STASH);
         int dropped = 0;
         for (ItemStack stack : kept) {
@@ -366,7 +373,29 @@ public final class RentalStash {
             RentalTrinkets.clear(player, keep);
         }
         record.put("extra", extra);
+        // Their experience doesn't drop either: given back at the end (the respawn starts at 0, as after any death).
+        record.putInt("death_xp", record.getInt("death_xp") + experiencePoints(player));
         player.setAttached(STASH, record);
+    }
+
+    /** Marks a renter's death in progress (see {@link #onDeath}). */
+    public static void dying(boolean start) {
+        dying = Math.max(0, dying + (start ? 1 : -1));
+    }
+
+    /** The player's experience as points (level and progress). */
+    private static int experiencePoints(ServerPlayer player) {
+        long points = 0;
+        for (int level = 0; level < player.experienceLevel; level++) {
+            points += xpNeededAt(level);
+        }
+        points += Math.round(player.experienceProgress * xpNeededAt(player.experienceLevel));
+        return (int) Math.min(Integer.MAX_VALUE, points);
+    }
+
+    /** As {@code Player.getXpNeededForNextLevel} for a level. */
+    private static int xpNeededAt(int level) {
+        return level >= 30 ? 112 + (level - 30) * 9 : level >= 15 ? 37 + (level - 15) * 5 : 7 + level * 2;
     }
 
     // ---------------------------------------------------------------- inside
