@@ -38,6 +38,8 @@ public final class Hazards {
             ResourceLocation.fromNamespaceAndPath("c", "bosses"));
     /** The player whose Channeling trident called the lightning hitting someone now (server thread). */
     private static final ThreadLocal<Player> LIGHTNING_CAUSE = new ThreadLocal<>();
+    /** The effect tick being dealt now ("poison", "bleed"), for damage reduction ({@link #tick()}). */
+    private static final ThreadLocal<String> TICK = new ThreadLocal<>();
 
     private Hazards() {
     }
@@ -79,7 +81,54 @@ public final class Hazards {
         return apply(target, config.poison, amount, config.poison.pvp && byPlayer(target, MobEffects.POISON));
     }
 
+    /**
+     * A bleeding effect's tick or burst ({@code hazards.json} {@code bleed}, by key) instead of its flat {@code amount}:
+     * the rule's health share, times {@code stacks} for per-stack rules, times {@code factor} (Spell Engine's movement
+     * multiplier, else 1). The effect's own damage when the key has no rule.
+     */
+    public static float bleed(String key, LivingEntity target, int stacks, double factor, float amount) {
+        EdenConfig.Hazards config = EdenLD.CONFIG.hazards;
+        EdenConfig.Hazards.Rule rule = config.bleed == null ? null : config.bleed.get(key);
+        if (!config.enabled || rule == null || target.level().isClientSide()) {
+            return amount;
+        }
+        double damage = share(target, rule, 0, rule.pvp && recentlyHitByPlayer(target))
+                * (rule.per_stack ? Math.max(1, stacks) : 1) * factor;
+        return (float) (rule.lethal ? damage : Math.min(damage, Math.max(0, target.getHealth() - 1)));
+    }
+
+    /** Runs {@code hit} marked as an effect's tick ("poison", "bleed"): damage reduction looks it up. */
+    public static <T> T asTick(String kind, java.util.function.Supplier<T> hit) {
+        String outer = TICK.get();
+        TICK.set(kind);
+        try {
+            return hit.get();
+        } finally {
+            if (outer == null) {
+                TICK.remove();
+            } else {
+                TICK.set(outer);
+            }
+        }
+    }
+
+    /** The effect tick being dealt now ("poison", "bleed"), or null for any other damage. */
+    @Nullable
+    public static String tick() {
+        return TICK.get();
+    }
+
     private static float apply(LivingEntity target, EdenConfig.Hazards.Rule rule, float vanilla, boolean pvp) {
+        // Never less than vanilla: a fresh 20-health player takes exactly vanilla damage.
+        double damage = Math.max(vanilla, share(target, rule, vanilla, pvp));
+        if (!rule.lethal) {
+            damage = Math.min(damage, Math.max(0, target.getHealth() - 1));
+        }
+        return (float) damage;
+    }
+
+    /** The rule's share of the target's health, times the target's multiplier (and the PvP one). */
+    private static double share(LivingEntity target, EdenConfig.Hazards.Rule rule, float vanilla, boolean pvp) {
         EdenConfig.Hazards config = EdenLD.CONFIG.hazards;
         double max = target.getMaxHealth();
         double health = target.getHealth();
@@ -90,12 +139,7 @@ public final class Hazards {
         if (pvp) {
             share *= config.pvp;
         }
-        // Never less than vanilla: a fresh 20-health player takes exactly vanilla damage.
-        double damage = Math.max(vanilla, share);
-        if (!rule.lethal) {
-            damage = Math.min(damage, Math.max(0, health - 1));
-        }
-        return (float) damage;
+        return share;
     }
 
     // ---------------------------------------------------------------- caused by another player

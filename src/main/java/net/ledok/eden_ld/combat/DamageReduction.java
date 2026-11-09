@@ -19,7 +19,8 @@ import net.minecraft.world.entity.player.Player;
  * player takes, spells included. The RPG Series armor sets carry it in their equipment configs instead of armor points;
  * any armor points a player still has work as before on top (physical only). Capped ({@code combat.json}
  * {@code damage_reduction_cap}), only part of it against other players ({@code damage_reduction_pvp_share}), and none
- * against hazards (they scale with health, {@link Hazards}) or the types in {@code damage_reduction_exempt}.
+ * against hazards (they scale with health, {@link Hazards}) or the types in {@code damage_reduction_exempt}, except what
+ * {@code damage_reduction_applies_to} names (burning, wither, poison and bleeding ticks by default).
  */
 public final class DamageReduction {
 
@@ -56,10 +57,20 @@ public final class DamageReduction {
     }
 
     private static boolean exempt(DamageSource source) {
+        java.util.List<String> appliesTo = EdenLD.CONFIG.combat.damage_reduction_applies_to;
+        // An effect's tick (poison, bleeding) goes by the effect, whatever its damage type.
+        String tick = Hazards.tick();
+        if (tick != null) {
+            return appliesTo == null || !appliesTo.contains(tick);
+        }
+        ResourceKey<DamageType> type = source.typeHolder().unwrapKey().orElse(null);
+        String id = type == null ? null : type.location().toString();
+        if (id != null && appliesTo != null && appliesTo.contains(id)) {
+            return false;
+        }
         if (Hazards.ignoresArmor(source)) {
             return true;
         }
-        ResourceKey<DamageType> type = source.typeHolder().unwrapKey().orElse(null);
-        return type != null && EdenLD.CONFIG.combat.damage_reduction_exempt.contains(type.location().toString());
+        return id != null && EdenLD.CONFIG.combat.damage_reduction_exempt.contains(id);
     }
 }

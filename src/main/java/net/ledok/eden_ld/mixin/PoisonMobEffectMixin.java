@@ -19,6 +19,8 @@ public abstract class PoisonMobEffectMixin {
     @WrapOperation(method = "applyEffectTick", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/LivingEntity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
     private boolean eden_ld$scaledPoison(LivingEntity entity, DamageSource source, float amount, Operation<Boolean> original) {
-        return original.call(entity, source, Hazards.poison(entity, amount));
+        float scaled = Hazards.poison(entity, amount);
+        // Marked as poison: damage reduction tells it from Instant Damage (both minecraft:magic).
+        return Hazards.asTick("poison", () -> original.call(entity, source, scaled));
     }
 }

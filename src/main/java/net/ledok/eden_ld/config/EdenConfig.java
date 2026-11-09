@@ -478,6 +478,15 @@ public class EdenConfig {
          */
         public List<String> damage_reduction_exempt = new ArrayList<>(List.of("minecraft:magic", "minecraft:generic_kill"));
         /**
+         * What the reduction does apply to although it's a hazard or exempt above (checked first): damage type ids, and
+         * {@code poison} (the poison effect's ticks: its type, minecraft:magic, stays exempt for Instant Damage) and
+         * {@code bleed} (every bleeding effect's ticks and bursts, {@code hazards.json} {@code bleed}). After the
+         * hazard's health share; the PvP share applies as for any hit. Burning means the status (on_fire), not
+         * standing in fire or lava.
+         */
+        public List<String> damage_reduction_applies_to = new ArrayList<>(List.of("minecraft:on_fire", "minecraft:wither",
+                "poison", "bleed"));
+        /**
          * Rebuild old RPG Series armor pieces in players' inventories with the current set stats (damage reduction, no
          * armor points, 3% evasion), keeping Dungeon Difficulty's health and Limit Break's bonuses on them.
          */
@@ -647,6 +656,14 @@ public class EdenConfig {
         public java.util.Map<String, Rule> damage_types = defaultRules();
         /** The poison effect (its damage type, minecraft:magic, is shared with harming potions). */
         public Rule poison = Rule.current(4).pvp().notLethal();
+        /**
+         * Bleeding, by effect (each keeps its own tick interval): every tick deals this share instead of the effect's flat
+         * damage, never less than nothing, scaled like the other hazards. {@code per_stack}: times the effect's level
+         * (amplifier + 1). Spell Engine's bleed keeps its movement multiplier on top (0.5 standing to 2 running).
+         * Bursts are the one-off hits: Mine Cells' at 6 stacks, Souls Weaponry's blood loss when its meter fills
+         * (Souls Weaponry's bleed resistance still applies after).
+         */
+        public java.util.Map<String, Rule> bleed = defaultBleed();
 
         /**
          * Percentages of the target's max, current and missing health (added up), or of max health
@@ -660,6 +677,8 @@ public class EdenConfig {
             public double per_point_percent;
             public boolean pvp;
             public boolean lethal = true;
+            /** Bleeding only: times the effect's level. */
+            public boolean per_stack;
 
             static Rule max(double percent) {
                 Rule rule = new Rule();
@@ -693,12 +712,33 @@ public class EdenConfig {
                 lethal = false;
                 return this;
             }
+
+            Rule perStack() {
+                per_stack = true;
+                return this;
+            }
         }
 
         /** A file without the rules or poison gets the defaults. */
         void fillMissing() {
             if (damage_types == null) damage_types = defaultRules();
             if (poison == null) poison = Rule.current(4).pvp().notLethal();
+            if (bleed == null) bleed = defaultBleed();
+        }
+
+        /** Proposed start (MCP eden, 2026-11-09): 1% of max health per stack per tick for Spell Engine's bleed. */
+        private static java.util.Map<String, Rule> defaultBleed() {
+            java.util.Map<String, Rule> rules = new java.util.LinkedHashMap<>();
+            // Every 25 ticks, times the movement multiplier: 0.5-2% per stack.
+            rules.put("spell_engine:bleed", Rule.max(1.0).perStack().pvp());
+            // mrpg_lib (deprecated effect): every 40 ticks at level 1, 20 from level 2.
+            rules.put("mrpg_lib:bleeding", Rule.max(1.0).perStack().pvp());
+            // Mine Cells: every 20 ticks at level 1, faster with stacks (5 at most); the burst at 6 stacks.
+            rules.put("minecells:bleeding", Rule.max(0.5).pvp());
+            rules.put("minecells:bleeding_burst", Rule.max(6.0).pvp());
+            // Souls Weaponry's blood loss (was 6 + 10% of max health).
+            rules.put("soulsweaponry:bleed_burst", Rule.max(10.0).pvp());
+            return rules;
         }
 
         private static java.util.Map<String, Rule> defaultRules() {
