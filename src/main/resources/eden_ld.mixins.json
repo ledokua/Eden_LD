@@ -17,6 +17,7 @@
     "GameProfileCacheAccessor",
     "GameProfileInfoAccessor",
     "GameRuleValueMixin",
+    "HasteAttackSpeedMixin",
     "HopperBackoffMixin",
     "LevelDimensionMixin",
     "LiandrysTormentMixin",

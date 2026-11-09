@@ -460,6 +460,14 @@ public class EdenConfig {
         /** A player in stealth (mrpg_lib's or {@link #stealth_effects}) sends no effect particles. */
         public boolean stealth_hides_effect_particles = true;
 
+        /**
+         * Haste's attack speed per effect level (vanilla 0.1: +10% each, multiplied on top of everything). 0 = Haste
+         * only speeds up mining (LeDok, 2026-11-09: Haste pushed attack speed past the soft cap). Mining Fatigue's
+         * slower attacks stay vanilla. Each side reads its own config: the server's decides the attack speed, the
+         * client's only the potion tooltip.
+         */
+        public double haste_attack_speed_per_level = 0.0;
+
         /** Most a player's {@code eden_ld:damage_reduction} can lower a hit, in percent (gear and buffs stack up to it). */
         public double damage_reduction_cap = 80.0;
         /** Share of the damage reduction that works against other players' hits (0.5 = half). */
