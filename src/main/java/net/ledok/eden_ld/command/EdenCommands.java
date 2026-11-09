@@ -107,6 +107,8 @@ public class EdenCommands {
                         .or(EdenPermissions.require(EdenPermissions.TUTORIAL)))
                 // The tutorial: put players in, finish it for them (the guide's cleanup does), see where they are.
                 .then(net.ledok.eden_ld.tutorial.TutorialCommand.node())
+                // Rental builds: a player's session, ending a stuck one, testing a loadout.
+                .then(net.ledok.eden_ld.rental.RentalCommand.node())
                 // A dimension's own gamerules, PvP and difficulty.
                 .then(WorldRulesCommand.gamerule())
                 .then(WorldRulesCommand.pvp())

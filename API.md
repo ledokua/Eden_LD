@@ -296,6 +296,41 @@ MinestarHook.fetchFriends(player, false, snapshot -> {                // server 
 `fetchFriends` re-fetches from the platform (throttled to one fetch per player per 15 s unless
 `force` is true) and refreshes the cache for everyone reading it.
 
+## Rental builds
+
+`net.ledok.eden_ld.api.rental.EdenRentalApi` (1.3.52+), server thread. Duels_LD (ranked) and Arenas_LD (runs) swap a
+player onto a loadout and back (design: `Balance/RENTAL-BUILDS.md`).
+
+```java
+boolean begin(ServerPlayer player, String session, ResourceLocation kit)        // a Kits_LD 0.3.0+ (hidden) kit
+boolean begin(ServerPlayer player, String session, Consumer<ServerPlayer> give) // any loadout; may throw to refuse
+boolean end(ServerPlayer player)
+boolean end(MinecraftServer server, UUID player)  // offline: done at their next login
+boolean isRenting(Player player)
+@Nullable String sessionOf(Player player)
+boolean reequip(ServerPlayer player)              // the kit again (after a death in a run)
+boolean stashItem(ServerPlayer player, ItemStack stack) // a reward kept for the end, safe from the cleanup
+boolean isRentalItem(ItemStack stack)             // custom_data {eden_rental: <session>}
+```
+
+- `begin` puts aside the inventory, armor, offhand, Trinkets, cursor and 2x2 crafting grid, resets and locks every
+  Pufferfish Skills tree (experience, level and points are untouched), then gives the loadout and marks every item it
+  gave. It returns false, with nothing changed, if the player already rents, is dead, or the kit is missing.
+- `end` removes every rental item (also inside shulker boxes and bundles), gives their items back to the same slots and
+  unlocks their skills again. Anything else they got meanwhile is kept (overflow is dropped at their feet).
+- While renting:
+  - Rental items can't be dropped (they go back to the hand) or put in any container slot: chests, ender chest,
+    crafting, anvils, trades, shops, modded storage screens.
+  - Rental items can't go into item frames, armor stands, allays, display blocks or bundles.
+  - The player picks nothing up from the ground.
+- **Death** drops nothing and makes no grave. Rental items are deleted; the player's other items are kept for `end`.
+  The session continues: call `end`, or `reequip` after the respawn.
+- **Sessions are not ended on disconnect**, so a player who reconnects is still renting; the owner ends the session.
+  After a restart or crash, the next login ends it.
+- Once a second, rental items found anywhere outside their own session are removed. A dropped rental item is removed
+  as soon as it spawns.
+- Staff: `/eden rental status|end <player>`, `/eden rental begin <player> <kit>` (testing).
+
 ## Stability
 
 The `api.flight` package and `MinestarHook`/`ProfileCache` are kept source-stable; internals

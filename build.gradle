@@ -114,7 +114,7 @@ dependencies {
 
     // Kits_LD — optional: the hub's Kits tab and /kits (KitsCompat). A copy of the pack's jar (to test, put it in
     // run-server/mods and run-main/mods).
-    modCompileOnly files("libs/Kits_LD-fabric-0.2.0.jar")
+    modCompileOnly files("libs/Kits_LD-fabric-0.3.0.jar")
 
     // Farmer's Delight (Refabricated) — optional: its cooking pot's meals count for craft quests (CookingPot*Mixin).
     // A copy of the pack's jar.

@@ -44,9 +44,32 @@ public final class KitsCompat {
         return Api.claim(player, id);
     }
 
+    /**
+     * Gives the kit (hidden or not) through Kits_LD's API (0.3.0+): no claim, no cooldown, no commands; {@code tagger}
+     * runs on every stack first. False when the kit is missing or the running Kits_LD is older.
+     */
+    public static boolean giveHidden(ServerPlayer player, net.minecraft.resources.ResourceLocation kit,
+                                     java.util.function.Consumer<ItemStack> tagger) {
+        if (!ready()) {
+            return false;
+        }
+        try {
+            return Api.giveHidden(player, kit, tagger);
+        } catch (LinkageError e) {
+            net.ledok.eden_ld.EdenLD.LOGGER.error("[Kits] Kits_LD has no KitsApi.giveHidden (0.3.0+ needed); kit {} not given.",
+                    kit);
+            return false;
+        }
+    }
+
     private static final class Api {
         static boolean ready() {
             return net.ledok.kitsld.KitsLd.manager() != null;
+        }
+
+        static boolean giveHidden(ServerPlayer player, net.minecraft.resources.ResourceLocation kit,
+                                  java.util.function.Consumer<ItemStack> tagger) {
+            return net.ledok.kitsld.api.KitsApi.giveHidden(player, kit, tagger);
         }
 
         static List<HubPayloads.KitView> kits(ServerPlayer player) {
