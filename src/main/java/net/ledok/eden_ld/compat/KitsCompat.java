@@ -98,7 +98,25 @@ public final class KitsCompat {
         }
     }
 
+    /** The kit's display name as Kits_LD shows it (its own name, else its id as text); null when it's missing. */
+    @org.jetbrains.annotations.Nullable
+    public static Component displayName(net.minecraft.resources.ResourceLocation kit) {
+        if (!ready()) {
+            return null;
+        }
+        try {
+            return Api.displayName(kit);
+        } catch (LinkageError e) {
+            return null;
+        }
+    }
+
     private static final class Api {
+        static Component displayName(net.minecraft.resources.ResourceLocation kit) {
+            return net.ledok.kitsld.api.KitsApi.kit(kit).map(net.ledok.kitsld.api.KitsApi.KitView::displayName)
+                    .orElse(null);
+        }
+
         static List<net.minecraft.resources.ResourceLocation> hiddenKitIds(String prefix) {
             return net.ledok.kitsld.api.KitsApi.hiddenKits(prefix).stream()
                     .map(net.ledok.kitsld.api.KitsApi.KitView::id).toList();

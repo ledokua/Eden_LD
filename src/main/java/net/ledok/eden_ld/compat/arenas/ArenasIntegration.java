@@ -42,7 +42,7 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean RESET_COOLDOWNS = resetCooldownsApi();
     /** The running Arenas_LD tells a player's own lobby and opens it (4.21.0+). */
     private static final boolean OWN_LOBBY = ownLobbyApi();
-    /** The running Arenas_LD takes rental builds for runs (4.26.0+). */
+    /** The running Arenas_LD takes rental builds for runs, by preset (4.26.1+). */
     private static final boolean RENTAL = rentalApi();
 
     private ArenasIntegration() {
@@ -107,8 +107,10 @@ final class ArenasIntegration implements ActivitySource {
 
     private static boolean rentalApi() {
         try {
-            ArenasApi.class.getMethod("setRentalProvider",
-                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$RentalProvider"));
+            Class<?> provider = Class.forName("net.ledok.arenas_ld.api.ArenasApi$RentalProvider");
+            ArenasApi.class.getMethod("setRentalProvider", provider);
+            // 4.26.1's presets (4.26.0 picked kits by class and band: not served).
+            provider.getMethod("presets", int.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
