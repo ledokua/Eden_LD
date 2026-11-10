@@ -54,6 +54,7 @@
     "ServerPlayerStatMixin",
     "ServerPlayerTabListMixin",
     "SpellRelationMixin",
+    "SummonHealsAlliesMixin",
     "ThrownPotionPvpMixin",
     "TwoPartBlockResendMixin",
     "WorldBorderAccessor",
