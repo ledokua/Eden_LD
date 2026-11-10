@@ -26,6 +26,7 @@
     "LivingEntityHazardMixin",
     "LivingEntityStealthParticlesMixin",
     "LootrDataFilesMixin",
+    "MeleeSpellHasteMixin",
     "MinecraftServerSaveFlushMixin",
     "MinecraftServerWorldRulesMixin",
     "MsgCommandIgnoreMixin",
