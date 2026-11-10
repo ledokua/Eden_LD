@@ -45,7 +45,10 @@ public final class Hazards {
     }
 
     public static void initialize() {
-        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> EdenLD.CONFIG.reloadHazards());
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> {
+            EdenLD.CONFIG.reloadHazards();
+            EdenLD.CONFIG.reloadCombat();
+        });
     }
 
     /** What a hazard does to {@code target} instead of vanilla's {@code amount} (LivingEntity#hurt). */

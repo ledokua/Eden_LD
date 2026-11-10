@@ -870,6 +870,32 @@ public class EdenConfig {
         }
     }
 
+    /** combat.json again (on /reload): balance numbers (rolls, damage reduction, Haste…) change without a restart. */
+    public void reloadCombat() {
+        Path file = FOLDER.resolve("combat.json");
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            Combat section = GSON.fromJson(Files.readString(file), Combat.class);
+            if (section != null) {
+                Combat defaults = new Combat();
+                if (section.stealth_effects == null) section.stealth_effects = defaults.stealth_effects;
+                if (section.damage_reduction_exempt == null) section.damage_reduction_exempt = defaults.damage_reduction_exempt;
+                if (section.damage_reduction_applies_to == null) {
+                    section.damage_reduction_applies_to = defaults.damage_reduction_applies_to;
+                }
+                if (section.roll_fast == null) section.roll_fast = defaults.roll_fast;
+                if (section.roll_medium == null) section.roll_medium = defaults.roll_medium;
+                if (section.roll_heavy == null) section.roll_heavy = defaults.roll_heavy;
+                combat = section;
+                EdenLD.LOGGER.info("[Config] combat.json reloaded.");
+            }
+        } catch (Exception e) {
+            EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous values.", file.getFileName(), e);
+        }
+    }
+
     public void reloadHazards() {
         Path file = FOLDER.resolve("hazards.json");
         if (!Files.exists(file)) {
