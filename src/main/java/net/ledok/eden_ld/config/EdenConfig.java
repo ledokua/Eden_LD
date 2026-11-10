@@ -468,17 +468,6 @@ public class EdenConfig {
          */
         public double haste_attack_speed_per_level = 0.0;
 
-        /**
-         * Spell Engine's melee schools (physical_melee, physical_melee_dual) take attack speed bonuses as spell haste,
-         * which shortens every melee skill's cooldown (and cast time): +120% attack speed made a 6 s Bear Trap 2.7 s.
-         * Their haste is capped like attack speed: up to {@code soft_cap} in full, {@code share_above} of anything over
-         * it, never more than {@code hard_cap} (0.6: cooldowns at most 37.5% shorter). Spells with
-         * {@code "haste_affected": false} in their cooldown ignore haste altogether (Spell Engine's own switch).
-         */
-        public double melee_spell_haste_soft_cap = 0.3;
-        public double melee_spell_haste_share_above = 0.5;
-        public double melee_spell_haste_hard_cap = 0.6;
-
         /** Most a player's {@code eden_ld:damage_reduction} can lower a hit, in percent (gear and buffs stack up to it). */
         public double damage_reduction_cap = 80.0;
         /** Share of the damage reduction that works against other players' hits (0.5 = half). */
