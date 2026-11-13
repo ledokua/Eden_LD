@@ -206,15 +206,30 @@ final class OpacGuildClaims {
         OpenPACServerAPI api = OpenPACServerAPI.get(server);
         IServerClaimsManagerAPI claims = api.getServerClaimsManager();
         int used = claims.hasPlayerInfo(leader) ? claims.getPlayerInfo(leader).getClaimCount() : 0;
-        // OPAC's own party-owner bonus (ServerPlayerClaimInfoManager#getPartyOwnershipBonus).
-        int others = Math.max(0, guild.members.size() - 1);
-        int partyBonus = others * intOption("claimBonusPerPartyMember")
-                + (others > 0 ? intOption("claimBonusForPartyOwner") : 0);
+        // OPAC's own party-owner bonus as OPAC sees it right now (ServerPlayerClaimInfoManager#getPartyOwnershipBonus:
+        // only while the leader owns a primary party, from that party's live member count). Estimating it from the
+        // guild's member list subtracted a bonus OPAC no longer included once the guild's party view was gone, so a
+        // disband computed the leader's own limit as 0 and released all their land (2026-11-13, guild gOlDi).
+        int partyBonus = 0;
+        var parties = ServerData.from(server).getPlayerPartySystemManager();
+        if (parties.isPrimaryPartyOwner(leader)) {
+            int others = Math.max(0, parties.getPrimaryMemberCount(leader) - 1);
+            partyBonus = others * intOption("claimBonusPerPartyMember")
+                    + (others > 0 ? intOption("claimBonusForPartyOwner") : 0);
+        }
         Integer bonus = api.getPlayerConfigManager().getLoadedConfig(leader)
                 .getEffective(PlayerConfigOptions.BONUS_CHUNK_CLAIMS);
         int edenBonus = leader.equals(guild.opacOwner) ? guild.opacBonus : 0;
         int own = claims.getPlayerBaseClaimLimit(leader) - partyBonus + (bonus == null ? 0 : bonus) - edenBonus;
-        return new OpacCompat.ClaimsInfo(used, Math.max(0, own));
+        // Never below the server's plain per-player limit: a wrong estimate must not release a leader's own land.
+        int floor = intOption("maxPlayerClaims");
+        if (own < floor) {
+            EdenLD.LOGGER.warn("Guild {}: the leader's own claim limit came out as {} (base {}, party bonus {}, bonus {}, "
+                            + "guild bonus {}); using the server's {} instead.", guild.name, own,
+                    claims.getPlayerBaseClaimLimit(leader), partyBonus, bonus, edenBonus, floor);
+            own = floor;
+        }
+        return new OpacCompat.ClaimsInfo(used, own);
     }
 
     /** Adds {@code delta} to a player's OPAC bonus chunk claims (never below 0); false when OPAC refused. */
