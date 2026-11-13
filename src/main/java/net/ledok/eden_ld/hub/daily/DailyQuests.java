@@ -430,7 +430,7 @@ public final class DailyQuests {
         }
         List<ResourceLocation> ids = new ArrayList<>();
         state.slots().forEach(slot -> ids.add(slot.questId()));
-        if (rerollPick(server, player.getUUID(), ids, index) == null) {
+        if (rerollPick(server, player.getUUID(), ids, rerolledAway(today(server, player.getUUID()))) == null) {
             onDone.accept(Component.translatable("message.eden_ld.dailies.no_alternatives"));
             return;
         }
@@ -462,11 +462,16 @@ public final class DailyQuests {
             for (int i = 0; i < slots.size(); i++) {
                 slotIds.add(ResourceLocation.tryParse(slots.getCompound(i).getString("quest")));
             }
-            DailyQuestDefinition replacement = rerollPick(server, player.getUUID(), slotIds, index);
+            DailyQuestDefinition replacement = rerollPick(server, player.getUUID(), slotIds, rerolledAway(tag));
             if (replacement == null) {
                 EconomyCompat.give(player, cost);
                 onDone.accept(Component.translatable("message.eden_ld.dailies.no_alternatives"));
                 return;
+            }
+            if (slotIds.get(index) != null) {
+                ListTag away = tag.getList("rerolled", Tag.TAG_STRING);
+                away.add(net.minecraft.nbt.StringTag.valueOf(slotIds.get(index).toString()));
+                tag.put("rerolled", away);
             }
             slots.set(index, slotTag(replacement.id()));
             String counter = usesFree ? "free_used" : "paid_used";
@@ -482,27 +487,32 @@ public final class DailyQuests {
     }
 
     /**
-     * A reroll never duplicates a quest held in another slot, and avoids the quest being
-     * replaced — unless the pool has nothing else, then that same quest comes back (fresh). Only from the quests the
-     * player may draw now.
+     * A reroll never duplicates a quest held in another slot, never gives back the quest being replaced, and never
+     * brings back a quest rerolled away earlier today; null when the pool has nothing else left. Only from the quests
+     * the player may draw now.
      */
     @Nullable
     private static DailyQuestDefinition rerollPick(MinecraftServer server, UUID player, List<ResourceLocation> slotQuests,
-                                                   int index) {
-        Set<ResourceLocation> others = new HashSet<>();
-        for (int i = 0; i < slotQuests.size(); i++) {
-            if (i != index && slotQuests.get(i) != null) {
-                others.add(slotQuests.get(i));
+                                                   Set<ResourceLocation> rerolledAway) {
+        Set<ResourceLocation> excluded = new HashSet<>(rerolledAway);
+        for (ResourceLocation quest : slotQuests) {
+            if (quest != null) {
+                excluded.add(quest);
             }
         }
-        Set<ResourceLocation> all = new HashSet<>(others);
-        if (slotQuests.get(index) != null) {
-            all.add(slotQuests.get(index));
+        return randomExcluding(drawPool(server, player), excluded, new Random());
+    }
+
+    /** The quests rerolled away today (they don't come back until tomorrow's draw). */
+    private static Set<ResourceLocation> rerolledAway(CompoundTag today) {
+        Set<ResourceLocation> ids = new HashSet<>();
+        for (Tag entry : today.getList("rerolled", Tag.TAG_STRING)) {
+            ResourceLocation id = ResourceLocation.tryParse(entry.getAsString());
+            if (id != null) {
+                ids.add(id);
+            }
         }
-        Random random = new Random();
-        List<DailyQuestDefinition> pool = drawPool(server, player);
-        DailyQuestDefinition pick = randomExcluding(pool, all, random);
-        return pick != null ? pick : randomExcluding(pool, others, random);
+        return ids;
     }
 
     /** Extra free rerolls for today only (quest rewards, shop items, admins). */
