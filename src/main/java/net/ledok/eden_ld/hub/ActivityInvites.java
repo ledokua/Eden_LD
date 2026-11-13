@@ -36,7 +36,10 @@ public final class ActivityInvites {
             return null;
         }
         ServerPlayer target = server.getPlayerList().getPlayer(invitee);
-        Component name = target != null ? target.getDisplayName() : Component.literal(invitee.toString());
+        Component name = target != null ? target.getDisplayName() : Component.literal(server.getProfileCache() == null
+                ? invitee.toString()
+                : server.getProfileCache().get(invitee).map(com.mojang.authlib.GameProfile::getName)
+                        .orElse(invitee.toString()));
         return Component.translatable("message.eden_ld.activity_invites.blocked", name);
     }
 

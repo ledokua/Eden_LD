@@ -44,6 +44,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean OWN_LOBBY = ownLobbyApi();
     /** The running Arenas_LD takes rental builds for runs, by preset (4.26.1+). */
     private static final boolean RENTAL = rentalApi();
+    /** The running Arenas_LD asks before each invite (4.28.0+). */
+    private static final boolean INVITE_FILTER = inviteFilterApi();
 
     private ArenasIntegration() {
     }
@@ -67,8 +69,12 @@ final class ArenasIntegration implements ActivitySource {
         if (RENTAL) {
             ArenasRental.register();
         }
+        if (INVITE_FILTER) {
+            ArenasInvites.register();
+        }
         EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}, "
-                + "rental builds {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY, RENTAL);
+                + "rental builds {}, invite filter {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY, RENTAL,
+                INVITE_FILTER);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -111,6 +117,16 @@ final class ArenasIntegration implements ActivitySource {
             ArenasApi.class.getMethod("setRentalProvider", provider);
             // 4.26.1's presets (4.26.0 picked kits by class and band: not served).
             provider.getMethod("presets", int.class);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean inviteFilterApi() {
+        try {
+            ArenasApi.class.getMethod("setInviteFilter",
+                    Class.forName("net.ledok.arenas_ld.api.ArenasApi$InviteFilter"));
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
