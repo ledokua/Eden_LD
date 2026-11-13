@@ -76,10 +76,10 @@ public final class PunishStaff {
                 (payload, context) -> context.server().execute(() -> act(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.PunishLogRequest.TYPE,
                 (payload, context) -> context.server().execute(() -> log(context.player())));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, s) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, s) -> net.ledok.eden_ld.util.OnServerThread.run(s, () -> {
             VIEWING.remove(handler.getPlayer().getUUID());
             DUE.remove(handler.getPlayer().getUUID());
-        });
+        }));
         ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 BanHammerCompat.onPunishment(target -> started.execute(() -> refreshViewers(target))));
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {

@@ -68,7 +68,8 @@ public final class ActivityServer {
             TOLD.put(player.getUUID(), new LinkedHashSet<>(fresh(server, player).keySet()));
             pushUnlocks(server, player);
         }));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> TOLD.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> TOLD.remove(handler.getPlayer().getUUID())));
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             int every = Math.max(5, EdenLD.CONFIG.activities.unlock_check_seconds) * 20;
             if (Activities.takeChanged() || server.getTickCount() % every == 0) {

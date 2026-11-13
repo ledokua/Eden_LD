@@ -73,10 +73,10 @@ public final class PlayerPvp {
             }
             playersChanged();
         }));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             IGNORED_MESSAGE_AT.remove(handler.getPlayer().getUUID());
             server.execute(PlayerPvp::playersChanged);
-        });
+        }));
         ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) -> sendState(player));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> sendState(newPlayer));
         ServerTickEvents.END_SERVER_TICK.register(PlayerPvp::flushPlayers);

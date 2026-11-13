@@ -66,10 +66,11 @@ public class PartyManager {
                 get(server).tick(server);
             }
         });
+        // On the server thread only: these maps are plain HashMaps the tick copies (see OnServerThread).
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                get(server).onJoin(handler.getPlayer()));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> get(server).onJoin(handler.getPlayer())));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                get(server).onDisconnect(server, handler.getPlayer()));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> get(server).onDisconnect(server, handler.getPlayer())));
     }
 
     // ---------------------------------------------------------------- queries
@@ -587,16 +588,38 @@ public class PartyManager {
         }
     }
 
-    /** Once a second: auto-kick members whose offline grace ran out. */
+    /** When the tick last logged a failure (one line a minute at most). */
+    private static long tickFailureLogged;
+
+    /** Once a second: auto-kick members whose offline grace ran out. A failure is logged, never thrown. */
     private void tick(MinecraftServer server) {
+        try {
+            expireOffline(server);
+        } catch (RuntimeException e) {
+            long now = System.currentTimeMillis();
+            if (now - tickFailureLogged >= 60_000) {
+                tickFailureLogged = now;
+                EdenLD.LOGGER.error("[Parties] The offline check failed; parties keep working, it retries next second.", e);
+            }
+        }
+    }
+
+    private void expireOffline(MinecraftServer server) {
         long grace = Math.max(0, EdenLD.CONFIG.hub.party_offline_grace_seconds) * 1000L;
         long now = System.currentTimeMillis();
         boolean changed = false;
-        for (Party party : List.copyOf(parties.values())) {
+        // Copied by iterating (List.copyOf trusts the map's size, which a past cross-thread write could have broken).
+        List<Party> all = new java.util.ArrayList<>();
+        parties.values().forEach(all::add);
+        for (Party party : all) {
             if (!parties.containsKey(party.id)) {
                 continue;
             }
-            for (Map.Entry<UUID, Long> offline : List.copyOf(party.offlineSince.entrySet())) {
+            List<Map.Entry<UUID, Long>> offlineList = new java.util.ArrayList<>();
+            for (Map.Entry<UUID, Long> entry : party.offlineSince.entrySet()) {
+                offlineList.add(Map.entry(entry.getKey(), entry.getValue()));
+            }
+            for (Map.Entry<UUID, Long> offline : offlineList) {
                 if (now - offline.getValue() >= grace && parties.containsKey(party.id)) {
                     removeMember(server, party, offline.getKey(),
                             party.memberNames.getOrDefault(offline.getKey(), "?"));

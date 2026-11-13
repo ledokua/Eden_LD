@@ -233,7 +233,8 @@ public final class EmojiRegistry {
         });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 server.execute(() -> send(handler.getPlayer())));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> SENT_LIMITS.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> SENT_LIMITS.remove(handler.getPlayer().getUUID())));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.EmojiRequest.TYPE, (payload, context) -> {
             List<HubPayloads.EmojiImage> answer = new ArrayList<>();
             for (String id : payload.ids().subList(0, Math.min(MAX_REQUEST, payload.ids().size()))) {

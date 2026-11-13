@@ -58,13 +58,13 @@ public final class ChatGuard {
     }
 
     public static void initialize() {
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             UUID id = handler.getPlayer().getUUID();
             if (BanHammerCompat.LOADED) {
                 MUTES.put(id, new Mute(0, 0, 0, false));
                 read(id);
             }
-        });
+        }));
         // DISCONNECT fires while the player is still in the player list (and server.execute would run at once on the
         // server thread): forget them in a queued task, after they're gone — unless they're back already.
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {

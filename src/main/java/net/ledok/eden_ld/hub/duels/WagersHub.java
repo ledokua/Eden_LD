@@ -52,10 +52,10 @@ public final class WagersHub {
         ServerPlayNetworking.registerGlobalReceiver(WagerAction.TYPE, (payload, context) -> handle(context.player(), payload));
         // The header alone: the client learns whether wager duels are on (the Duels filter).
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> queue(handler.getPlayer().getUUID(), 0)));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             VIEWERS.remove(handler.getPlayer().getUUID());
             PENDING.remove(handler.getPlayer().getUUID());
-        });
+        }));
         ServerTickEvents.END_SERVER_TICK.register(WagersHub::tick);
     }
 

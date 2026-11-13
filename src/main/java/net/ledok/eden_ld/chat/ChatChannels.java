@@ -124,14 +124,15 @@ public final class ChatChannels {
                     sendKnownGuests(server, handler.getPlayer());
                     ChatHistory.sendTo(handler.getPlayer());
                 }));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             ONE_SHOT.remove(handler.getPlayer().getUUID());
             WAITING.remove(handler.getPlayer().getUUID());
-        });
+        }));
         // System-only lines (chat_system_only.json): sent at once on join, ahead of other mods' join lines where it
         // can be, and to everyone again on /reload.
         loadSystemOnly();
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> pushSystemOnly(handler.getPlayer()));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> pushSystemOnly(handler.getPlayer())));
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
                 (server, resources, success) -> {
                     EdenLD.CONFIG.reloadSystemOnly();

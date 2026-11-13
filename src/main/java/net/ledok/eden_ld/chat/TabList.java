@@ -70,11 +70,11 @@ public final class TabList {
                 refresh(server);
             }
         }));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             NAMES.remove(handler.getPlayer().getUUID());
             HEADERS.remove(handler.getPlayer().getUUID());
             ORDER_SENT.remove(handler.getPlayer().getUUID());
-        });
+        }));
     }
 
     private static EdenConfig.TabList config() {
