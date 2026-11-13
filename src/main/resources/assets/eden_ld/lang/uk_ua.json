@@ -346,6 +346,8 @@
   "message.eden_ld.combat.no_flight": "Не можна літати під час PvP-бою!",
   "gui.eden_ld.hub.home.dailies_claimable": "Нагород за щоденні завдання: %s",
   "gui.eden_ld.hub.home.dailies": "Щоденні %s / %s",
+  "gui.eden_ld.hub.dailies.chests": "Щоденні скрині ↗",
+  "gui.eden_ld.hub.dailies.chests.hint": "Відкрийте свої щоденні скрині на minestar.com.ua. Гра на сервері сьогодні їх наповнює.",
   "gui.eden_ld.hub.dailies.title": "Щоденні завдання",
   "gui.eden_ld.hub.dailies.none": "Нові завдання з'являться після щоденного оновлення.",
   "gui.eden_ld.hub.dailies.none_title": "Сьогодні щоденних завдань немає",

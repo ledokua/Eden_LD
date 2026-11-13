@@ -346,6 +346,8 @@
   "message.eden_ld.combat.no_flight": "You can't fly while in PvP combat!",
   "gui.eden_ld.hub.home.dailies_claimable": "%s daily quest reward(s) ready to claim",
   "gui.eden_ld.hub.home.dailies": "Dailies %s / %s",
+  "gui.eden_ld.hub.dailies.chests": "Daily chests ↗",
+  "gui.eden_ld.hub.dailies.chests.hint": "Open your daily chests on minestar.com.ua. Playing on the server today fills them.",
   "gui.eden_ld.hub.dailies.title": "Daily quests",
   "gui.eden_ld.hub.dailies.none": "New quests arrive at the daily reset.",
   "gui.eden_ld.hub.dailies.none_title": "No daily quests today",

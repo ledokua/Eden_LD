@@ -79,6 +79,7 @@ final class DailiesTab {
 
         Flex header = Flex.row().gap(8).alignItems(Align.CENTER);
         header.sizing(Sizing.fill(), Sizing.content());
+        header.item(chestsButton(screen));
         header.spacer();
         header.item(EdenParchment.text(tr("free_rerolls", data.freeRerollsLeft()), EdenParchment.INK_DIM));
         // As wide as the longest countdown ("… 23 h 59 min"), so it never cuts and never jumps per tick.
@@ -105,6 +106,17 @@ final class DailiesTab {
         Flex bonus = bonusRow(data);
         bonus.id(HubSpotlights.DAILIES_BONUS);
         content.item(bonus);
+    }
+
+    /** Minestar's daily chests (earned by playtime on the server), opened in the browser after the usual link prompt. */
+    private static final String CHESTS_URL = "https://minestar.com.ua/chests";
+
+    private static Button chestsButton(HubScreen screen) {
+        Component label = tr("chests");
+        Button button = new Button(EdenParchment.fitWidth(label, 60), 14, label,
+                () -> net.minecraft.client.gui.screens.ConfirmLinkScreen.confirmLinkNow(screen, CHESTS_URL));
+        button.tooltip(tr("chests.hint"));
+        return button;
     }
 
     /** Every client tick while open: the reset countdown; at zero, ask for the new day. */
