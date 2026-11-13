@@ -28,8 +28,12 @@ public final class OpacCompat {
     public record ClaimsInfo(int used, int limit) {
     }
 
-    /** Land released when a guild ended: how many chunks, and whether they became expired claims. */
-    public record Released(int chunks, boolean expired) {
+    /** Land freed (unclaimed) when a guild ended: how many chunks, and which. */
+    public record Released(int chunks, java.util.List<FreedChunk> freed) {
+    }
+
+    /** One freed chunk, in chunk coordinates. */
+    public record FreedChunk(net.minecraft.resources.ResourceLocation dimension, int x, int z) {
     }
 
     private OpacCompat() {
@@ -69,6 +73,36 @@ public final class OpacCompat {
         } catch (RuntimeException | LinkageError e) {
             EdenLD.LOGGER.warn("Open Parties and Claims compat failed", e);
             return null;
+        }
+    }
+
+    /**
+     * How many of the leader's chunks disbanding the guild now would free (land over their own limit); 0 when none
+     * or without guild claims.
+     */
+    public static int disbandExcess(MinecraftServer server, Guild guild) {
+        if (!LOADED) {
+            return 0;
+        }
+        try {
+            return OpacGuildClaims.disbandExcess(server, guild);
+        } catch (RuntimeException | LinkageError e) {
+            EdenLD.LOGGER.warn("Open Parties and Claims compat failed", e);
+            return 0;
+        }
+    }
+
+    /** The leader's own claim limit after the guild (for the disband warning), or -1 without guild claims. */
+    public static int ownLimit(MinecraftServer server, Guild guild) {
+        if (!LOADED) {
+            return -1;
+        }
+        try {
+            ClaimsInfo land = OpacGuildClaims.afterGuild(server, guild);
+            return land == null ? -1 : land.limit();
+        } catch (RuntimeException | LinkageError e) {
+            EdenLD.LOGGER.warn("Open Parties and Claims compat failed", e);
+            return -1;
         }
     }
 

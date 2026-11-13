@@ -217,13 +217,29 @@ public final class GuildManager extends SavedData {
         EdenGuildApi.notifyLeave(guild.id, player);
     }
 
-    private void delete(MinecraftServer server, Guild guild) {
-        // Guild land stays with the leader only up to their own limit (OPAC); tell them what went.
+    @Nullable
+    private OpacCompat.Released delete(MinecraftServer server, Guild guild) {
+        // Guild land stays with the leader only up to their own limit (OPAC); the rest becomes free land. Tell them
+        // what went and where, so they can claim it again quickly (the server log lists every chunk too).
         UUID leader = guild.leader();
         OpacCompat.Released released = OpacCompat.onGuildDeleted(server, guild);
         if (released != null && leader != null) {
-            notify(server, leader, released.expired() ? "claims_released_expired" : "claims_released_unclaimed",
-                    released.chunks());
+            notify(server, leader, "claims_released_unclaimed", released.chunks());
+            ServerPlayer online = server.getPlayerList().getPlayer(leader);
+            if (online != null) {
+                int shown = Math.min(FREED_LISTED, released.freed().size());
+                for (OpacCompat.FreedChunk chunk : released.freed().subList(0, shown)) {
+                    online.sendSystemMessage(Component.translatableWithFallback("message.eden_ld.guild.claims_freed_chunk",
+                            "Freed: %1$s, chunk %2$s, %3$s (block %4$s, %5$s)",
+                            chunk.dimension().toString(), chunk.x(), chunk.z(), chunk.x() * 16 + 8, chunk.z() * 16 + 8)
+                            .withStyle(ChatFormatting.GRAY));
+                }
+                if (released.freed().size() > shown) {
+                    online.sendSystemMessage(Component.translatableWithFallback("message.eden_ld.guild.claims_freed_more",
+                            "\u2026and %s more (the server log lists them all).",
+                            released.freed().size() - shown).withStyle(ChatFormatting.GRAY));
+                }
+            }
         }
         List<UUID> members = new ArrayList<>(guild.members.keySet());
         for (UUID member : members) {
@@ -233,6 +249,7 @@ public final class GuildManager extends SavedData {
         guilds.remove(guild.id);
         invites.values().forEach(byGuild -> byGuild.remove(guild.id));
         setDirty();
+        return released;
     }
 
     // ---------------------------------------------------------------- invites & applications
@@ -495,13 +512,52 @@ public final class GuildManager extends SavedData {
         if (GuildBankService.holdsAnything(guild)) {
             return error("bank_not_empty");
         }
+        Component landWarning = landWarning(server, guild, actor);
+        if (landWarning != null) {
+            return landWarning;
+        }
         delete(server, guild);
         return null;
     }
 
-    /** Admin path: works with every member offline. */
-    public void forceDisband(MinecraftServer server, Guild guild) {
-        delete(server, guild);
+    /** Admin path: works with every member offline. What was freed of the leader's land; null when nothing. */
+    @Nullable
+    public OpacCompat.Released forceDisband(MinecraftServer server, Guild guild) {
+        return delete(server, guild);
+    }
+
+    /** Freed chunks listed in the leader's chat after a disband (all of them are in the server log). */
+    private static final int FREED_LISTED = 20;
+
+    /** How long a disband warned about freeing land waits for the same person to disband again. */
+    private static final long LAND_CONFIRM_MILLIS = 60_000;
+    /** Who was warned about which guild's land, and until when the next disband counts as confirmed. */
+    private static final Map<UUID, Map.Entry<UUID, Long>> LAND_WARNED = new HashMap<>();
+
+    /**
+     * The warning a disband that would free some of the leader's land gives first (OPAC: the chunks over the leader's
+     * own limit become free land); null when nothing would be freed, or when {@code actor} was warned about this guild
+     * in the last minute (their repeated disband confirms it). Also used by the admin disband.
+     */
+    @Nullable
+    public static Component landWarning(MinecraftServer server, Guild guild, UUID actor) {
+        int excess = OpacCompat.disbandExcess(server, guild);
+        if (excess <= 0) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        Map.Entry<UUID, Long> warned = LAND_WARNED.get(actor);
+        if (warned != null && warned.getKey().equals(guild.id) && warned.getValue() >= now) {
+            LAND_WARNED.remove(actor);
+            return null;
+        }
+        LAND_WARNED.put(actor, Map.entry(guild.id, now + LAND_CONFIRM_MILLIS));
+        return Component.translatableWithFallback("message.eden_ld.guild.disband_frees_land",
+                "After the disband, %1$s chunks over your own claim limit (%2$s) will become free land, "
+                + "and anyone can claim them. Unclaim the ones you can spare first. To disband anyway, "
+                + "disband again within %3$s seconds.",
+                excess,
+                Math.max(0, OpacCompat.ownLimit(server, guild)), LAND_CONFIRM_MILLIS / 1000);
     }
 
     // ---------------------------------------------------------------- settings

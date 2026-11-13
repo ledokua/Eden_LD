@@ -586,14 +586,27 @@ public final class GuildDesk {
         if (problem != null) {
             return refuse(admin, Component.translatable("message.eden_ld.moderation.guild." + problem, GuildRules.MAX_REASON));
         }
+        // The leader's land over their own limit becomes free land: say so first; disbanding again within a minute
+        // goes ahead.
+        Component landWarning = GuildManager.landWarning(server, guild, admin.getUUID());
+        if (landWarning != null) {
+            EdenLD.LOGGER.info("[Guilds] {} was warned before disbanding [{}] {}: {}", admin.getGameProfile().getName(),
+                    guild.tag, guild.name, landWarning.getString());
+            return refuse(admin, Component.translatableWithFallback("message.eden_ld.admin.disband_frees_land",
+                    "Warning for the leader's land: %s", landWarning));
+        }
         int members = guild.members.size();
-        manager.forceDisband(server, guild);
+        net.ledok.eden_ld.compat.opac.OpacCompat.Released freed = manager.forceDisband(server, guild);
         GuildServer.syncAll(server);
         HubServer.refreshWaystones(server);
         EdenLD.LOGGER.info("[Guilds] {} disbanded the guild [{}] {} ({} members, {} LC in the bank): {}",
                 admin.getGameProfile().getName(), guild.tag, guild.name, members, guild.bank.balance, reason);
         VIEWS.values().removeIf(view -> view.guild().equals(guild.id));
-        return Component.translatable("message.eden_ld.admin.disbanded", guild.name);
+        return freed == null ? Component.translatable("message.eden_ld.admin.disbanded", guild.name)
+                : Component.translatableWithFallback("message.eden_ld.admin.disbanded_freed",
+                        "Guild %1$s disbanded; %2$s of the leader's chunks over their own limit became free land "
+                        + "(listed in the server log).",
+                        guild.name, freed.chunks());
     }
 
     // ---------------------------------------------------------------- helpers

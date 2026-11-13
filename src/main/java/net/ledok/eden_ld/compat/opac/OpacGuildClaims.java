@@ -7,7 +7,6 @@ import net.ledok.eden_ld.hub.guild.GuildManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import org.jetbrains.annotations.Nullable;
-import xaero.pac.common.claims.api.SpecialClaimOwners;
 import xaero.pac.common.server.ServerData;
 import xaero.pac.common.server.api.OpenPACServerAPI;
 import xaero.pac.common.server.claims.api.IServerClaimsManagerAPI;
@@ -136,30 +135,38 @@ final class OpacGuildClaims {
         if (land == null || land.used() <= land.limit()) {
             return null;
         }
-        boolean expire = Boolean.TRUE.equals(serverOption("playerClaimsConvertExpiredClaims"));
-        int released = releaseExcess(server, api.getServerClaimsManager(), guild.leader(),
-                land.used() - land.limit(), expire);
-        EdenLD.LOGGER.info("Guild {} ended: released {} of the leader's {} chunks over their own limit of {} ({})",
-                guild.name, released, land.used(), land.limit(), expire ? "expired" : "unclaimed");
-        return new OpacCompat.Released(released, expire);
+        // Always free land (owner's decision, 2026-11-13): expired claims kept the land from its old leader and from
+        // everyone else alike. OPAC's playerClaimsConvertExpiredClaims still governs its own inactivity expiry.
+        List<OpacCompat.FreedChunk> freed = releaseExcess(server, api.getServerClaimsManager(), guild.leader(),
+                land.used() - land.limit());
+        StringBuilder where = new StringBuilder();
+        for (OpacCompat.FreedChunk chunk : freed) {
+            where.append(where.isEmpty() ? "" : "; ").append(chunk.dimension()).append(' ')
+                    .append(chunk.x()).append(',').append(chunk.z());
+        }
+        EdenLD.LOGGER.info("Guild {} ended: released {} of the leader's {} chunks over their own limit of {} (unclaimed): {}",
+                guild.name, freed.size(), land.used(), land.limit(), where);
+        return new OpacCompat.Released(freed.size(), freed);
     }
 
-    /** Releases {@code count} of {@code owner}'s chunks, newest first (config: oldest first). */
-    private static int releaseExcess(MinecraftServer server, IServerClaimsManagerAPI claims, UUID owner,
-                                     int count, boolean expire) {
+    /** How many of the leader's chunks a disband would free now (over their own limit); 0 when none. */
+    static int disbandExcess(MinecraftServer server, Guild guild) {
+        OpacCompat.ClaimsInfo land = afterGuild(server, guild);
+        return land == null ? 0 : Math.max(0, land.used() - land.limit());
+    }
+
+    /** Unclaims {@code count} of {@code owner}'s chunks, newest first (config: oldest first); returns which. */
+    private static List<OpacCompat.FreedChunk> releaseExcess(MinecraftServer server, IServerClaimsManagerAPI claims,
+                                                             UUID owner, int count) {
         List<Chunk> chunks = chunksOf(server, claims, owner);
         Comparator<Chunk> byTime = Comparator.comparingLong(Chunk::time);
         chunks.sort(EdenLD.CONFIG.hub.guild_release_newest_first ? byTime.reversed() : byTime);
-        int released = 0;
+        List<OpacCompat.FreedChunk> freed = new ArrayList<>();
         for (Chunk chunk : chunks.subList(0, Math.min(count, chunks.size()))) {
-            if (expire) {
-                claims.claim(chunk.dimension(), SpecialClaimOwners.EXPIRED, -1, chunk.x(), chunk.z(), false);
-            } else {
-                claims.unclaim(chunk.dimension(), chunk.x(), chunk.z());
-            }
-            released++;
+            claims.unclaim(chunk.dimension(), chunk.x(), chunk.z());
+            freed.add(new OpacCompat.FreedChunk(chunk.dimension(), chunk.x(), chunk.z()));
         }
-        return released;
+        return freed;
     }
 
     /** Every chunk {@code owner} holds, with claim times (0 when unknown); collected before any change. */
