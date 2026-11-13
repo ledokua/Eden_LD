@@ -114,6 +114,9 @@ final class SettingsTab {
     private static void privacy(Settings settings, HubPayloads.SettingsData data) {
         settings.heading(tr("section.party"));
         settings.add(whoMay("invites_from", HubSettings.PARTY_INVITES_FROM, data.partyInvitesFrom(), data));
+        if (HubState.activityInvitesOff >= 0) {
+            activityInvites(settings, data);
+        }
         settings.heading(tr("section.guild"));
         settings.add(guildTag(data));
         settings.heading(tr("section.profile"));
@@ -122,6 +125,32 @@ final class SettingsTab {
             duels(settings, data);
         }
         ignored(settings);
+    }
+
+    /**
+     * Who may invite the player to raids, dungeons and arenas (Arenas_LD asks the server): one switch per group.
+     * Someone in several groups may invite if any of theirs is on. Friends only with Minestar friendships.
+     */
+    private static void activityInvites(Settings settings, HubPayloads.SettingsData data) {
+        settings.heading(tr("section.activity_invites"));
+        int off = HubState.activityInvitesOff;
+        if (data.friendsAvailable()) {
+            settings.add(activityInvite("friends", HubSettings.ACTIVITY_INVITES_FRIENDS, off));
+        }
+        settings.add(activityInvite("party", HubSettings.ACTIVITY_INVITES_PARTY, off));
+        settings.add(activityInvite("guild", HubSettings.ACTIVITY_INVITES_GUILD, off));
+        settings.add(activityInvite("others", HubSettings.ACTIVITY_INVITES_OTHERS, off));
+    }
+
+    private static Option<?, ?> activityInvite(String who, int bit, int off) {
+        String name = "activity_invites." + who;
+        return Option.toggle(tr(name), (off & bit) == 0, on -> {
+                    int now = Math.max(0, HubState.activityInvitesOff);
+                    int next = on ? now & ~bit : now | bit;
+                    HubState.activityInvitesOff = next;
+                    send(HubSettings.ACTIVITY_INVITES_OFF, next);
+                })
+                .text(tr("activity_invites.toggle")).hint(tr(name + ".hint")).defaultValue(true);
     }
 
     /** Duels_LD is on both sides: its switches show only where it's installed. */

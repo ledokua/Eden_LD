@@ -16,6 +16,8 @@ public final class HubState {
     public static HubPayloads.SettingsData settingsData;
     /** The chat switches ({@link HubPayloads.ChatFlags}); -1 until the server says (all on, none known). */
     public static int chatFlags = ChatFlagBits.UNSENT;
+    /** Raid/dungeon/arena invites turned off ({@code HubSettings.ACTIVITY_INVITES_OFF} bits); -1: the server didn't say. */
+    public static int activityInvitesOff = -1;
     /** The Activities tab's cards (dungeons, raids, arenas). */
     public static HubPayloads.ActivitiesData activitiesData;
     /** Activities closed for maintenance (dimmed, not clickable), and whether this player may enter them anyway (staff). */
@@ -89,6 +91,7 @@ public final class HubState {
         friendsData = null;
         settingsData = null;
         chatFlags = ChatFlagBits.UNSENT;
+        activityInvitesOff = -1;
         activitiesData = null;
         closedActivities = java.util.Set.of();
         closedBypass = false;

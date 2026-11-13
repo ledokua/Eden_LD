@@ -712,6 +712,12 @@ public final class HubServer {
                 HubSettings.chatMutes(server, player.getUUID()),
                 HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_SKIP_LOSS_WARNING),
                 HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_PERSONAL_CHALLENGES)));
+        // Only while Arenas_LD asks Eden about invites: otherwise the switches would do nothing.
+        if (net.ledok.eden_ld.compat.arenas.ArenasHook.invitesFiltered()
+                && ServerPlayNetworking.canSend(player, HubPayloads.ActivityInvitesData.TYPE)) {
+            ServerPlayNetworking.send(player, new HubPayloads.ActivityInvitesData(
+                    HubSettings.activityInvitesOff(server, player.getUUID())));
+        }
     }
 
     private static void changeSetting(ServerPlayer player, HubPayloads.SettingChange change) {

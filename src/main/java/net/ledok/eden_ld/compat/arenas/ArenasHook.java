@@ -12,7 +12,19 @@ public final class ArenasHook {
 
     public static final boolean LOADED = FabricLoader.getInstance().isModLoaded("arenas_ld");
 
+    /** Arenas_LD asks Eden before sending a raid/dungeon/arena invite ({@code hub.ActivityInvites}). */
+    private static volatile boolean invitesFiltered;
+
     private ArenasHook() {
+    }
+
+    /** Whether Arenas_LD checks Eden's invite settings (so the Settings tab shows them). */
+    public static boolean invitesFiltered() {
+        return invitesFiltered;
+    }
+
+    static void invitesFiltered(boolean filtered) {
+        invitesFiltered = filtered;
     }
 
     /** Adds Arenas_LD's dungeons, raids and arenas to the Activities tab, gates them by level, and records their runs. */

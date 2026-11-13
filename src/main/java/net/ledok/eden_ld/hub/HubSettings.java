@@ -16,6 +16,18 @@ public final class HubSettings {
 
     private static final String TAG = "settings";
     public static final String PARTY_INVITES_FROM = "party_invites_from";
+    /**
+     * Raid, dungeon and arena invites (Arenas_LD) the player turned off, as bits: {@link #ACTIVITY_INVITES_FRIENDS},
+     * {@link #ACTIVITY_INVITES_PARTY}, {@link #ACTIVITY_INVITES_GUILD}, {@link #ACTIVITY_INVITES_OTHERS}. 0 (the
+     * default) = everyone may invite them. See {@code hub.ActivityInvites}.
+     */
+    public static final String ACTIVITY_INVITES_OFF = "activity_invites_off";
+    public static final int ACTIVITY_INVITES_FRIENDS = 1;
+    public static final int ACTIVITY_INVITES_PARTY = 1 << 1;
+    public static final int ACTIVITY_INVITES_GUILD = 1 << 2;
+    /** Everyone who is none of the above. */
+    public static final int ACTIVITY_INVITES_OTHERS = 1 << 3;
+    private static final int ACTIVITY_INVITES_ALL = 0b1111;
     public static final String THEME = "theme";
     public static final String SHOW_GUILD_TAG = "show_guild_tag";
     /** The player turned the theme's own icons off (Settings → Visual); default: on. */
@@ -266,6 +278,11 @@ public final class HubSettings {
         return HubData.get(server).peek(player).getCompound(TAG).getInt(key);
     }
 
+    /** The raid/dungeon/arena invites the player turned off ({@link #ACTIVITY_INVITES_OFF} bits; 0 = none). */
+    public static int activityInvitesOff(MinecraftServer server, UUID player) {
+        return HubData.get(server).peek(player).getCompound(TAG).getInt(ACTIVITY_INVITES_OFF) & ACTIVITY_INVITES_ALL;
+    }
+
     public static InvitesFrom partyInvitesFrom(MinecraftServer server, UUID player) {
         CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
         return InvitesFrom.of(settings.getInt(PARTY_INVITES_FROM));
@@ -494,6 +511,13 @@ public final class HubSettings {
         }
         if (NOTIFY_OFF.equals(key) || SEEN_TABS.equals(key)) {
             if (value < 0) {
+                return false;
+            }
+            settings(server, player).putInt(key, value);
+            return true;
+        }
+        if (ACTIVITY_INVITES_OFF.equals(key)) {
+            if (value < 0 || value > ACTIVITY_INVITES_ALL) {
                 return false;
             }
             settings(server, player).putInt(key, value);

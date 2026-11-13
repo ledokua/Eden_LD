@@ -351,6 +351,12 @@ public class EdenLDClient implements ClientModInitializer {
                 screen.onSettingsData();
             }
         });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityInvitesData.TYPE, (payload, context) -> {
+            HubState.activityInvitesOff = payload.off();
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onSettingsData();
+            }
+        });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ChatSystemOnly.TYPE, (payload, context) -> {
             // The server's system-only list on top of Eden's: lines already in the chat are filed again at once.
             net.ledok.eden_ld.client.chat.panel.ChatStore.rules(net.ledok.eden_ld.chat.SystemOnlyRules.of(

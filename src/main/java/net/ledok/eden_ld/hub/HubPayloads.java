@@ -2838,6 +2838,22 @@ public final class HubPayloads {
     }
 
     /**
+     * S2C (1.3.70+): the raid/dungeon/arena invites the player turned off ({@code HubSettings.ACTIVITY_INVITES_OFF}
+     * bits). Its own payload, sent after {@link SettingsData} only to clients that know it and only while Arenas_LD
+     * asks Eden about invites; without it the Settings tab leaves those switches out.
+     */
+    public record ActivityInvitesData(int off) implements CustomPacketPayload {
+        public static final Type<ActivityInvitesData> TYPE = new Type<>(id("activity_invites_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityInvitesData> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarInt(p.off), buf -> new ActivityInvitesData(buf.readVarInt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
      * S2C: someone @mentioned the player in a chat channel ({@code ChatChannels.Channel} ordinal) — the client plays
      * the ping at the player's own volume, unless that channel's notifications are Nothing.
      */
@@ -3623,6 +3639,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(TourStart.TYPE, TourStart.CODEC);
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatFlags.TYPE, ChatFlags.CODEC);
+        PayloadTypeRegistry.playS2C().register(ActivityInvitesData.TYPE, ActivityInvitesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatSystemOnly.TYPE, ChatSystemOnly.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);
