@@ -30,7 +30,6 @@ public class EdenConfig {
     public Villagers villagers = new Villagers();
     public Saving saving = new Saving();
     public Hoppers hoppers = new Hoppers();
-    public ClientFixes client_fixes = new ClientFixes();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -373,16 +372,6 @@ public class EdenConfig {
          * repeat. Higher = cheaper, and such a villager finds its bed or job a few seconds later. 20 or less = vanilla.
          */
         public int poi_search_interval_ticks = 100;
-    }
-
-    /** Client-side fixes for crashes between other mods (each player's own config; defaults on). */
-    public static class ClientFixes {
-        /**
-         * A block entity being mined (an Extended Drawers drawer showing an item, with Sodium, ImmediatelyFast and Better
-         * Block Entities) crashed the client with "Not building!". Each crumbling layer now gets the current crumbling
-         * buffer instead of one taken when the block entity started drawing. False = Sodium's behaviour.
-         */
-        public boolean fresh_crumbling_overlay = true;
     }
 
     /** Hopper costs (Observable: a hopper feeding an Extended Drawers access point took 328 µs every tick). */

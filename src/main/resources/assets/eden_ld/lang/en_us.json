@@ -1691,7 +1691,6 @@
   "gui.eden_ld.hub.activities.closed_hint": "Closed for maintenance",
   "gui.eden_ld.hub.activities.closed_staff": "Staff: you can still enter to test it",
   "gui.eden_ld.hub.activities.party_below": "⚠ Below level %s in your party: %s",
-  "message.eden_ld.emi_reload": "Reloading EMI…",
   "gui.eden_ld.hub.tab.kits": "Kits",
   "gui.eden_ld.hub.help.kits": "Kits are sets of items the server hands out: a starter set, rank kits and more. Each card says when the kit is yours to take: ready now, ready again after a wait, one-time and already taken, or locked (it says how to unlock it).\n\nPreview shows what you get, laid out like your inventory: armor and offhand on the left, the inventory and hotbar beside them. Hover over an item for its details. Claim puts every item in its slot when that slot is free, the rest anywhere in your inventory, and drops what doesn't fit at your feet.\n\n/kits opens this tab too.",
   "gui.eden_ld.hub.kits.none_title": "No kits for you yet",

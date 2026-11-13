@@ -32,13 +32,10 @@ public class EdenLDClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        net.ledok.eden_ld.client.fix.CrumblingTest.registerIfRequested();
         // Headings and {size:} spans in Markdown (mail) draw at their size.
         net.ledok.vectorlib.client.text.TextSizes.register();
         // FTB Library's sidebar buttons stay off the Moderation window.
         net.ledok.eden_ld.client.compat.FtbSidebarCompat.initialize();
-        // EMI no longer hangs on "Reloading..." after a rejoin; /emireload.
-        net.ledok.eden_ld.client.compat.EmiReloadFix.initialize();
         // The hub language's tables and the hub icons are read again after a resource reload (F3+T, pack changes),
         // and chat lines are wrapped again (the font may have changed).
         net.fabricmc.fabric.api.resource.ResourceManagerHelper.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)

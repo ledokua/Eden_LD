@@ -539,7 +539,7 @@ a `name`, the generated objective line shows under it.
 
 Eden counts kills (projectile kills count for the shooter), crafting (the game's "crafted" statistic: the crafting
 grid with shift-click as the whole batch, furnaces and smokers, stonecutters, smithing, villager trades, and mod stations
-that call `onCraftedBy`, such as Farmer's Delight's cooking pot — shift-clicked or served with a bowl too), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
+that call `onCraftedBy`, such as Farmer's Delight's cooking pot — served with a bowl too, and shift-clicked with Fixes_LD), placing blocks (planting seeds counts), mining, eating, fishing, **finished Spell
 Engine casts**, and **any vanilla statistic** (`stat` — same names as `/scoreboard` criteria;
 distances are in centimeters, times in ticks).
 
@@ -1812,7 +1812,6 @@ is the player's name.
 | `/guild-admin xp <tag> add\|set <amount>` | `eden_ld.admin.guilds` | Adds or sets a guild's XP (levels follow; bonuses and messages as for a real level-up). |
 | `/guild-admin quests <tag> reset` | `eden_ld.admin.guilds` | Clears the guild's quest boards and draws them again (progress lost). |
 | `/shop-receive` | any player | Delivers pending Minestar shop purchases (registered only when Minestar is installed). |
-| `/emireload` | any player (client command, with EMI) | Reloads EMI from what the client already has — for an EMI stuck on "Reloading..." without an op's `/reload`. |
 | `/eden gamerule <dimension> <rule> <value>\|reset` | `eden_ld.admin.world` | Sets a dimension's own value of a gamerule, or (`reset`, or the server-wide value) makes it follow the server-wide one again — see [World rules](#world-rules). |
 | `/pvp [on\|off]` | any player | Shows or switches your own PvP (1 minute cooldown, not while combat-tagged) — see [PvP toggle](#pvp-toggle). |
 | `/eden pvp <dimension> [off\|toggle\|on\|reset]` | `eden_ld.admin.world` | Shows or sets a dimension's PvP mode (`reset` follows `server.properties`: `pvp=true` → toggle, `false` → off) — see [World rules](#world-rules). |
@@ -1916,26 +1915,13 @@ Other mods can register flight rules, read cached Minestar profiles, read player
 - **Mods and resource packs with their own font glyphs** (Economy_LD's coin, icon fonts) — emojis
   use characters from Unicode's plane-15 private use area and never replace a glyph a font
   defines itself.
-- **EMI** (1.1.24) — rejoin fix: EMI could stay on "Reloading..." after joining the server again
-  without restarting the game (a server restart, a lost connection), until an op ran `/reload`. EMI
-  reloads once both halves of the server's data — tags and recipes — have come and remembers which
-  half it has seen; its reset of that memory sits on a disconnect path that a dropped connection, a
-  server stop and Join never take, and the server sends a few lone recipe syncs after each join. The
-  stale half then paired with the next join's tags before the world existed, the reload stopped
-  ("World is null") and EMI waited for tags that had already come. Eden forgets the halves whenever
-  the client leaves a world, redoes a reload that stopped without a world once the world and the
-  recipes are there, and adds `/emireload`. Does nothing without EMI.
-- **Saint's Dragons** (0.9.5) — crash fix: its dragon spawn rule counted the dragons near a spot
-  by asking the live world, also while chunks generate on worker threads (C2ME), which corrupted
-  the world's entity lists and crashed the server. Eden makes the rule skip that count while chunks
-  generate (a new chunk has no dragons around it to count) and off the server thread; natural spawns
-  keep the density limit. Does nothing without Saint's Dragons.
-- **Stylish Effects** (21.1.3) **with Trinkets** (3.10) — the inventory's effect widgets start left of
-  Trinkets' extra slot columns; Stylish Effects put them right next to the panel, where Trinkets
-  then drew its columns over them. Effects on the right side, other screens and an inventory
-  without extra columns are left alone. Does nothing without both mods. With **EMI**, its panels
-  (favorites on the left) flow around the effect widgets instead of drawing over them — Stylish
-  Effects tells only JEI and REI where they are.
+- **Stylish Effects** with **EMI** — EMI's panels (favorites on the left) flow around Stylish Effects' effect widgets
+  instead of drawing over them; Stylish Effects tells only JEI and REI where they are.
+- **Moved to Fixes_LD (Eden 1.3.73):** the fixes for other mods that don't need Eden now live in the separate
+  Fixes_LD mod, each with its own switch in `config/fixes_ld.json`: EMI's rejoin fix and `/emireload`, Saint's Dragons'
+  spawn-rule crash, Stylish Effects' widgets under Trinkets' columns, Sodium's crumbling-overlay crash, Bundle API's
+  empty stacks, Create's attribute filter kick, Mine Cells' leftover border, Farmer's Delight's shift-click statistic
+  and the 1.21.2 attribute ids in saved entities.
 
 ## Credits
 
