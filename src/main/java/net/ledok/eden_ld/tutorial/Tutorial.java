@@ -37,7 +37,7 @@ import java.util.List;
  */
 public final class Tutorial {
 
-    public enum State { NONE, ACTIVE, DONE }
+    public enum State { NONE, ACTIVE, DONE, SKIPPED }
 
     private static final String TAG = "tutorial";
     private static final boolean TRINKETS = FabricLoader.getInstance().isModLoaded("trinkets");
@@ -76,6 +76,7 @@ public final class Tutorial {
         return switch (tag.getString("state")) {
             case "active" -> State.ACTIVE;
             case "done" -> State.DONE;
+            case "skipped" -> State.SKIPPED;
             default -> State.NONE;
         };
     }
@@ -128,6 +129,7 @@ public final class Tutorial {
             }
         }
         data.putString("state", "active");
+        data.remove("skipping");
         BusyState.setBusy(player, BusyLocks.TUTORIAL);
         TutorialPhases.enter(player);
         player.setGameMode(GameType.ADVENTURE);
@@ -138,12 +140,32 @@ public final class Tutorial {
         return true;
     }
 
+    /**
+     * Marks the player as having skipped the tutorial rather than completed it. The guide's skip branch runs it, before
+     * or after its {@code /eden tutorial finish}: while they're still in the tutorial it only notes it and
+     * {@link #finish} then saves "skipped"; once they're out, "done" becomes "skipped". False when they never started.
+     */
+    public static boolean markSkipped(ServerPlayer player) {
+        CompoundTag data = data(player);
+        switch (data.getString("state")) {
+            case "active" -> data.putBoolean("skipping", true);
+            case "done", "skipped" -> data.putString("state", "skipped");
+            default -> {
+                return false;
+            }
+        }
+        EdenLD.LOGGER.info("[Tutorial] {} skipped the tutorial.", player.getGameProfile().getName());
+        return true;
+    }
+
     /** Ends the tutorial (finished or skipped): everything back, the finish spot, never again on join. */
     public static void finish(ServerPlayer player) {
         EdenConfig.Tutorial config = EdenLD.CONFIG.tutorial;
         CompoundTag data = data(player);
         boolean wasActive = "active".equals(data.getString("state"));
-        data.putString("state", "done");
+        boolean skipped = data.getBoolean("skipping") || "skipped".equals(data.getString("state"));
+        data.putString("state", skipped ? "skipped" : "done");
+        data.remove("skipping");
         BusyState.clearBusy(player, BusyLocks.TUTORIAL);
         TutorialPhases.leave(player);
         if (wasActive) {
@@ -163,7 +185,8 @@ public final class Tutorial {
                     config.finish_dimension, player.getGameProfile().getName());
         }
         player.inventoryMenu.broadcastChanges();
-        EdenLD.LOGGER.info("[Tutorial] {} finished the tutorial.", player.getGameProfile().getName());
+        EdenLD.LOGGER.info("[Tutorial] {} {} the tutorial.", player.getGameProfile().getName(),
+                skipped ? "left (skipped)" : "finished");
     }
 
     /** The saved inventory back in its slots; whatever they hold now is kept too (added, or dropped at their feet). */

@@ -65,6 +65,7 @@
     "compat.bleed.SpellEngineBleedMixin",
     "compat.bundleapi.BundleContentsNoEmptyMixin",
     "compat.create.AttributeFilterNoNullMixin",
+    "compat.waystones.TutorialKeepWaystonesMixin",
     "phase.PhaseEntityMixin",
     "phase.PhaseGameModeMixin",
     "phase.PhaseGamePacketMixin",

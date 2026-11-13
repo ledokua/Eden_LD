@@ -26,6 +26,8 @@ public final class TutorialCommand {
                         .executes(context -> start(context.getSource(), EntityArgument.getPlayers(context, "players")))))
                 .then(Commands.literal("finish").then(Commands.argument("players", EntityArgument.players())
                         .executes(context -> finish(context.getSource(), EntityArgument.getPlayers(context, "players")))))
+                .then(Commands.literal("skip").then(Commands.argument("players", EntityArgument.players())
+                        .executes(context -> skip(context.getSource(), EntityArgument.getPlayers(context, "players")))))
                 .then(Commands.literal("status").then(Commands.argument("player", EntityArgument.player())
                         .executes(context -> {
                             ServerPlayer player = EntityArgument.getPlayer(context, "player");
@@ -56,5 +58,18 @@ public final class TutorialCommand {
             source.sendSuccess(() -> Component.translatable("message.eden_ld.tutorial.finished", player.getDisplayName()), true);
         }
         return players.size();
+    }
+
+    private static int skip(CommandSourceStack source, Collection<ServerPlayer> players) {
+        int marked = 0;
+        for (ServerPlayer player : players) {
+            if (Tutorial.markSkipped(player)) {
+                marked++;
+                source.sendSuccess(() -> Component.translatable("message.eden_ld.tutorial.skipped", player.getDisplayName()), true);
+            } else {
+                source.sendFailure(Component.translatable("message.eden_ld.tutorial.skip_failed", player.getDisplayName()));
+            }
+        }
+        return marked;
     }
 }
