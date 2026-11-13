@@ -6,7 +6,9 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import java.util.List;
 import net.puffish.skillsmod.api.Category;
+import net.puffish.skillsmod.api.Skill;
 import net.puffish.skillsmod.api.SkillsAPI;
 
 /**
@@ -40,12 +42,26 @@ final class RentalSkills {
         return saved;
     }
 
-    /** Every category's skills reset and the category locked. */
+    /**
+     * Every category's skills reset and the category locked.
+     * <p>
+     * Pufferfish Skills' "show category" packet holds the player's live category data and is encoded later on the
+     * network thread; changing the skills right after one is sent (as {@code resetSkills} + {@code lock} did) can
+     * throw a ConcurrentModificationException in the encoder, which kicks the player. So the category is hidden first
+     * (that packet holds only the id) and each skill is locked on its own (those packets hold copies).
+     */
     static void clearAll(ServerPlayer player) {
         SkillsAPI.streamCategories().forEach(category -> {
-            category.resetSkills(player);
             category.lock(player);
+            lockEvery(player, category);
         });
+    }
+
+    private static void lockEvery(ServerPlayer player, Category category) {
+        List<Skill> unlocked = category.streamUnlockedSkills(player).toList();
+        for (Skill skill : unlocked) {
+            skill.lock(player);
+        }
     }
 
     /** Puts every saved category's lock state and skills back. Categories and skills gone since are skipped. */
@@ -57,14 +73,14 @@ final class RentalSkills {
                 continue;
             }
             CompoundTag entry = saved.getCompound(key);
-            category.resetSkills(player);
-            if (entry.getBoolean("unlocked")) {
-                category.unlock(player);
-            } else {
-                category.lock(player);
-            }
+            // Hidden while it changes, shown once at the end (see clearAll): nothing changes after the show packet.
+            category.lock(player);
+            lockEvery(player, category);
             for (Tag skill : entry.getList("skills", Tag.TAG_STRING)) {
                 category.getSkill(skill.getAsString()).ifPresent(found -> found.unlock(player));
+            }
+            if (entry.getBoolean("unlocked")) {
+                category.unlock(player);
             }
         }
     }
