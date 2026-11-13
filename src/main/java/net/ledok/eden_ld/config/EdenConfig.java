@@ -474,7 +474,7 @@ public class EdenConfig {
          * standing in fire or lava.
          */
         public List<String> damage_reduction_applies_to = new ArrayList<>(List.of("minecraft:on_fire", "minecraft:wither",
-                "poison", "bleed"));
+                "poison", "bleed", "eden_ld:water_curse"));
         /**
          * Rebuild old RPG Series armor pieces in players' inventories with the current set stats (damage reduction, no
          * armor points, 3% evasion), keeping Dungeon Difficulty's health and Limit Break's bonuses on them.
