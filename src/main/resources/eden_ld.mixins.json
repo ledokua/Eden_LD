@@ -64,6 +64,7 @@
     "compat.bleed.SoulsWeaponryBleedMixin",
     "compat.bleed.SpellEngineBleedMixin",
     "compat.bundleapi.BundleContentsNoEmptyMixin",
+    "compat.create.AttributeFilterNoNullMixin",
     "phase.PhaseEntityMixin",
     "phase.PhaseGameModeMixin",
     "phase.PhaseGamePacketMixin",
