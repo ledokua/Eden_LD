@@ -47,7 +47,7 @@ public final class GuildBankServer {
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.BankAction.TYPE,
                 (payload, context) -> handle(context.player(), payload));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                VIEWERS.remove(handler.getPlayer().getUUID()));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> VIEWERS.remove(handler.getPlayer().getUUID())));
     }
 
     /** Re-sends the bank to every member of this guild who has it open. */

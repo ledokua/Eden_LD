@@ -77,7 +77,7 @@ public final class ChatStyle {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 LuckPermsCompat.onUserDataChange(NAMES::clear));
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                NAMES.remove(handler.getPlayer().getUUID()));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> NAMES.remove(handler.getPlayer().getUUID())));
     }
 
     /**

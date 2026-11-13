@@ -103,7 +103,8 @@ public final class Stamina {
         }
         StaminaRolls.register();
         ServerTickEvents.END_SERVER_TICK.register(Stamina::tick);
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> STATES.remove(handler.player.getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> STATES.remove(handler.player.getUUID())));
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> STATES.clear());
     }
 

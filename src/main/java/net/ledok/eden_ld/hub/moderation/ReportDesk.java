@@ -49,7 +49,8 @@ public final class ReportDesk {
     }
 
     public static void initialize() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> VIEWS.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> VIEWS.remove(handler.getPlayer().getUUID())));
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> VIEWS.clear());
     }
 

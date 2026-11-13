@@ -120,7 +120,8 @@ public final class MailHub {
             ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> server = null);
             ServerPlayNetworking.registerGlobalReceiver(HubPayloads.MailAction.TYPE,
                     (payload, context) -> context.server().execute(() -> handle(context.player(), payload)));
-            ServerPlayConnectionEvents.JOIN.register((handler, sender, joined) -> push(handler.player));
+            ServerPlayConnectionEvents.JOIN.register((handler, sender, joined) ->
+                    net.ledok.eden_ld.util.OnServerThread.run(joined, () -> push(handler.player)));
             // The wallet bar's balance: a deposit or withdrawal (from the bar, a right-click or a command) resends it.
             net.ledok.economy_ld.api.EconomyEvents.COINS_MOVED.add(player -> {
                 if (server == null) {

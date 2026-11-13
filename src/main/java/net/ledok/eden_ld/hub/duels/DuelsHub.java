@@ -58,7 +58,8 @@ public final class DuelsHub {
         });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.DuelsQueue.TYPE,
                 (payload, context) -> queue(context.player(), payload.mode(), payload.join()));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> VIEWERS.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> VIEWERS.remove(handler.getPlayer().getUUID())));
         // A fresh client knows nothing about the queue: tell it.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> sendStatus(handler.getPlayer())));
         // Pushes are batched to the end of the tick: one event often touches several players.

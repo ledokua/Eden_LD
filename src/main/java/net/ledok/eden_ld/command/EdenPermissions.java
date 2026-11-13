@@ -75,8 +75,9 @@ public final class EdenPermissions {
 
     public static void initialize() {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                SENT.put(handler.getPlayer().getUUID(), granted(handler.getPlayer())));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> SENT.remove(handler.getPlayer().getUUID()));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> SENT.put(handler.getPlayer().getUUID(), granted(handler.getPlayer()))));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> SENT.remove(handler.getPlayer().getUUID())));
         // The event arrives off-thread, for any user's recalculation; only real changes resend.
         ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 LuckPermsCompat.onUserDataChange(() -> started.execute(() -> resendChanged(started))));

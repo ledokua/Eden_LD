@@ -52,10 +52,10 @@ public final class Tutorial {
             boolean firstTime = player.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) == 0;
             server.execute(() -> onJoin(player, firstTime));
         });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             BusyState.clearBusy(handler.getPlayer().getUUID(), BusyLocks.TUTORIAL);
             TutorialPhases.loggedOut(handler.getPlayer());
-        });
+        }));
         net.ledok.eden_ld.tutorial.phase.Phases.initialize();
         TutorialLockedBlocks.initialize();
         // No dying in the tutorial: back to its spawn, healed.

@@ -73,7 +73,8 @@ public final class WorldRules {
             broken = false;
         });
         // Vanilla tells a player the server's difficulty at these moments; a dimension with its own follows up.
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> sendOwnDifficulty(handler.getPlayer()));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> sendOwnDifficulty(handler.getPlayer())));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> sendOwnDifficulty(newPlayer));
         ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) -> sendOwnDifficulty(player));
     }

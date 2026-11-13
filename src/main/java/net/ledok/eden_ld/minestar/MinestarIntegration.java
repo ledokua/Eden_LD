@@ -50,10 +50,10 @@ final class MinestarIntegration {
         // Levels move while players play: their profiles are fetched again now and then.
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(ProfileService::tick);
 
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             ProfileCache.evict(handler.getPlayer().getUUID());
             FriendService.forget(handler.getPlayer().getUUID());
-        });
+        }));
 
         EdenLD.LOGGER.info("[Minestar] Platform integration initialized.");
     }

@@ -85,7 +85,8 @@ public final class RentalStash {
     }
 
     public static void initialize() {
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> onJoin(handler.getPlayer()));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> onJoin(handler.getPlayer())));
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> LIVE.clear());
         // Once a second: rental items only ever stay with their renter (anything that slipped past the guards goes).
         ServerTickEvents.END_SERVER_TICK.register(server -> {
