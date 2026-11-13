@@ -1,4 +1,6 @@
 {
+  "death.attack.eden_ld.water_curse": "%1$s загинув від прокляття води",
+  "death.attack.eden_ld.water_curse.player": "%1$s загинув від прокляття води, б'ючись із %2$s",
   "category.eden_ld.main": "Eden LD",
   "gui.eden_ld.hub.home.balance": "%s 󿼀",
   "gui.eden_ld.hub.home.caught_up": "Усе гаразд — нічого не потребує вашої уваги.",

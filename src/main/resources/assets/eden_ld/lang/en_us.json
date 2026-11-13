@@ -1,4 +1,6 @@
 {
+  "death.attack.eden_ld.water_curse": "%1$s was consumed by the water curse",
+  "death.attack.eden_ld.water_curse.player": "%1$s was consumed by the water curse while fighting %2$s",
   "category.eden_ld.main": "Eden LD",
   "gui.eden_ld.hub.home.balance": "%s 󿼀",
   "gui.eden_ld.hub.home.caught_up": "All caught up — nothing needs your attention.",

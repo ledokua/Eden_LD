@@ -761,6 +761,8 @@ public class EdenConfig {
             rules.put("yungscavebiomes:prickly_vines", Rule.max(1));
             rules.put("create:fan_fire", Rule.max(1.5));
             rules.put("create:fan_lava", Rule.max(5));
+            // Yggdrasil Origins' water curse (Eden's own damage type, every 20 ticks in water or rain): as drowning.
+            rules.put("eden_ld:water_curse", Rule.max(5));
             return rules;
         }
     }
