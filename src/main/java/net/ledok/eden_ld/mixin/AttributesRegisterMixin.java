@@ -17,6 +17,7 @@ public abstract class AttributesRegisterMixin {
     @Inject(method = "<clinit>", at = @At("TAIL"))
     private static void eden_ld$registerAttributes(CallbackInfo ci) {
         DamageReduction.register();
+        net.ledok.eden_ld.combat.GearStats.registerAttributes();
         net.ledok.eden_ld.combat.Stamina.registerAttributes();
     }
 }

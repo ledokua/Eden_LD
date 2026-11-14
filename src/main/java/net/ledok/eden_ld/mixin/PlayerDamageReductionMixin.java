@@ -8,7 +8,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Players carry {@code eden_ld:damage_reduction} ({@link DamageReduction}) and the stamina attributes. */
+/**
+ * Players carry {@code eden_ld:damage_reduction} ({@link DamageReduction}), {@code eden_ld:max_health_percent}
+ * ({@code GearStats}) and the stamina attributes.
+ */
 @Mixin(Player.class)
 public abstract class PlayerDamageReductionMixin {
 
@@ -16,6 +19,9 @@ public abstract class PlayerDamageReductionMixin {
     private static void eden_ld$damageReduction(CallbackInfoReturnable<AttributeSupplier.Builder> cir) {
         if (DamageReduction.ATTRIBUTE != null) {
             cir.getReturnValue().add(DamageReduction.ATTRIBUTE);
+        }
+        if (net.ledok.eden_ld.combat.GearStats.MAX_HEALTH_PERCENT != null) {
+            cir.getReturnValue().add(net.ledok.eden_ld.combat.GearStats.MAX_HEALTH_PERCENT);
         }
         if (net.ledok.eden_ld.combat.Stamina.MAX_STAMINA != null) {
             cir.getReturnValue().add(net.ledok.eden_ld.combat.Stamina.MAX_STAMINA)

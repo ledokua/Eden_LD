@@ -1874,6 +1874,7 @@
   "message.eden_ld.pvp.admin_set_all": "PvP %1$s для %2$s гравців.",
   "message.eden_ld.pvp.admin_set_none": "У них PvP вже %s.",
   "attribute.name.eden_ld.damage_reduction": "Зменшення шкоди %",
+  "attribute.name.eden_ld.max_health_percent": "Здоров'я %",
   "attribute.name.eden_ld.max_stamina": "Макс. витривалість",
   "attribute.name.eden_ld.stamina_regen": "Відновлення витривалості /с",
   "attribute.name.eden_ld.roll_cost": "Витрата витривалості на перекат",

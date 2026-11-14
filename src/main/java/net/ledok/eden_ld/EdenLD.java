@@ -71,6 +71,7 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.combat.Stealth.initialize();
         net.ledok.eden_ld.combat.Stamina.initialize();
         net.ledok.eden_ld.combat.ArmorStatsMigration.initialize();
+        net.ledok.eden_ld.combat.GearStats.initialize();
         CombatTeamsCompat.initialize();
         net.ledok.eden_ld.compat.PlaceholdersCompat.initialize();
         net.ledok.eden_ld.compat.opac.OpacCompat.initialize();

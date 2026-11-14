@@ -464,6 +464,11 @@ public class EdenConfig {
          */
         public double haste_attack_speed_per_level = 0.0;
 
+        /**
+         * Shields in the off-hand add {@code eden_ld:damage_reduction} by tag ({@code #falleneden:shield_reduction/6},
+         * {@code /8}, {@code /10}; gear rework 2), under the cap and the PvP share like the armor's.
+         */
+        public boolean shield_reduction_enabled = true;
         /** Most a player's {@code eden_ld:damage_reduction} can lower a hit, in percent (gear and buffs stack up to it). */
         public double damage_reduction_cap = 80.0;
         /** Share of the damage reduction that works against other players' hits (0.5 = half). */
