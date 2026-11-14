@@ -57,6 +57,7 @@
     "WorldBorderAccessor",
     "WorldGenSettingsCacheMixin",
     "WorldBorderCommandMixin",
+    "compat.TargetDummyAttributesMixin",
     "compat.bleed.MineCellsBleedingMixin",
     "compat.bleed.MrpgBleedingMixin",
     "compat.bleed.SoulsWeaponryBleedMixin",

@@ -41,16 +41,25 @@ public final class DamageReduction {
 
     /** What reaches {@code player} of {@code amount} (after armor, effects and enchantments). */
     public static float apply(Player player, DamageSource source, float amount) {
-        if (ATTRIBUTE == null || amount <= 0 || !player.getAttributes().hasAttribute(ATTRIBUTE)) {
+        return apply(player, source, amount, true);
+    }
+
+    /**
+     * What reaches {@code target} of {@code amount}. {@code pvpShare}: hits from another player get only
+     * {@code damage_reduction_pvp_share} of it — off for the target dummy, which shows what a mob's hit would do.
+     */
+    public static float apply(net.minecraft.world.entity.LivingEntity target, DamageSource source, float amount,
+                              boolean pvpShare) {
+        if (ATTRIBUTE == null || amount <= 0 || !target.getAttributes().hasAttribute(ATTRIBUTE)) {
             return amount;
         }
-        double percent = player.getAttributeValue(ATTRIBUTE);
+        double percent = target.getAttributeValue(ATTRIBUTE);
         if (percent <= 0 || exempt(source)) {
             return amount;
         }
         EdenConfig.Combat config = EdenLD.CONFIG.combat;
         percent = Math.min(percent, config.damage_reduction_cap);
-        if (source.getEntity() instanceof Player attacker && attacker != player) {
+        if (pvpShare && source.getEntity() instanceof Player attacker && attacker != target) {
             percent *= config.damage_reduction_pvp_share;
         }
         return (float) (amount * (1.0 - percent / 100.0));

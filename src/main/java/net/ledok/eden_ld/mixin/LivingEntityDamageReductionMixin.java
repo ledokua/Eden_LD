@@ -24,6 +24,9 @@ public abstract class LivingEntityDamageReductionMixin {
     private void eden_ld$damageReduction(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
         if ((Object) this instanceof Player player && !player.level().isClientSide()) {
             cir.setReturnValue(DamageReduction.apply(player, source, cir.getReturnValueF()));
+        } else if (net.ledok.eden_ld.combat.TargetDummies.reduces((LivingEntity) (Object) this)) {
+            // Dummmmmmy's target dummy shows what a mob's hit would do to you: no PvP share.
+            cir.setReturnValue(DamageReduction.apply((LivingEntity) (Object) this, source, cir.getReturnValueF(), false));
         }
     }
 

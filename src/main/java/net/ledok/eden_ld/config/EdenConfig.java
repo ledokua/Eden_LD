@@ -469,6 +469,11 @@ public class EdenConfig {
          * {@code /8}, {@code /10}; gear rework 2), under the cap and the PvP share like the armor's.
          */
         public boolean shield_reduction_enabled = true;
+        /**
+         * Dummmmmmy's target dummy carries {@code eden_ld:damage_reduction} (and {@code max_health_percent}) and its armor's
+         * reduction applies to the hits it shows, as against a mob: up to the cap, never halved for PvP.
+         */
+        public boolean target_dummy_damage_reduction = true;
         /** Most a player's {@code eden_ld:damage_reduction} can lower a hit, in percent (gear and buffs stack up to it). */
         public double damage_reduction_cap = 80.0;
         /** Share of the damage reduction that works against other players' hits (0.5 = half). */
