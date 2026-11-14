@@ -117,6 +117,11 @@ final class SettingsTab {
         if (HubState.activityInvitesOff >= 0) {
             activityInvites(settings, data);
         }
+        if (HubState.mapHidden >= 0) {
+            settings.heading(tr("section.map"));
+            settings.add(mapSharing("map.guild", HubSettings.MAP_HIDDEN_GUILD));
+            settings.add(mapSharing("map.party", HubSettings.MAP_HIDDEN_PARTY));
+        }
         settings.heading(tr("section.guild"));
         settings.add(guildTag(data));
         settings.heading(tr("section.profile"));
@@ -149,6 +154,20 @@ final class SettingsTab {
                     int next = on ? now & ~bit : now | bit;
                     HubState.activityInvitesOff = next;
                     send(HubSettings.ACTIVITY_INVITES_OFF, next);
+                })
+                .text(tr("activity_invites.toggle")).hint(tr(name + ".hint")).defaultValue(true);
+    }
+
+    /**
+     * "Show me on my guild's / party's maps" (Xaero's minimap and world map), on by default; also in the party's own
+     * settings dialog.
+     */
+    static Option<?, ?> mapSharing(String name, int bit) {
+        return Option.toggle(tr(name), (Math.max(0, HubState.mapHidden) & bit) == 0, on -> {
+                    int now = Math.max(0, HubState.mapHidden);
+                    int next = on ? now & ~bit : now | bit;
+                    HubState.mapHidden = next;
+                    send(HubSettings.MAP_HIDDEN, next);
                 })
                 .text(tr("activity_invites.toggle")).hint(tr(name + ".hint")).defaultValue(true);
     }

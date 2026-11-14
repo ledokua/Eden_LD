@@ -2838,6 +2838,22 @@ public final class HubPayloads {
     }
 
     /**
+     * S2C (1.3.79+): who the player is hidden from on Xaero's maps ({@code HubSettings.MAP_HIDDEN} bits). Its own
+     * payload, sent after {@link SettingsData} only to clients that know it and only when the server has Xaero's
+     * minimap; without it the Settings tab and the party dialog leave the switches out.
+     */
+    public record MapSharingData(int hidden) implements CustomPacketPayload {
+        public static final Type<MapSharingData> TYPE = new Type<>(id("map_sharing_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, MapSharingData> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarInt(p.hidden), buf -> new MapSharingData(buf.readVarInt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
      * S2C (1.3.70+): the raid/dungeon/arena invites the player turned off ({@code HubSettings.ACTIVITY_INVITES_OFF}
      * bits). Its own payload, sent after {@link SettingsData} only to clients that know it and only while Arenas_LD
      * asks Eden about invites; without it the Settings tab leaves those switches out.
@@ -3640,6 +3656,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatFlags.TYPE, ChatFlags.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityInvitesData.TYPE, ActivityInvitesData.CODEC);
+        PayloadTypeRegistry.playS2C().register(MapSharingData.TYPE, MapSharingData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatSystemOnly.TYPE, ChatSystemOnly.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityUnlocks.TYPE, ActivityUnlocks.CODEC);

@@ -348,6 +348,12 @@ public class EdenLDClient implements ClientModInitializer {
                 screen.onSettingsData();
             }
         });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.MapSharingData.TYPE, (payload, context) -> {
+            HubState.mapHidden = payload.hidden();
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onSettingsData();
+            }
+        });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityInvitesData.TYPE, (payload, context) -> {
             HubState.activityInvitesOff = payload.off();
             if (context.client().screen instanceof HubScreen screen) {

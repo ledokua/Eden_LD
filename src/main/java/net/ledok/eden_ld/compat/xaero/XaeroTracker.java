@@ -59,11 +59,15 @@ final class XaeroTracker implements ISyncedPlayerTrackerSystem {
             return 0;
         }
         Guild guild = GuildManager.get(server).guildOf(tracker.getUUID());
-        if (guild != null && guild.members.containsKey(tracked.getUUID())) {
+        // The tracked player's own Settings switches decide (shown to both unless hidden).
+        int hidden = net.ledok.eden_ld.hub.HubSettings.mapHidden(server, tracked.getUUID());
+        if (guild != null && guild.members.containsKey(tracked.getUUID())
+                && (hidden & net.ledok.eden_ld.hub.HubSettings.MAP_HIDDEN_GUILD) == 0) {
             return SAME_PARTY;
         }
         Party party = PartyManager.get(server).partyOf(tracker.getUUID());
-        return party != null && party.members.containsKey(tracked.getUUID()) ? SAME_PARTY : 0;
+        return party != null && party.members.containsKey(tracked.getUUID())
+                && (hidden & net.ledok.eden_ld.hub.HubSettings.MAP_HIDDEN_PARTY) == 0 ? SAME_PARTY : 0;
     }
 
     @Override

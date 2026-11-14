@@ -305,7 +305,8 @@ final class PartyTab {
         name.tooltipWhenCut(true);
         header.item(name);
         header.spacer();
-        if (data.myRank() >= PartyRank.VICE.level) {
+        // Everyone has a settings dialog: their own map switch; leader and vices also the party's settings.
+        if (data.myRank() >= PartyRank.VICE.level || HubState.mapHidden >= 0) {
             header.item(new Button(16, 14, Component.literal("⚙"),
                     () -> openSettings(screen, data)));
         }
@@ -509,6 +510,15 @@ final class PartyTab {
         dialog.item(EdenParchment.hairline());
 
         Settings form = new Settings();
+        // The player's own: shown on the party members' maps (the same switch as in Settings → Privacy).
+        if (HubState.mapHidden >= 0) {
+            form.add(SettingsTab.mapSharing("map.party", net.ledok.eden_ld.hub.HubSettings.MAP_HIDDEN_PARTY));
+        }
+        if (data.myRank() < PartyRank.VICE.level) {
+            dialog.item(new SettingsView(form, 180).layout(SettingsView.Layout.STACKED).rowGap(5));
+            Modal.open(canvas, dialog).closeOnClickOutside(true);
+            return;
+        }
         // Without a name of its own the party is "<leader>'s Party": shown greyed in the empty field.
         String leader = data.members().stream().filter(m -> m.rank() == PartyRank.LEADER.level)
                 .map(PartyMember::name).findFirst().orElse("?");

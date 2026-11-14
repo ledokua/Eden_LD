@@ -712,6 +712,12 @@ public final class HubServer {
                 HubSettings.chatMutes(server, player.getUUID()),
                 HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_SKIP_LOSS_WARNING),
                 HubSettings.duels(server, player.getUUID(), HubSettings.DUELS_PERSONAL_CHALLENGES)));
+        // Only with Xaero's minimap on the server: otherwise the map switches would do nothing.
+        if (net.ledok.eden_ld.compat.xaero.XaeroHook.LOADED
+                && ServerPlayNetworking.canSend(player, HubPayloads.MapSharingData.TYPE)) {
+            ServerPlayNetworking.send(player, new HubPayloads.MapSharingData(
+                    HubSettings.mapHidden(server, player.getUUID())));
+        }
         // Only while Arenas_LD asks Eden about invites: otherwise the switches would do nothing.
         if (net.ledok.eden_ld.compat.arenas.ArenasHook.invitesFiltered()
                 && ServerPlayNetworking.canSend(player, HubPayloads.ActivityInvitesData.TYPE)) {

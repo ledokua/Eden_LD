@@ -28,6 +28,15 @@ public final class HubSettings {
     /** Everyone who is none of the above. */
     public static final int ACTIVITY_INVITES_OTHERS = 1 << 3;
     private static final int ACTIVITY_INVITES_ALL = 0b1111;
+    /**
+     * Who the player is hidden from on Xaero's minimap and world map, as bits: {@link #MAP_HIDDEN_GUILD},
+     * {@link #MAP_HIDDEN_PARTY}. 0 (the default) = guildmates and party members see them. See
+     * {@code compat.xaero.XaeroTracker}; OPAC's own location switches apply on top.
+     */
+    public static final String MAP_HIDDEN = "map_hidden";
+    public static final int MAP_HIDDEN_GUILD = 1;
+    public static final int MAP_HIDDEN_PARTY = 1 << 1;
+    private static final int MAP_HIDDEN_ALL = 0b11;
     public static final String THEME = "theme";
     public static final String SHOW_GUILD_TAG = "show_guild_tag";
     /** The player turned the theme's own icons off (Settings → Visual); default: on. */
@@ -278,6 +287,11 @@ public final class HubSettings {
         return HubData.get(server).peek(player).getCompound(TAG).getInt(key);
     }
 
+    /** Who the player is hidden from on the maps ({@link #MAP_HIDDEN} bits; 0 = nobody). */
+    public static int mapHidden(MinecraftServer server, UUID player) {
+        return HubData.get(server).peek(player).getCompound(TAG).getInt(MAP_HIDDEN) & MAP_HIDDEN_ALL;
+    }
+
     /** The raid/dungeon/arena invites the player turned off ({@link #ACTIVITY_INVITES_OFF} bits; 0 = none). */
     public static int activityInvitesOff(MinecraftServer server, UUID player) {
         return HubData.get(server).peek(player).getCompound(TAG).getInt(ACTIVITY_INVITES_OFF) & ACTIVITY_INVITES_ALL;
@@ -511,6 +525,13 @@ public final class HubSettings {
         }
         if (NOTIFY_OFF.equals(key) || SEEN_TABS.equals(key)) {
             if (value < 0) {
+                return false;
+            }
+            settings(server, player).putInt(key, value);
+            return true;
+        }
+        if (MAP_HIDDEN.equals(key)) {
+            if (value < 0 || value > MAP_HIDDEN_ALL) {
                 return false;
             }
             settings(server, player).putInt(key, value);
