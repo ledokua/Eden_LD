@@ -221,6 +221,8 @@ public final class EmojiRegistry {
 
     public static void initialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(EmojiRegistry::reload);
+        // Discord's channel and role names, so the first bridge lines already read "#name".
+        ServerLifecycleEvents.SERVER_STARTED.register(started -> net.ledok.eden_ld.chat.DiscordNames.preload());
         // With the Discord sync set up, emojis added or deleted on Discord arrive by themselves.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             int minutes = EdenLD.CONFIG.chat.emoji_sync_minutes;
@@ -796,15 +798,18 @@ public final class EmojiRegistry {
         String line = UnicodeEmoji.toCharacters(restored);
         boolean standard = !line.equals(restored);
         CompletableFuture<Void> guests = fetchGuests(server, line);
-        if (guests.isDone()) {
-            if (!standard && !hasEmoji(line) && !ChatLinks.hasLink(line)
+        // Discord's raw mentions (<#channel>, <@user>, <@&role>) read as names; missing ones are asked for first.
+        CompletableFuture<Void> names = net.ledok.eden_ld.chat.DiscordNames.fetch(server, line);
+        boolean mentions = net.ledok.eden_ld.chat.DiscordNames.hasMention(line);
+        if (guests.isDone() && names.isDone()) {
+            if (!standard && !mentions && !hasEmoji(line) && !ChatLinks.hasLink(line)
                     && !net.ledok.eden_ld.chat.ChatFormat.hasFormatting(line, net.ledok.eden_ld.chat.ChatStyle.formatOptions())) {
                 return false;
             }
-            broadcast.accept(render(net.ledok.eden_ld.chat.LegacyText.parse(line, false)));
+            broadcast.accept(renderDiscord(line));
             return true;
         }
-        guests.thenRunAsync(() -> broadcast.accept(render(net.ledok.eden_ld.chat.LegacyText.parse(line, false))), server);
+        CompletableFuture.allOf(guests, names).thenRunAsync(() -> broadcast.accept(renderDiscord(line)), server);
         return true;
     }
 
@@ -918,6 +923,15 @@ public final class EmojiRegistry {
         return CDN;
     }
 
+    /**
+     * A bridge line as shown: mentions as names, Discord's embed-less {@code <link>} without its brackets, then
+     * colors, emojis, links and markdown.
+     */
+    private static Component renderDiscord(String line) {
+        String resolved = net.ledok.eden_ld.chat.DiscordNames.resolve(line).replaceAll("<(https?://[^\\s<>]+)>", "$1");
+        return render(net.ledok.eden_ld.chat.LegacyText.parse(resolved, false));
+    }
+
     /** Every "§" inside a link back to the "&" it was (see {@link #showDiscordLine}). */
     private static String restoreLinkAmpersands(String line) {
         if (line.indexOf('§') < 0) {
@@ -1000,11 +1014,14 @@ public final class EmojiRegistry {
                 net.ledok.eden_ld.chat.ChatStyle.formatOptions()), EmojiRegistry::appendTokens);
     }
 
+    private static final Pattern TOKENS = Pattern.compile(CDN.pattern() + "|" + DISCORD.pattern() + "|"
+            + SHORTCODE.pattern() + "|" + ChatLinks.STICKER.pattern() + "|" + ChatLinks.URL.pattern() + "|"
+            + CHARACTER.pattern() + "|" + ChatLinks.MASKED.pattern());
+
     private static void appendTokens(MutableComponent out, String text) {
         // Groups: 1-5 CDN image link, 6-8 <a:name:id>, 9 :name:, 10-12 sticker link, 13 any other
-        // link, 14 emoji character.
-        Matcher matcher = Pattern.compile(CDN.pattern() + "|" + DISCORD.pattern() + "|" + SHORTCODE.pattern()
-                + "|" + ChatLinks.STICKER.pattern() + "|" + ChatLinks.URL.pattern() + "|" + CHARACTER.pattern()).matcher(text);
+        // link, 14 emoji character, 15-16 a masked link [text](link) (Discord's; stickers matched first).
+        Matcher matcher = TOKENS.matcher(text);
         int last = 0;
         while (matcher.find()) {
             Component replacement;
@@ -1024,6 +1041,8 @@ public final class EmojiRegistry {
                 replacement = ChatLinks.sticker(matcher.group(10), matcher.group(11) != null ? matcher.group(11) : matcher.group(12));
             } else if (matcher.group(13) != null) {
                 replacement = ChatLinks.link(matcher.group(13));
+            } else if (matcher.group(16) != null) {
+                replacement = ChatLinks.masked(matcher.group(15), matcher.group(16));
             } else {
                 replacement = glyphForCharacter(matcher.group(14).codePointAt(0));
                 if (replacement == null) {

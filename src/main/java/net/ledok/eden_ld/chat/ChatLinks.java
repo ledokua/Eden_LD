@@ -127,16 +127,81 @@ public final class ChatLinks {
         return matcher.find() ? matcher.group(1) : "sticker";
     }
 
-    /** The link as chat text: "[GIF]" for GIFs, else the address; either way clickable. */
+    /**
+     * A masked link as Discord writes it, {@code [text](link)} (or {@code [text](<link>)}). Groups: 1 the text, 2 the
+     * link. Stickers and emoji images in that form are matched by their own patterns first.
+     */
+    public static final Pattern MASKED = Pattern.compile("\\[([^\\]\\n]{1,80})]\\(<?(https?://[^\\s<>()]+)>?\\)");
+
+    /**
+     * The link as chat text, clickable, with the whole address on hover: "[GIF]" for GIFs, "#name" for a channel of
+     * our Discord server, else the address shortened ({@link #shortLabel}).
+     */
     public static MutableComponent link(String url) {
-        TextColor color = LegacyText.color(EdenLD.CONFIG.chat.link_color);
         boolean gif = isGif(url);
-        Component label = gif ? Component.translatable("chat.eden_ld.gif") : Component.literal(url);
+        Component label = gif ? Component.translatable("chat.eden_ld.gif") : Component.literal(label(url));
+        return clickable(label, url, gif);
+    }
+
+    /** A masked link: its text, clickable, the address on hover. */
+    public static MutableComponent masked(String text, String url) {
+        return clickable(Component.literal(text), url, false);
+    }
+
+    private static MutableComponent clickable(Component label, String url, boolean gif) {
+        TextColor color = LegacyText.color(EdenLD.CONFIG.chat.link_color);
         return Component.empty().append(label).withStyle(style -> style.withUnderlined(true)
                 .withColor(color)
                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url))
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, gif
                         ? Component.translatable("chat.eden_ld.gif.open", url)
-                        : Component.translatable("chat.link.open"))));
+                        : Component.literal(url).withStyle(net.minecraft.ChatFormatting.GRAY))));
+    }
+
+    /** What a (non-GIF) link reads as: "#name" for our Discord's channels, else the shortened address. */
+    private static String label(String url) {
+        java.util.regex.Matcher channel = DiscordNames.CHANNEL_LINK.matcher(url);
+        if (channel.matches() && DiscordNames.ownGuild(channel.group(1))) {
+            String name = DiscordNames.channel(channel.group(2));
+            return "#" + (name != null ? name : "channel");
+        }
+        return EdenLD.CONFIG.chat.short_links ? shortLabel(url, EdenLD.CONFIG.chat.link_label_max) : url;
+    }
+
+    /**
+     * The address without its scheme, "www.", query and fragment; when still longer than {@code max}, the host and the
+     * path's last part ("example.com/…/page"), cut with "…". The full link stays on hover and on click.
+     */
+    public static String shortLabel(String url, int max) {
+        String rest = url.replaceFirst("(?i)^https?://", "").replaceFirst("(?i)^www\\.", "");
+        int cut = indexOfAny(rest, '?', '#');
+        if (cut >= 0) {
+            rest = rest.substring(0, cut);
+        }
+        while (rest.endsWith("/")) {
+            rest = rest.substring(0, rest.length() - 1);
+        }
+        if (max <= 0 || rest.length() <= max) {
+            return rest;
+        }
+        int slash = rest.indexOf('/');
+        String host = slash < 0 ? rest : rest.substring(0, slash);
+        if (slash >= 0) {
+            String last = rest.substring(rest.lastIndexOf('/') + 1);
+            String joined = host + (rest.indexOf('/') == rest.lastIndexOf('/') ? "/" : "/…/") + last;
+            if (joined.length() <= max) {
+                return joined;
+            }
+            if (host.length() + 3 <= max) {
+                return (host + "/" + last).substring(0, max - 1) + "…";
+            }
+        }
+        return host.length() <= max ? host : host.substring(0, max - 1) + "…";
+    }
+
+    private static int indexOfAny(String text, char a, char b) {
+        int i = text.indexOf(a);
+        int j = text.indexOf(b);
+        return i < 0 ? j : j < 0 ? i : Math.min(i, j);
     }
 }

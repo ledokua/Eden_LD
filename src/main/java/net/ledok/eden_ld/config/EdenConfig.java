@@ -219,6 +219,13 @@ public class EdenConfig {
         public int join_history_minutes = 120;
         /** Clickable links in messages. */
         public String link_color = "#7878ff";
+        /**
+         * Links show shortened ("minestar.com.ua/chests", long paths as "host/…/last"), with the whole address on hover
+         * and click; false = the full address.
+         */
+        public boolean short_links = true;
+        /** The longest a shortened link reads (characters). */
+        public int link_label_max = 32;
         /** "@name" of an online player: highlighted, and they hear a ping. */
         public String mention_color = "#7878ff";
         public boolean mention_sound = true;
