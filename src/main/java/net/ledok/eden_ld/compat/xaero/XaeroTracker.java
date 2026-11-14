@@ -21,6 +21,9 @@ import xaero.common.server.radar.tracker.ISyncedPlayerTrackerSystem;
  */
 final class XaeroTracker implements ISyncedPlayerTrackerSystem {
 
+    /** The minimap's tracking level for members of the same party (1 is a mutual ally party). */
+    private static final int SAME_PARTY = 2;
+
     private XaeroTracker() {
     }
 
@@ -43,7 +46,12 @@ final class XaeroTracker implements ISyncedPlayerTrackerSystem {
         return true;
     }
 
-    /** 1 (a party member's level) when the two share a guild or an Eden party, else 0. */
+    /**
+     * 2 when the two share a guild or an Eden party, else 0. For a party system the minimap reads 2 as "same party"
+     * (checked against OPAC's "Share location with party" / "Receive locations from party", on by default) and 1 as
+     * "mutual ally party" (the mutual-ally switches, off by default), as its own FTB Teams support returns 2 for
+     * teammates. Until 1.3.78 / 1.3.73.2 this returned 1, so nobody's position was ever sent.
+     */
     @Override
     public int getTrackingLevel(Player tracker, Player tracked) {
         MinecraftServer server = tracker.getServer();
@@ -52,10 +60,10 @@ final class XaeroTracker implements ISyncedPlayerTrackerSystem {
         }
         Guild guild = GuildManager.get(server).guildOf(tracker.getUUID());
         if (guild != null && guild.members.containsKey(tracked.getUUID())) {
-            return 1;
+            return SAME_PARTY;
         }
         Party party = PartyManager.get(server).partyOf(tracker.getUUID());
-        return party != null && party.members.containsKey(tracked.getUUID()) ? 1 : 0;
+        return party != null && party.members.containsKey(tracked.getUUID()) ? SAME_PARTY : 0;
     }
 
     @Override
