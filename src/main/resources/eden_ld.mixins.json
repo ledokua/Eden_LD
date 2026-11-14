@@ -36,6 +36,7 @@
     "PetTargetPvpMixin",
     "PlayerAdvancementsSaveMixin",
     "PlayerMixin",
+    "PercentAttributeTooltipMixin",
     "PoisonMobEffectMixin",
     "ProjectileMixin",
     "RentalClickOverrideMixin",
