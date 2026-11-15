@@ -75,6 +75,9 @@ public final class PollOverlay {
                 } else if (second) {
                     vote(1);
                 }
+            } else if (client.screen == null && (first || second) && dismissable()) {
+                // Voted (or over): the same keys hide the panel; the result still comes in chat.
+                hidden = true;
             }
         });
         HudRenderCallback.EVENT.register((graphics, tick) -> {
@@ -123,6 +126,12 @@ public final class PollOverlay {
         return hidden ? null : poll;
     }
 
+    /** Voted, or over: the panel can be hidden (× in a GUI, a vote key in the game). */
+    private static boolean dismissable() {
+        HubPayloads.PollData poll = shown();
+        return poll != null && (poll.ended() || poll.myVote() >= 0);
+    }
+
     private static boolean votable() {
         HubPayloads.PollData poll = shown();
         return poll != null && !poll.ended() && poll.myVote() < 0;
@@ -145,6 +154,12 @@ public final class PollOverlay {
      */
     @Nullable
     public static int[] bounds(int screenWidth, int screenHeight) {
+        return bounds(screenWidth, screenHeight, true);
+    }
+
+    /** {@code interactive}: in a GUI (×) or in the game (the hide hint under the vote line). */
+    @Nullable
+    private static int[] bounds(int screenWidth, int screenHeight, boolean interactive) {
         HubPayloads.PollData poll = shown();
         if (poll == null) {
             return null;
@@ -153,7 +168,8 @@ public final class PollOverlay {
         int inner = WIDTH - PAD * 2;
         int titleLines = font.split(Component.literal(poll.question()), inner - 10).size();
         boolean voting = !poll.ended() && poll.myVote() < 0;
-        int body = voting ? poll.answers().size() * (BUTTON + 2) - 2 : font.split(statusLine(poll), inner).size() * 10;
+        int body = voting ? poll.answers().size() * (BUTTON + 2) - 2
+                : font.split(statusLine(poll, interactive), inner).size() * 10;
         int height = PAD + titleLines * 10 + 3 + 6 + 3 + 2 + 5 + body + PAD;
         int x = screenWidth - WIDTH - MARGIN;
         int y = Math.max(MARGIN, (screenHeight - height) / 2);
@@ -172,8 +188,8 @@ public final class PollOverlay {
         int inner = WIDTH - PAD * 2;
         List<FormattedCharSequence> title = font.split(Component.literal(poll.question()), inner - 10);
         boolean voting = !poll.ended() && poll.myVote() < 0;
-        List<FormattedCharSequence> status = voting ? List.of() : font.split(statusLine(poll), inner);
-        int[] box = bounds(screenWidth, screenHeight);
+        List<FormattedCharSequence> status = voting ? List.of() : font.split(statusLine(poll, interactive), inner);
+        int[] box = bounds(screenWidth, screenHeight, interactive);
         int x = box[0];
         int y = box[1];
         int height = box[3];
@@ -253,9 +269,12 @@ public final class PollOverlay {
     }
 
     /** «Ви проголосували: Так.» while it runs; the result (the leading answer and its votes) once it ended. */
-    private static Component statusLine(HubPayloads.PollData poll) {
+    private static Component statusLine(HubPayloads.PollData poll, boolean interactive) {
+        // In the game there's no cursor for ×: say which key hides it.
+        Component hint = interactive ? Component.empty() : Component.literal("\n").append(
+                Component.translatable("gui.eden_ld.poll.hide_hint", KEY_FIRST.getTranslatedKeyMessage()));
         if (!poll.ended()) {
-            return Component.translatable("gui.eden_ld.poll.voted", poll.answers().get(poll.myVote()));
+            return Component.translatable("gui.eden_ld.poll.voted", poll.answers().get(poll.myVote())).append(hint);
         }
         int best = -1;
         boolean tie = false;
@@ -268,10 +287,11 @@ public final class PollOverlay {
             }
         }
         if (best < 0 || poll.counts().get(best) == 0) {
-            return Component.translatable("gui.eden_ld.poll.ended_none");
+            return Component.translatable("gui.eden_ld.poll.ended_none").append(hint);
         }
-        return tie ? Component.translatable("gui.eden_ld.poll.ended_tie")
-                : Component.translatable("gui.eden_ld.poll.ended", poll.answers().get(best), poll.counts().get(best));
+        return (tie ? Component.translatable("gui.eden_ld.poll.ended_tie")
+                : Component.translatable("gui.eden_ld.poll.ended", poll.answers().get(best), poll.counts().get(best)))
+                .append(hint);
     }
 
     // ---------------------------------------------------------------- clicks (in a GUI)

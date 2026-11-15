@@ -1772,6 +1772,7 @@
   "gui.eden_ld.poll.yes": "Yes",
   "gui.eden_ld.poll.no": "No",
   "gui.eden_ld.poll.voted": "You voted: %s.",
+  "gui.eden_ld.poll.hide_hint": "[%s] — hide",
   "gui.eden_ld.poll.ended": "Poll over: %s (%s).",
   "gui.eden_ld.poll.ended_tie": "Poll over: a tie.",
   "gui.eden_ld.poll.ended_none": "Poll over: nobody voted.",

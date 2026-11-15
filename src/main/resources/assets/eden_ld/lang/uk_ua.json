@@ -1772,6 +1772,7 @@
   "gui.eden_ld.poll.yes": "Так",
   "gui.eden_ld.poll.no": "Ні",
   "gui.eden_ld.poll.voted": "Ви проголосували: %s.",
+  "gui.eden_ld.poll.hide_hint": "[%s] — сховати",
   "gui.eden_ld.poll.ended": "Опитування завершено: %s (%s).",
   "gui.eden_ld.poll.ended_tie": "Опитування завершено: нічия.",
   "gui.eden_ld.poll.ended_none": "Опитування завершено: ніхто не голосував.",
