@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.ledok.eden_ld.api.hub.EdenReportsClientApi;
 import net.ledok.eden_ld.client.EdenParchment;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.ReportCandidate;
@@ -114,9 +115,19 @@ public final class ReportsTab {
         Flex form = Flex.column().gap(4);
         form.sizing(Sizing.fill(), Sizing.content());
 
+        // Eden's kinds, then other mods' suggestion starters the player may use (EdenReportsClientApi).
+        List<String> choices = new ArrayList<>(KINDS);
+        for (EdenReportsClientApi.Starter starter : EdenReportsClientApi.starters()) {
+            if (available(starter)) {
+                choices.add(starter.category());
+            }
+        }
+        if (!choices.contains(kind)) {
+            kind = KINDS.get(0);
+        }
         Flex row = Flex.row().gap(6).alignItems(Align.CENTER);
         row.item(EdenParchment.text(tr("kind"), EdenParchment.INK_MID));
-        Dropdown<String> kinds = new Dropdown<>(110, KINDS, kind, value -> kindName(value), value -> {
+        Dropdown<String> kinds = new Dropdown<>(130, choices, kind, value -> kindName(value), value -> {
             kind = value;
             screen.onReportsData();
         });
@@ -138,6 +149,23 @@ public final class ReportsTab {
             row.item(players);
         }
         form.item(row);
+
+        EdenReportsClientApi.Starter starter = starter(kind);
+        if (starter != null) {
+            // A mod's own editor files this kind: a hint and the button that opens it (back to the hub on close).
+            form.item(EdenParchment.text(tr("starter_hint"), EdenParchment.INK_DIM, (int) width));
+            Flex open = Flex.row().gap(6).alignItems(Align.CENTER);
+            open.spacer();
+            open.item(EdenParchment.fitButton(tr("open_editor"), 90, 14, () -> {
+                try {
+                    starter.open().accept(screen);
+                } catch (RuntimeException e) {
+                    net.ledok.eden_ld.EdenLD.LOGGER.error("[Reports] The {} editor failed to open", starter.category(), e);
+                }
+            }));
+            form.item(open);
+            return form;
+        }
 
         if (complaint) {
             // Said plainly, so nobody is surprised (LeDok, 2026-11-15).
@@ -213,10 +241,34 @@ public final class ReportsTab {
         return card;
     }
 
-    /** Eden's kinds by name; a mod's category by its lang key {@code gui.eden_ld.hub.reports.category.<ns>.<path>}. */
+    private static boolean available(EdenReportsClientApi.Starter starter) {
+        try {
+            return starter.available().getAsBoolean();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static EdenReportsClientApi.Starter starter(String category) {
+        for (EdenReportsClientApi.Starter starter : EdenReportsClientApi.starters()) {
+            if (starter.category().equals(category)) {
+                return starter;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Eden's kinds by name; a starter's by its own label; any other mod's category by its lang key
+     * {@code gui.eden_ld.hub.reports.category.<ns>.<path>}.
+     */
     private static Component kindName(String category) {
         if (KINDS.contains(category)) {
             return tr("kind." + kindKey(category));
+        }
+        EdenReportsClientApi.Starter starter = starter(category);
+        if (starter != null) {
+            return Component.translatable(starter.labelKey());
         }
         return Component.translatableWithFallback("gui.eden_ld.hub.reports.category." + category.replace(':', '.'),
                 category);

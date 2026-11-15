@@ -1710,6 +1710,8 @@
   "gui.eden_ld.hub.reports.left_recently": "%s (вийшов)",
   "gui.eden_ld.hub.reports.evidence": "До скарги додаються останні повідомлення чату, які ви отримали, і позиції обох гравців.",
   "gui.eden_ld.hub.reports.send": "Надіслати",
+  "gui.eden_ld.hub.reports.starter_hint": "Це звернення пишуть у власному редакторі. Відкрийте його, складіть пропозицію там і надішліть; вона з'явиться в «Моїх зверненнях» зі своїм станом.",
+  "gui.eden_ld.hub.reports.open_editor": "Відкрити редактор",
   "gui.eden_ld.hub.reports.reply": "Відповідь адміністрації: %s",
   "gui.eden_ld.hub.reports.status.0": "Нове",
   "gui.eden_ld.hub.reports.status.1": "Розглядається",

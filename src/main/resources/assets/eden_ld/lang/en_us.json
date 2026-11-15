@@ -1710,6 +1710,8 @@
   "gui.eden_ld.hub.reports.left_recently": "%s (left)",
   "gui.eden_ld.hub.reports.evidence": "The last chat messages you received and both players' positions are attached to the complaint.",
   "gui.eden_ld.hub.reports.send": "Send",
+  "gui.eden_ld.hub.reports.starter_hint": "This kind is written in its own editor. Open it, make your proposal there and send it; it shows up in «My submissions» with its status.",
+  "gui.eden_ld.hub.reports.open_editor": "Open editor",
   "gui.eden_ld.hub.reports.reply": "Staff reply: %s",
   "gui.eden_ld.hub.reports.status.0": "New",
   "gui.eden_ld.hub.reports.status.1": "Under review",

@@ -286,6 +286,29 @@ EdenModerationApi.resolve(server, id, true, "Thanks, added!", staff.getGameProfi
 - `resolve` sets Accepted or Rejected, shows `reason` to the author in their tab and mails them. Staff can also set
   the status and reply by hand in the Reports section.
 
+### Starting a suggestion from the «Звернення» form (client, 1.3.84+)
+
+`net.ledok.eden_ld.api.hub.EdenReportsClientApi` — client thread. Plain JDK + Minecraft types, so a mod that doesn't
+compile against Eden can call it by reflection.
+
+```java
+// DataRewriter's client init: a «Рецепт» choice in the form, opening its editor in suggest mode.
+EdenReportsClientApi.registerSuggestionStarter("datarewriter:recipe", "gui.datarewriter.suggest.eden_kind",
+        () -> DatarewriterClient.maySuggest(),
+        hub -> RecipeEditor.openSuggest(hub));   // hub: the screen to return to on Close
+
+// By reflection:
+Class.forName("net.ledok.eden_ld.api.hub.EdenReportsClientApi")
+        .getMethod("registerSuggestionStarter", String.class, String.class, BooleanSupplier.class, Consumer.class)
+        .invoke(null, "datarewriter:recipe", "gui.datarewriter.suggest.eden_kind", available, opener);
+```
+
+- The form lists one extra choice per starter after Eden's four kinds, labelled with your `labelKey` (ship the key).
+- `available` is checked each time the form builds; false (or an exception) hides the choice.
+- Picking it shows a short hint and **Відкрити редактор**, which calls `open` with the hub screen. Your editor then
+  files with `EdenModerationApi.suggest` on the server, and the suggestion appears in the player's list.
+- Registering the same category again replaces the earlier starter.
+
 ## Minestar profiles
 
 Server side, and only meaningful when the Minestar platform mod is installed. Gate every access
