@@ -220,6 +220,7 @@ final class ReportsSection {
         });
         field.size(w, 16);
         field.hint(tr("note_hint").getString());
+        field.tooltip(tr("note_tip"));
         field.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_NOTE);
         box.item(field);
 
@@ -232,14 +233,20 @@ final class ReportsSection {
         });
         replyField.size(w, 16);
         replyField.hint(tr("reply_hint").getString());
+        replyField.tooltip(tr("reply_tip"));
         replyField.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_REPLY);
         box.item(replyField);
 
+        // The detail column is 226 units: the editor button gets its own row (with the status and Save it overflowed).
+        if (report.getBoolean("editor")) {
+            Flex editor = Flex.row().gap(4).alignItems(Align.CENTER);
+            editor.sizing(Sizing.fill(), Sizing.content());
+            editor.item(PlayerTabs.spacer());
+            editor.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
+            box.item(editor);
+        }
         Flex actions = Flex.row().gap(4).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
-        if (report.getBoolean("editor")) {
-            actions.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
-        }
         actions.item(PlayerTabs.spacer());
         actions.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(100, java.util.List.of(0, 1, 2, 3), status,
                 value -> tr("status." + value), value -> {
