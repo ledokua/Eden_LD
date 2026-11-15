@@ -48,8 +48,6 @@ public final class PollOverlay {
     private static long endsAt;
     private static long goneAt;
     private static boolean hidden;
-    /** The panel's place when last drawn (clicks are tested against it). */
-    private static int panelX, panelY, panelHeight, buttonsY;
 
     private PollOverlay() {
     }
@@ -85,12 +83,14 @@ public final class PollOverlay {
                 render(graphics, graphics.guiWidth(), graphics.guiHeight(), -1, -1, false);
             }
         });
-        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            ScreenEvents.afterRender(screen).register((shown, graphics, mouseX, mouseY, delta) ->
-                    render(graphics, shown.width, shown.height, mouseX, mouseY, true));
-            ScreenMouseEvents.allowMouseClick(screen).register((shown, mouseX, mouseY, button) ->
-                    !click(mouseX, mouseY, button));
-        });
+        // Clicks are claimed in BEFORE_INIT: registered ahead of other mods' per-screen listeners (EMI's item list
+        // took the click and opened a recipe), and Fabric fires allowMouseClick before the screen's own handling.
+        ScreenEvents.BEFORE_INIT.register((client, screen, width, height) ->
+                ScreenMouseEvents.allowMouseClick(screen).register((shown, mouseX, mouseY, button) ->
+                        !click(shown.width, shown.height, mouseX, mouseY, button)));
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) ->
+                ScreenEvents.afterRender(screen).register((shown, graphics, mouseX, mouseY, delta) ->
+                        render(graphics, shown.width, shown.height, mouseX, mouseY, true)));
     }
 
     private static void onData(HubPayloads.PollData payload) {
@@ -137,6 +137,29 @@ public final class PollOverlay {
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0f));
     }
 
+    // ---------------------------------------------------------------- layout
+
+    /**
+     * Where the panel is on a screen of this size: {x, y, width, height}, or null when no poll shows. The same for
+     * drawing, clicks and EMI's exclusion area ({@code EdenEmiPlugin}), so EMI's item list keeps clear of it.
+     */
+    @Nullable
+    public static int[] bounds(int screenWidth, int screenHeight) {
+        HubPayloads.PollData poll = shown();
+        if (poll == null) {
+            return null;
+        }
+        Font font = Minecraft.getInstance().font;
+        int inner = WIDTH - PAD * 2;
+        int titleLines = font.split(Component.literal(poll.question()), inner - 10).size();
+        boolean voting = !poll.ended() && poll.myVote() < 0;
+        int body = voting ? poll.answers().size() * (BUTTON + 2) - 2 : font.split(statusLine(poll), inner).size() * 10;
+        int height = PAD + titleLines * 10 + 3 + 6 + 3 + 2 + 5 + body + PAD;
+        int x = screenWidth - WIDTH - MARGIN;
+        int y = Math.max(MARGIN, (screenHeight - height) / 2);
+        return new int[]{x, y, WIDTH, height};
+    }
+
     // ---------------------------------------------------------------- drawing
 
     private static void render(GuiGraphics graphics, int screenWidth, int screenHeight, int mouseX, int mouseY,
@@ -147,17 +170,13 @@ public final class PollOverlay {
         }
         Font font = Minecraft.getInstance().font;
         int inner = WIDTH - PAD * 2;
-        List<FormattedCharSequence> title = font.split(Component.literal(poll.question()), inner - (interactive ? 10 : 0));
+        List<FormattedCharSequence> title = font.split(Component.literal(poll.question()), inner - 10);
         boolean voting = !poll.ended() && poll.myVote() < 0;
         List<FormattedCharSequence> status = voting ? List.of() : font.split(statusLine(poll), inner);
-
-        int height = PAD + title.size() * 10 + 3 + 6 + 3 + 2 + 5
-                + (voting ? poll.answers().size() * (BUTTON + 2) - 2 : status.size() * 10) + PAD;
-        int x = screenWidth - WIDTH - MARGIN;
-        int y = Math.max(MARGIN, (screenHeight - height) / 2);
-        panelX = x;
-        panelY = y;
-        panelHeight = height;
+        int[] box = bounds(screenWidth, screenHeight);
+        int x = box[0];
+        int y = box[1];
+        int height = box[3];
 
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 400);
@@ -206,7 +225,6 @@ public final class PollOverlay {
         graphics.fill(barX, cy, barX + Math.round(inner * left), cy + 2, left < 0.2f ? EdenParchment.DANGER : EdenParchment.ACCENT);
         cy += 2 + 5;
 
-        buttonsY = cy;
         if (voting) {
             for (int i = 0; i < poll.answers().size(); i++) {
                 int top = cy + i * (BUTTON + 2);
@@ -258,12 +276,20 @@ public final class PollOverlay {
 
     // ---------------------------------------------------------------- clicks (in a GUI)
 
-    /** True when the click was the panel's (it never reaches the screen under it). */
-    private static boolean click(double mouseX, double mouseY, int button) {
+    /** True when the click was the panel's (it never reaches the screen under it, nor EMI). */
+    private static boolean click(int screenWidth, int screenHeight, double mouseX, double mouseY, int button) {
         HubPayloads.PollData poll = shown();
-        if (poll == null || mouseX < panelX || mouseX >= panelX + WIDTH || mouseY < panelY || mouseY >= panelY + panelHeight) {
+        int[] box = bounds(screenWidth, screenHeight);
+        if (poll == null || box == null) {
             return false;
         }
+        int panelX = box[0];
+        int panelY = box[1];
+        if (mouseX < panelX || mouseX >= panelX + WIDTH || mouseY < panelY || mouseY >= panelY + box[3]) {
+            return false;
+        }
+        int buttonsY = panelY + PAD + Minecraft.getInstance().font.split(Component.literal(poll.question()),
+                WIDTH - PAD * 2 - 10).size() * 10 + 3 + 6 + 3 + 2 + 5;
         if (button != 0) {
             return true;
         }

@@ -13,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
  * Optional EMI support, loaded only by EMI (the "emi" entrypoint): its panels show beside the
  * Moderation window, and items drag from them onto the mail's attachment slots. With Stylish Effects,
  * its panels also keep clear of the effect widgets ({@link StylishEffectsEmi}). Salvage press recipes show
- * their power-level range ({@link SalvageEmi}).
+ * their power-level range ({@link SalvageEmi}). EMI's list keeps clear of a staff poll's panel while it shows.
  */
 public class EdenEmiPlugin implements EmiPlugin {
 
@@ -31,6 +31,13 @@ public class EdenEmiPlugin implements EmiPlugin {
             StylishEffectsEmi.register(registry);
         }
         SalvageEmi.register(registry);
+        // A staff poll's panel (right middle, over every screen): EMI's item list keeps clear of it while it shows.
+        registry.addGenericExclusionArea((screen, consumer) -> {
+            int[] box = net.ledok.eden_ld.client.poll.PollOverlay.bounds(screen.width, screen.height);
+            if (box != null) {
+                consumer.accept(new Bounds(box[0], box[1], box[2], box[3]));
+            }
+        });
     }
 
     private static ItemStack first(EmiIngredient ingredient) {
