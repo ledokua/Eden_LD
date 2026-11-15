@@ -27,7 +27,6 @@ final class PollsSection {
 
     /** The panel's answer colors, in order ({@code PollOverlay}): each answer's dot matches its part of the vote bar. */
     private static final int[] ANSWER_COLORS = {0xFF4E8A3A, 0xFFA83A2E, 0xFF3A6EA5, 0xFFB58A1E};
-    private static final java.util.List<Integer> DURATIONS = java.util.List.of(30, 60, 120, 300, 600);
     private static final int MAX_QUESTION = 120;
     private static final int MAX_ANSWER = 24;
 
@@ -123,8 +122,23 @@ final class PollsSection {
         Flex bottom = Flex.row().gap(6).alignItems(Align.CENTER);
         bottom.sizing(Sizing.fill(), Sizing.content());
         bottom.item(text(tr("duration"), TEXT));
-        bottom.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(90, DURATIONS, DURATIONS.contains(seconds)
-                ? seconds : 60, value -> tr("duration." + value), value -> seconds = value));
+        // Any length, in seconds (the server's range); its minutes next to it ("= 1 хв 30 с").
+        int min = data.getInt("min_seconds");
+        int maxSeconds = data.getInt("max_seconds");
+        net.ledok.vectorlib.client.canvas.widget.Label readable = net.ledok.vectorlib.client.canvas.widget.Label.of(70,
+                readable(seconds));
+        readable.color(DIM);
+        net.ledok.vectorlib.client.canvas.widget.NumberField length =
+                new net.ledok.vectorlib.client.canvas.widget.NumberField(50, seconds, value -> {
+                    int clamped = (int) Math.max(min, Math.min(maxSeconds, value));
+                    readable.text(readable(clamped));
+                });
+        length.range(min, maxSeconds).step(10);
+        length.onCommit(value -> seconds = (int) value);
+        length.tooltip(tr("duration_tip", min, maxSeconds));
+        bottom.item(length);
+        bottom.item(text(tr("seconds_unit"), DIM));
+        bottom.item(readable);
         bottom.item(PlayerTabs.spacer());
         bottom.item(small("gui.eden_ld.moderation.polls.start", 90, () -> {
             CompoundTag args = new CompoundTag();
@@ -136,10 +150,21 @@ final class PollsSection {
                 }
             }
             args.putString("answers", joined.toString());
+            seconds = (int) length.value();
             args.putInt("seconds", seconds);
             PlayerTabs.action(AdminTools.POLL, Util.NIL_UUID, "start", args);
         }));
         main.item(bottom);
+    }
+
+    /** "= 1 хв 30 с" for 90; "" under a minute. */
+    private static Component readable(int seconds) {
+        if (seconds < 60) {
+            return Component.empty();
+        }
+        int minutes = seconds / 60;
+        int rest = seconds % 60;
+        return rest == 0 ? tr("minutes", minutes) : tr("minutes_seconds", minutes, rest);
     }
 
     void build(Flex main) {
