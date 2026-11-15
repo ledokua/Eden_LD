@@ -392,7 +392,7 @@ public final class AdminTools {
             case "activities/teleport", "activities/rename", "activities/admin", "activities/force_end",
                  "activities/forget", "activities/reset_cooldown", "activities/run_details" ->
                     activityAction(admin, action.action(), args);
-            case "reports/view", "reports/handle", "reports/reopen", "reports/note" ->
+            case "reports/view", "reports/handle", "reports/reopen", "reports/note", "reports/save", "reports/editor" ->
                     ReportDesk.act(admin, action.action(), args);
             case "dungeons/reset" -> {
                 ResourceLocation id = args.getString("id").isBlank() ? null : ResourceLocation.tryParse(args.getString("id"));
@@ -475,6 +475,8 @@ public final class AdminTools {
             default -> switch (area) {
                 case WORLD -> net.ledok.eden_ld.world.WorldAdmin.act(admin, action.action(), args);
                 case GUILD -> GuildDesk.act(admin, action.action(), target, args);
+                // Every Reports action goes to the desk (1.3.83's "save" and "editor" were missing from the list above).
+                case REPORTS -> ReportDesk.act(admin, action.action(), args);
                 default -> {
                     // A button whose action isn't wired here (a client newer than the server, or a missed case).
                     EdenLD.LOGGER.warn("[Moderation] {} sent an unknown action {}/{}; nothing done.", name, area, action.action());
