@@ -506,6 +506,30 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         rebuild();
     }
 
+    /** Whether this staff member may write mail (the Reports section's «Нагородити»). */
+    boolean mayMail() {
+        return allowed(Section.MAIL);
+    }
+
+    /**
+     * From Reports' «Нагородити»: a fresh mail draft to the reporter, titled and written for them (the reply), opened in
+     * the Mail section to add items and LC and send as any staff mail (log, recall). The draft being edited is saved
+     * first and stays in the draft list.
+     */
+    void rewardMail(String player, String title, String body) {
+        if (info == null || !allowed(Section.MAIL)) {
+            return;
+        }
+        saveNow();
+        Draft reward = Draft.fresh(info);
+        reward.players.add(player);
+        reward.setTitle(reward.defaultLanguage, title);
+        reward.setBody(reward.defaultLanguage, body);
+        draft = reward;
+        changed();
+        show(Section.MAIL);
+    }
+
     private boolean allowed(Section target) {
         int staff = info == null ? 0 : info.staff();
         return switch (target) {

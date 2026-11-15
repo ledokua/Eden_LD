@@ -237,13 +237,24 @@ final class ReportsSection {
         replyField.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_REPLY);
         box.item(replyField);
 
-        // The detail column is 226 units: the editor button gets its own row (with the status and Save it overflowed).
-        if (report.getBoolean("editor")) {
-            Flex editor = Flex.row().gap(4).alignItems(Align.CENTER);
-            editor.sizing(Sizing.fill(), Sizing.content());
-            editor.item(PlayerTabs.spacer());
-            editor.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
-            box.item(editor);
+        // The detail column is 226 units: the editor and reward buttons get their own row (with the status and Save
+        // they overflowed).
+        boolean editor = report.getBoolean("editor");
+        boolean reward = screen.mayMail();
+        if (editor || reward) {
+            Flex tools = Flex.row().gap(4).alignItems(Align.CENTER);
+            tools.sizing(Sizing.fill(), Sizing.content());
+            tools.item(PlayerTabs.spacer());
+            if (reward) {
+                // A reward (items, LC) goes as staff mail: the mail editor, already addressed and written.
+                String reporter = report.getString("reporter");
+                tools.item(small("gui.eden_ld.moderation.reports.reward", 60, () -> screen.rewardMail(reporter,
+                        tr("reward_title", id).getString(), reply)));
+            }
+            if (editor) {
+                tools.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
+            }
+            box.item(tools);
         }
         Flex actions = Flex.row().gap(4).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
@@ -257,11 +268,19 @@ final class ReportsSection {
         box.item(actions);
     }
 
-    /** "duels_ld:wager · #1042", or the category alone. */
+    /**
+     * The kind by name — Eden's own («Баг», «Скарга на гравця», …) or a mod's lang key
+     * {@code gui.eden_ld.hub.reports.category.<ns>.<path>} (else the raw category) — and the reference: "Баг",
+     * "Дуель зі ставкою · #1042".
+     */
     private static Component label(CompoundTag report) {
+        String category = report.getString("category");
         String reference = report.getString("reference");
-        return Component.literal(reference.isEmpty() ? report.getString("category")
-                : report.getString("category") + " · " + reference);
+        Component kind = category.startsWith("eden_ld:")
+                ? Component.translatable("gui.eden_ld.hub.reports.kind." + category.substring("eden_ld:".length()))
+                : Component.translatableWithFallback("gui.eden_ld.hub.reports.category." + category.replace(':', '.'),
+                        category);
+        return reference.isEmpty() ? kind : Component.empty().append(kind).append(" · " + reference);
     }
 
     /** A report in the list: #id and what it's about; who, when, and its state. */

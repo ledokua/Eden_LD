@@ -1766,6 +1766,8 @@
   "gui.eden_ld.moderation.reports.editor": "Відкрити в редакторі",
   "gui.eden_ld.moderation.reports.note_tip": "Необов'язково. Цю нотатку бачить лише персонал.",
   "gui.eden_ld.moderation.reports.reply_tip": "Гравець побачить цю відповідь у своїй вкладці й отримає її листом.",
+  "gui.eden_ld.moderation.reports.reward": "Нагородити",
+  "gui.eden_ld.moderation.reports.reward_title": "Ваше звернення #%s",
   "gui.eden_ld.moderation.reports.save": "Зберегти",
   "key.eden_ld.poll_first": "Опитування: перша відповідь",
   "key.eden_ld.poll_second": "Опитування: друга відповідь",

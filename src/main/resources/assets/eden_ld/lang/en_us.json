@@ -1766,6 +1766,8 @@
   "gui.eden_ld.moderation.reports.editor": "Open in editor",
   "gui.eden_ld.moderation.reports.note_tip": "Optional. Only staff see this note.",
   "gui.eden_ld.moderation.reports.reply_tip": "The player sees this reply in their tab and gets it by mail.",
+  "gui.eden_ld.moderation.reports.reward": "Reward",
+  "gui.eden_ld.moderation.reports.reward_title": "Your submission #%s",
   "gui.eden_ld.moderation.reports.save": "Save",
   "key.eden_ld.poll_first": "Poll: first answer",
   "key.eden_ld.poll_second": "Poll: second answer",
