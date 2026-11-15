@@ -1786,6 +1786,10 @@ is the player's name.
 | `/hub profile` | any player | Opens the hub on your profile. |
 | `/hub mail` | any player | Opens the hub on the Mail tab (the website-purchases and unread-mail join messages link here). |
 | `/hub reports` | `eden_ld.admin.reports` | Opens the Moderation window on Reports (the staff chat lines about reports link here). |
+| `/report [player]` | everyone (`eden_ld.report.submit`, on unless set false) | Opens the hub's «Звернення» tab: bug reports, complaints, ideas. With a player: a complaint about them. |
+| `/poll start <seconds> "question" [answers]` | `eden_ld.admin.poll` | Starts a poll for every online player (10-600 s; answers as `Так \| Ні \| Пізніше`, none = Так / Ні; one poll at a time). |
+| `/poll stop` | `eden_ld.admin.poll` | Ends the running poll now; everyone gets the result. |
+| `/poll vote <id> <n>` | everyone | What the poll's chat line's [answers] run. |
 | `/kits` | any player | With Kits_LD: opens the hub on the Kits tab (vanilla clients: Kits_LD's chat list). |
 | `/hub background unlock <players> <background>` | `eden_ld.admin.backgrounds` | Unlocks a profile background (e.g. `eden_ld:aurora`) for players. |
 | `/hub background lock <players> <background>` | `eden_ld.admin.backgrounds` | Removes an unlocked background (free ones stay). |

@@ -193,7 +193,9 @@ them without OP, set to `false` an OP loses them. Changes apply live.
 | `eden_ld.admin.punish.log` | the Moderation window's Punishments log (everyone's BanHammer punishments) |
 | `eden_ld.admin.world` | Moderation → World settings, `/eden gamerule`, `/eden pvp`, `/eden difficulty` (a dimension's own gamerules, PvP mode, difficulty and border; the server-wide gamerules), `/eden pvp player` (players' own PvP switch, no cooldown) |
 | `eden_ld.admin.tutorial` | `/eden tutorial start\|finish\|status` (the guide runs `finish` from the console) |
-| `eden_ld.admin.reports` | Moderation → Reports (players' reports from other mods, e.g. Duels_LD), `/hub reports`, and the chat lines about new and open reports |
+| `eden_ld.admin.reports` | Moderation → Reports (players' own reports, complaints and ideas from the hub's «Звернення» tab, and other mods' reports and suggestions): status, reply, `/hub reports`, and the chat lines about new and open ones |
+| `eden_ld.admin.poll` | Polls for every online player: `/poll start <seconds> "question" [answers]`, `/poll stop`, and Moderation → Polls (who voted what) |
+| `eden_ld.report.submit` | Not an admin node: filing from the hub's «Звернення» tab and `/report`. **On for everyone unless set to false** (take it away from a player who abuses it) |
 | `eden_ld.admin.guild_chat` | Moderation → Guilds → Chat: reading a guild's stored chat (with `eden_ld.admin.guilds`; without it the sub-tab is hidden) |
 | `eden_ld.admin.*` | all of the above |
 

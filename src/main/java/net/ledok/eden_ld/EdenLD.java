@@ -53,6 +53,7 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.hub.moderation.PunishStaff.initialize();
         net.ledok.eden_ld.hub.moderation.ReportDesk.initialize();
         net.ledok.eden_ld.hub.moderation.ReportsHub.initialize();
+        net.ledok.eden_ld.hub.poll.Polls.initialize();
         net.ledok.eden_ld.hub.JoinNotices.initialize();
         net.ledok.eden_ld.world.HopperBackoffBenchmark.registerIfRequested();
         // Starter daily quests, shipped disabled: /datapack enable "eden_ld:test_dailies".

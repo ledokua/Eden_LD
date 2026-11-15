@@ -77,7 +77,7 @@ public final class HubPayloads {
                 STAFF_PUNISH_LOG = 16, STAFF_NEWS = 32, STAFF_BACKGROUNDS = 64, STAFF_THEMES = 128,
                 STAFF_DAILIES = 256, STAFF_DUNGEONS = 512, STAFF_EMOJIS = 1024, STAFF_GUILDS = 2048,
                 STAFF_PARTIES = 4096, STAFF_COMMANDS = 8192, STAFF_WORLD = 16384, STAFF_REPORTS = 32768,
-                STAFF_GUILD_CHAT = 65536;
+                STAFF_GUILD_CHAT = 65536, STAFF_POLL = 131072;
         /** Any tab of the player page (the Players section). */
         public static final int STAFF_PLAYER_TABS = STAFF_PUNISH | STAFF_BACKGROUNDS | STAFF_THEMES | STAFF_DAILIES
                 | STAFF_DUNGEONS | STAFF_EMOJIS;
@@ -3311,6 +3311,55 @@ public final class HubPayloads {
     // ---------------------------------------------------------------- kits (Kits_LD)
 
     /** C2S: the Kits tab opened (or wants fresh data). */
+    /**
+     * S2C (1.3.86+): the running staff poll ({@code hub.poll.Polls}): its question and answers, the time left of
+     * {@code totalSeconds}, the votes per answer so far, how many players are asked ({@code voters}), this player's own
+     * vote (-1: none yet), and {@code ended} (the final state: the panel shows the result briefly, then goes).
+     */
+    public record PollData(long poll, String question, List<net.minecraft.network.chat.Component> answers, int totalSeconds,
+                           int secondsLeft, List<Integer> counts, int voters, int myVote, boolean ended)
+            implements CustomPacketPayload {
+        public static final Type<PollData> TYPE = new Type<>(id("poll_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PollData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeVarLong(p.poll);
+                    buf.writeUtf(p.question, 256);
+                    writeList(buf, p.answers, (b, answer) ->
+                            net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(b, answer));
+                    buf.writeVarInt(p.totalSeconds);
+                    buf.writeVarInt(p.secondsLeft);
+                    writeList(buf, p.counts, (b, count) -> b.writeVarInt(count));
+                    buf.writeVarInt(p.voters);
+                    buf.writeVarInt(p.myVote + 1);
+                    buf.writeBoolean(p.ended);
+                },
+                buf -> new PollData(buf.readVarLong(), buf.readUtf(256),
+                        readList(buf, b -> net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(b)),
+                        buf.readVarInt(), buf.readVarInt(), readList(buf, b -> b.readVarInt()), buf.readVarInt(),
+                        buf.readVarInt() - 1, buf.readBoolean()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S (1.3.86+): the player's vote in poll {@code poll}: the answer's index. */
+    public record PollVote(long poll, int answer) implements CustomPacketPayload {
+        public static final Type<PollVote> TYPE = new Type<>(id("poll_vote"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PollVote> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeVarLong(p.poll);
+                    buf.writeVarInt(p.answer);
+                },
+                buf -> new PollVote(buf.readVarLong(), buf.readVarInt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S (1.3.83+): the «Звернення» tab opened: the player's submissions and who they may complain about. */
     public record ReportsRequest() implements CustomPacketPayload {
         public static final ReportsRequest INSTANCE = new ReportsRequest();
@@ -3760,6 +3809,8 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(HubNotice.TYPE, HubNotice.CODEC);
         PayloadTypeRegistry.playS2C().register(Balance.TYPE, Balance.CODEC);
         PayloadTypeRegistry.playC2S().register(KitsRequest.TYPE, KitsRequest.CODEC);
+        PayloadTypeRegistry.playS2C().register(PollData.TYPE, PollData.CODEC);
+        PayloadTypeRegistry.playC2S().register(PollVote.TYPE, PollVote.CODEC);
         PayloadTypeRegistry.playC2S().register(ReportsRequest.TYPE, ReportsRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(ReportSubmit.TYPE, ReportSubmit.CODEC);
         PayloadTypeRegistry.playS2C().register(ReportsData.TYPE, ReportsData.CODEC);

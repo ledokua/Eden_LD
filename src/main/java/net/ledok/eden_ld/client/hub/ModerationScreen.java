@@ -90,7 +90,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
                 m.buttonHeight(), m.fieldHeight(), m.padding(), m.textShadow());
     }
 
-    private enum Section { MAIL, LOG, NEWS, CUSTOMIZATION, ACTIVITIES, PLAYERS, PUNISH_LOG, REPORTS, GUILDS, PARTIES, WORLD, SERVER }
+    private enum Section { MAIL, LOG, NEWS, CUSTOMIZATION, ACTIVITIES, PLAYERS, PUNISH_LOG, REPORTS, POLLS, GUILDS, PARTIES, WORLD, SERVER }
 
     /** The window open now (payload handlers update it). */
     @Nullable
@@ -131,6 +131,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private final ActivitiesSection activities = new ActivitiesSection(this, WIDTH - SIDEBAR - 16);
     private final WorldSection world = new WorldSection(this, WIDTH - SIDEBAR - 16);
     private final ReportsSection reports = new ReportsSection(this, WIDTH - SIDEBAR - 16);
+    private final PollsSection polls = new PollsSection(WIDTH - SIDEBAR - 16);
     private final GuildsSection guilds = new GuildsSection(this, WIDTH - SIDEBAR - 16);
 
     /** The news as edited here (published with Publish); loaded from the server until edited. */
@@ -370,6 +371,10 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             if (open.section == Section.REPORTS) {
                 open.rebuild();
             }
+        } else if (open.polls.onData(data.area(), data.data())) {
+            if (open.section == Section.POLLS) {
+                open.rebuild();
+            }
         } else if (open.guilds.onData(data.area(), data.data())) {
             // The list feeds the old view too (servers before 1.3.21).
             open.serverSections.onData(data.area(), data.data());
@@ -463,6 +468,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
                 case PARTIES -> serverSections.buildGroups(main, net.ledok.eden_ld.hub.moderation.AdminTools.PARTIES);
                 case WORLD -> world.build(main);
                 case REPORTS -> reports.build(main);
+                case POLLS -> polls.build(main);
                 case SERVER -> serverSections.buildServer(main);
             }
         }
@@ -514,6 +520,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             case PARTIES -> (staff & HomeData.STAFF_PARTIES) != 0;
             case WORLD -> (staff & HomeData.STAFF_WORLD) != 0;
             case REPORTS -> (staff & HomeData.STAFF_REPORTS) != 0;
+            case POLLS -> (staff & HomeData.STAFF_POLL) != 0;
             case SERVER -> (staff & (HomeData.STAFF_EMOJIS | HomeData.STAFF_COMMANDS)) != 0;
         };
     }
@@ -537,6 +544,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             case WORLD -> world.request();
             case SERVER -> serverSections.request(net.ledok.eden_ld.hub.moderation.AdminTools.SERVER);
             case REPORTS -> reports.request();
+            case POLLS -> polls.request();
             default -> {
             }
         }

@@ -78,6 +78,8 @@ public class EdenLDClient implements ClientModInitializer {
         hubKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.eden_ld.hub", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F4, "category.eden_ld.main"));
 
+        // Staff polls: the on-screen panel and its two vote keys.
+        net.ledok.eden_ld.client.poll.PollOverlay.initialize();
         net.ledok.eden_ld.client.hub.InventoryHubButton.register();
         net.ledok.eden_ld.client.hub.InventoryPvpButton.register();
         // Named Hub parts for tutorial spotlights (NPCs_LD dialog lines point at them).

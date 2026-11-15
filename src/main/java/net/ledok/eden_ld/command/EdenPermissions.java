@@ -59,8 +59,11 @@ public final class EdenPermissions {
     /** Reading a guild's chat history in Moderation → Guilds (the Chat sub-tab; with {@link #GUILDS}). */
     public static final String GUILD_CHAT = "eden_ld.admin.guild_chat";
 
+    /** Starting and stopping polls: {@code /poll start|stop}, and Moderation → Polls (who voted what). */
+    public static final String POLL = "eden_ld.admin.poll";
+
     private static final List<String> ALL = List.of(THEMES, BACKGROUNDS, EMOJIS, GUILDS, PARTIES, DUNGEONS, DAILIES, COMMANDS, MAIL,
-            MAIL_LOG, PUNISH_LOG, NEWS, WORLD, TUTORIAL, REPORTS, GUILD_CHAT);
+            MAIL_LOG, PUNISH_LOG, NEWS, WORLD, TUTORIAL, REPORTS, GUILD_CHAT, POLL);
 
     /** Which nodes each online player had when their command list was last sent (bit per {@link #ALL} entry). */
     private static final Map<UUID, Integer> SENT = new ConcurrentHashMap<>();
@@ -116,7 +119,7 @@ public final class EdenPermissions {
             staff |= net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_NEWS;
         }
         String[] nodes = {BACKGROUNDS, THEMES, DAILIES, DUNGEONS, EMOJIS, GUILDS, PARTIES, COMMANDS, WORLD, REPORTS,
-                GUILD_CHAT};
+                GUILD_CHAT, POLL};
         int[] bits = {net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_BACKGROUNDS,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_THEMES,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_DAILIES,
@@ -127,7 +130,8 @@ public final class EdenPermissions {
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_COMMANDS,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_WORLD,
                 net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_REPORTS,
-                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_GUILD_CHAT};
+                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_GUILD_CHAT,
+                net.ledok.eden_ld.hub.HubPayloads.HomeData.STAFF_POLL};
         for (int i = 0; i < nodes.length; i++) {
             if ((granted & (1 << ALL.indexOf(nodes[i]))) != 0) {
                 staff |= bits[i];

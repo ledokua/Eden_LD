@@ -49,7 +49,7 @@ public final class AdminTools {
 
     public static final String UNLOCKS = "unlocks", DAILIES = "dailies", DUNGEONS = "dungeons", EMOJIS = "emojis",
             GUILDS = "guilds", PARTIES = "parties", SERVER = "server", ACTIVITIES = "activities", WORLD = "world",
-            REPORTS = "reports", GUILD = "guild";
+            REPORTS = "reports", GUILD = "guild", POLL = "poll";
 
     private AdminTools() {
     }
@@ -79,6 +79,7 @@ public final class AdminTools {
             case SERVER -> may(admin, EdenPermissions.EMOJIS) || may(admin, EdenPermissions.COMMANDS);
             case WORLD -> may(admin, EdenPermissions.WORLD);
             case REPORTS -> may(admin, EdenPermissions.REPORTS);
+            case POLL -> may(admin, EdenPermissions.POLL);
             default -> false;
         };
     }
@@ -102,6 +103,7 @@ public final class AdminTools {
             case ACTIVITIES -> activities(admin, server);
             case WORLD -> net.ledok.eden_ld.world.WorldAdmin.data(server);
             case REPORTS -> ReportDesk.data(admin, server);
+            case POLL -> net.ledok.eden_ld.hub.poll.Polls.adminData();
             default -> new CompoundTag();
         };
         ServerPlayNetworking.send(admin, new HubPayloads.AdminData(area, target, data));
@@ -477,6 +479,7 @@ public final class AdminTools {
                 case GUILD -> GuildDesk.act(admin, action.action(), target, args);
                 // Every Reports action goes to the desk (1.3.83's "save" and "editor" were missing from the list above).
                 case REPORTS -> ReportDesk.act(admin, action.action(), args);
+                case POLL -> net.ledok.eden_ld.hub.poll.Polls.act(admin, action.action(), args);
                 default -> {
                     // A button whose action isn't wired here (a client newer than the server, or a missed case).
                     EdenLD.LOGGER.warn("[Moderation] {} sent an unknown action {}/{}; nothing done.", name, area, action.action());
