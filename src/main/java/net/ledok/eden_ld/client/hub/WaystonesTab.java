@@ -85,6 +85,9 @@ final class WaystonesTab {
         float allRow = widths[1] - LANE;
         Flex favoritesList = Flex.column().gap(2);
         Flex allList = Flex.column().gap(2);
+        // As wide as its panel: with every section folded, a content-wide list shrank the headings to nothing and
+        // they couldn't be clicked open again.
+        allList.sizing(Sizing.fill(), Sizing.content());
         TextField search = new TextField(HubScreen.innerWidth(), query, text -> {
             query = text;
             fill(favoritesList, allList, data, favoritesRow, allRow);

@@ -243,6 +243,8 @@ final class FriendsTab {
 
         boolean hadFocus = friendSearchField != null && friendSearchField.isFocused();
         Flex list = Flex.column().gap(3);
+        // As wide as its panel: with every section folded, a content-wide list would shrink the headings to nothing.
+        list.sizing(Sizing.fill(), Sizing.content());
         TextField search = new TextField(width, friendQuery, query -> {
             friendQuery = query;
             fillFriends(screen, list, data, width, gridColumns);
