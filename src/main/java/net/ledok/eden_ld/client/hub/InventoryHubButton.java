@@ -55,6 +55,11 @@ public final class InventoryHubButton extends AbstractButton {
             if (screen instanceof InventoryScreen inventory && ClientPlayNetworking.canSend(HubPayloads.ProfileRequest.TYPE)) {
                 InventoryHubButton hub = new InventoryHubButton(inventory);
                 Screens.getButtons(screen).add(hub);
+                // «Звернення» left of the hub's button, where the server has the tab (1.3.83+).
+                if (ClientPlayNetworking.canSend(HubPayloads.ReportsRequest.TYPE)) {
+                    Screens.getButtons(screen).add(new InventoryReportButton(inventory, hub.offsetX - SIZE - GAP,
+                            hub.offsetY));
+                }
                 // An older Eden server has no toggle: no button (its players count as PvP off).
                 if (ClientPlayNetworking.canSend(HubPayloads.PvpToggle.TYPE)) {
                     Screens.getButtons(screen).add(new InventoryPvpButton(inventory, hub.offsetX + SIZE + GAP, hub.offsetY));

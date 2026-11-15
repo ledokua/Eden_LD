@@ -111,8 +111,33 @@ public final class MailHub {
         }
     }
 
+    /**
+     * A report's answer to its reporter (status changed, or staff replied): «Ваше звернення #N: Прийнято» and the
+     * reply, in every language Eden ships (the Mail tab picks theirs). Nothing without Economy_LD.
+     */
+    public static void reportMail(java.util.UUID to, long id, int status, String excerpt, String reply) {
+        if (LOADED) {
+            Economy.reportMail(to, id, status, excerpt, reply);
+        }
+    }
+
     /** The only class touching Economy_LD types. */
     private static final class Economy {
+        static void reportMail(java.util.UUID to, long id, int status, String excerpt, String reply) {
+            var content = net.ledok.economy_ld.mail.MailContent.translated("mail.eden_ld.report.title." + status,
+                    reply.isEmpty() ? "mail.eden_ld.report.body" : "mail.eden_ld.report.body_reply",
+                    java.util.List.of(String.valueOf(id), excerpt, reply));
+            var draft = net.ledok.economy_ld.mail.MailDraft.builder(net.ledok.economy_ld.mail.MailKind.SYSTEM, content)
+                    .expiresInDays(30)
+                    .to(to)
+                    .audienceNote("report:" + id)
+                    .build();
+            net.ledok.economy_ld.mail.EconomyMail.send(draft).exceptionally(error -> {
+                EdenLD.LOGGER.error("[Reports] Couldn't mail report #{}'s answer.", id, error);
+                return null;
+            });
+        }
+
         private static MinecraftServer server;
 
         static void initialize() {

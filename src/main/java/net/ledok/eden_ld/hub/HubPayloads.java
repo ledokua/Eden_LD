@@ -3311,6 +3311,97 @@ public final class HubPayloads {
     // ---------------------------------------------------------------- kits (Kits_LD)
 
     /** C2S: the Kits tab opened (or wants fresh data). */
+    /** C2S (1.3.83+): the «Звернення» tab opened: the player's submissions and who they may complain about. */
+    public record ReportsRequest() implements CustomPacketPayload {
+        public static final ReportsRequest INSTANCE = new ReportsRequest();
+        public static final Type<ReportsRequest> TYPE = new Type<>(id("reports_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReportsRequest> CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * C2S (1.3.83+): a submission from the «Звернення» tab: {@code kind} one of {@code ReportDesk.PLAYER_KINDS},
+     * {@code target} a complaint's player (null otherwise), {@code text} the player's words.
+     */
+    public record ReportSubmit(String kind, java.util.Optional<java.util.UUID> target, String text) implements CustomPacketPayload {
+        public static final Type<ReportSubmit> TYPE = new Type<>(id("report_submit"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReportSubmit> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.kind, 64);
+                    buf.writeOptional(p.target, (b, uuid) -> b.writeUUID(uuid));
+                    buf.writeUtf(p.text, 2048);
+                },
+                buf -> new ReportSubmit(buf.readUtf(64), buf.readOptional(b -> b.readUUID()), buf.readUtf(2048)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * One of the player's submissions: {@code category} (Eden's kinds {@code eden_ld:bug} … or a mod's, e.g.
+     * {@code codex_ld:entry}), {@code reference}, {@code status} ({@code Report.NEW} … {@code REJECTED}), their own
+     * {@code text}, staff's {@code reply}, a complaint's {@code target} name ("" otherwise).
+     */
+    public record ReportEntry(long id, String category, String reference, long time, int status, String text,
+                              String reply, String target) {
+        static void write(RegistryFriendlyByteBuf buf, ReportEntry e) {
+            buf.writeVarLong(e.id);
+            buf.writeUtf(e.category, 64);
+            buf.writeUtf(e.reference, 64);
+            buf.writeLong(e.time);
+            buf.writeVarInt(e.status);
+            buf.writeUtf(e.text, 2048);
+            buf.writeUtf(e.reply, 2048);
+            buf.writeUtf(e.target, 64);
+        }
+
+        static ReportEntry read(RegistryFriendlyByteBuf buf) {
+            return new ReportEntry(buf.readVarLong(), buf.readUtf(64), buf.readUtf(64), buf.readLong(), buf.readVarInt(),
+                    buf.readUtf(2048), buf.readUtf(2048), buf.readUtf(64));
+        }
+    }
+
+    /** A player a complaint may name: online now, or left in the last half hour. */
+    public record ReportCandidate(java.util.UUID uuid, String name, boolean online) {
+        static void write(RegistryFriendlyByteBuf buf, ReportCandidate c) {
+            buf.writeUUID(c.uuid);
+            buf.writeUtf(c.name, 64);
+            buf.writeBoolean(c.online);
+        }
+
+        static ReportCandidate read(RegistryFriendlyByteBuf buf) {
+            return new ReportCandidate(buf.readUUID(), buf.readUtf(64), buf.readBoolean());
+        }
+    }
+
+    /**
+     * S2C (1.3.83+): the «Звернення» tab's data: whether the player may file ({@code allowed}), their submissions
+     * (newest first), and who a complaint may name.
+     */
+    public record ReportsData(boolean allowed, List<ReportEntry> entries, List<ReportCandidate> players)
+            implements CustomPacketPayload {
+        public static final Type<ReportsData> TYPE = new Type<>(id("reports_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReportsData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeBoolean(p.allowed);
+                    writeList(buf, p.entries, ReportEntry::write);
+                    writeList(buf, p.players, ReportCandidate::write);
+                },
+                buf -> new ReportsData(buf.readBoolean(), readList(buf, ReportEntry::read),
+                        readList(buf, ReportCandidate::read)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record KitsRequest() implements CustomPacketPayload {
         public static final KitsRequest INSTANCE = new KitsRequest();
         public static final Type<KitsRequest> TYPE = new Type<>(id("kits_request"));
@@ -3669,6 +3760,9 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(HubNotice.TYPE, HubNotice.CODEC);
         PayloadTypeRegistry.playS2C().register(Balance.TYPE, Balance.CODEC);
         PayloadTypeRegistry.playC2S().register(KitsRequest.TYPE, KitsRequest.CODEC);
+        PayloadTypeRegistry.playC2S().register(ReportsRequest.TYPE, ReportsRequest.CODEC);
+        PayloadTypeRegistry.playC2S().register(ReportSubmit.TYPE, ReportSubmit.CODEC);
+        PayloadTypeRegistry.playS2C().register(ReportsData.TYPE, ReportsData.CODEC);
         PayloadTypeRegistry.playS2C().register(KitsData.TYPE, KitsData.CODEC);
         PayloadTypeRegistry.playC2S().register(KitClaim.TYPE, KitClaim.CODEC);
         PayloadTypeRegistry.playS2C().register(MailData.TYPE, MailData.CODEC);

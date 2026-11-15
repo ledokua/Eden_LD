@@ -20,6 +20,8 @@ public final class HubState {
     public static int activityInvitesOff = -1;
     /** Who the player is hidden from on the maps ({@code HubSettings.MAP_HIDDEN} bits); -1: the server didn't say. */
     public static int mapHidden = -1;
+    /** The «Звернення» tab's data; null until the server sent it (an older server never does: no tab). */
+    public static HubPayloads.ReportsData reportsData;
     /** The Activities tab's cards (dungeons, raids, arenas). */
     public static HubPayloads.ActivitiesData activitiesData;
     /** Activities closed for maintenance (dimmed, not clickable), and whether this player may enter them anyway (staff). */
@@ -95,6 +97,7 @@ public final class HubState {
         chatFlags = ChatFlagBits.UNSENT;
         activityInvitesOff = -1;
         mapHidden = -1;
+        reportsData = null;
         activitiesData = null;
         closedActivities = java.util.Set.of();
         closedBypass = false;

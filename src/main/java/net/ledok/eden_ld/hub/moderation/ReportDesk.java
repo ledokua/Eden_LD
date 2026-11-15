@@ -2,6 +2,7 @@ package net.ledok.eden_ld.hub.moderation;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.command.EdenPermissions;
 import net.ledok.eden_ld.compat.LuckPermsCompat;
@@ -16,34 +17,64 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
- * Player reports from other mods ({@code EdenModerationApi.report}, e.g. Duels_LD's wager disputes): filing them
- * (rate limit and caps, {@link ReportRules}), telling staff who may see them ({@code eden_ld.admin.reports}) in chat —
- * at once, and on join while any are open — and the Moderation window's Reports section ({@link AdminTools} area
- * {@code reports}). Server thread.
+ * One queue for everything players send staff: their own bug reports, complaints about players, ideas and anything
+ * else (the hub tab «Звернення», the inventory button, {@code /report}), other mods' reports
+ * ({@code EdenModerationApi.report}, e.g. Duels_LD's wager disputes) and suggestions ({@code EdenModerationApi.suggest},
+ * e.g. Codex_LD entries, DataRewriter recipes). Filing (rate limit and caps, {@link ReportRules}), evidence for staff
+ * (positions, version, and for a complaint what the reporter's chat showed, {@link ChatRecall}), telling staff
+ * ({@code eden_ld.admin.reports}) in chat — at once, and on join while any are open — the Moderation window's Reports
+ * section ({@link AdminTools} area {@code reports}: filters, status, reply, note, a suggestion's editor), and the
+ * reporter's answer: the status and reply in their tab, and Eden mail when either changes. Server thread.
  */
 public final class ReportDesk {
 
-    /** The command a staff chat line's [Open] runs: Moderation on the Reports section. */
     public static final String OPEN_COMMAND = "/hub reports";
-    /** What {@code OpenHub} carries to open the Moderation window on Reports. */
+    /** The Moderation window on this section ({@code HubPayloads.OpenHub}). */
     public static final String OPEN_TAB = "moderation:reports";
-    /** The list's filters, in the window's order. */
-    static final int OPEN = 0, HANDLED = 1, ALL = 2;
-    /** Rows sent at most (newest first); the rest are counted. */
-    private static final int ROWS = 500;
+    /** The player's own tab. */
+    public static final String PLAYER_TAB = "reports";
+    /** Who may file from the hub and {@code /report}: on unless LuckPerms sets it false. */
+    public static final String SUBMIT_PERMISSION = "eden_ld.report.submit";
 
-    /** Each admin's Reports view: the filter and the report picked (-1: the newest). */
-    private record View(int filter, long selected) {
+    /** The kinds players file themselves. */
+    public static final String BUG = "eden_ld:bug", COMPLAINT = "eden_ld:complaint", IDEA = "eden_ld:idea",
+            OTHER = "eden_ld:other";
+    public static final List<String> PLAYER_KINDS = List.of(BUG, COMPLAINT, IDEA, OTHER);
+
+    /** Status filters (the Moderation window): to do (new and being looked at), each status, everything. */
+    static final int TO_DO = 0, ACCEPTED_ONLY = 1, REJECTED_ONLY = 2, ALL = 3, NEW_ONLY = 4, REVIEWING_ONLY = 5;
+    /** Kind filters: everything, Eden's four kinds, other mods' reports and suggestions. */
+    static final int ANY_KIND = 0, KIND_BUG = 1, KIND_COMPLAINT = 2, KIND_IDEA = 3, KIND_OTHER = 4, KIND_MODS = 5;
+
+    private static final int ROWS = 500;
+    /** The player's own list. */
+    private static final int MINE = 100;
+    private static final String VERSION = FabricLoader.getInstance().getModContainer(EdenLD.MOD_ID)
+            .map(mod -> mod.getMetadata().getVersion().getFriendlyString()).orElse("?");
+
+    private record View(int filter, int kind, long selected) {
     }
 
-    private static final View DEFAULT_VIEW = new View(OPEN, -1);
+    private static final View DEFAULT_VIEW = new View(TO_DO, ANY_KIND, -1);
     private static final Map<UUID, View> VIEWS = new ConcurrentHashMap<>();
+
+    /** Opens a suggestion of a category in its mod's review screen, for a staff member. */
+    public interface Editor {
+        void open(ServerPlayer staff, long id, UUID author, String authorName, String reference, String text, String payload);
+    }
+
+    private static final Map<String, Editor> EDITORS = new ConcurrentHashMap<>();
+    /** Called when a report's status or reply changed: the player's tab follows ({@code ReportsHub}). */
+    private static Consumer<UUID> changed = player -> { };
 
     private ReportDesk() {
     }
@@ -51,7 +82,14 @@ public final class ReportDesk {
     public static void initialize() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 net.ledok.eden_ld.util.OnServerThread.run(server, () -> VIEWS.remove(handler.getPlayer().getUUID())));
-        ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> VIEWS.clear());
+        ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
+            VIEWS.clear();
+            ChatRecall.clear();
+        });
+    }
+
+    static void onChanged(Consumer<UUID> listener) {
+        changed = listener;
     }
 
     /** May see and handle reports. */
@@ -59,22 +97,39 @@ public final class ReportDesk {
         return LuckPermsCompat.hasPermission(player, EdenPermissions.REPORTS);
     }
 
+    /** May file from the hub and {@code /report}: everyone, unless LuckPerms takes it away. */
+    public static boolean maySubmit(ServerPlayer player) {
+        return LuckPermsCompat.hasPermissionOr(player, SUBMIT_PERMISSION, true);
+    }
+
     // ---------------------------------------------------------------- filing
 
     /** The new report's id, or -1 when refused (blank text, or the reporter's rate limit). */
     public static long file(MinecraftServer server, UUID reporter, String category, String reference, String text,
                             List<String> log) {
+        Report report = add(server, reporter, category, reference, text, log, null, "", "");
+        return report == null ? -1 : report.id;
+    }
+
+    /** Files and tells staff; null when refused (blank text, or the reporter's rate limit). */
+    @Nullable
+    private static Report add(MinecraftServer server, UUID reporter, String category, String reference, String text,
+                              List<String> log, @Nullable UUID target, String targetName, String payload) {
         String body = ReportRules.clip(text, ReportRules.MAX_TEXT);
         if (body.isEmpty()) {
-            return -1;
+            return null;
         }
         long now = System.currentTimeMillis();
         Reports reports = Reports.get(server);
         if (!reports.mayFile(reporter, now)) {
-            return -1;
+            return null;
         }
         Report report = reports.add(reporter, name(server, reporter), ReportRules.clip(category, ReportRules.MAX_LABEL),
                 ReportRules.clip(reference, ReportRules.MAX_LABEL), body, ReportRules.log(log), now);
+        if (target != null || !payload.isEmpty()) {
+            reports.details(report, target, targetName, payload.length() > ReportRules.MAX_PAYLOAD
+                    ? payload.substring(0, ReportRules.MAX_PAYLOAD) : payload);
+        }
         EdenLD.LOGGER.info("[Reports] #{} ({}) from {}", report.id, label(report), report.reporterName);
         Component line = Component.translatable("message.eden_ld.reports.new", report.id, label(report), report.reporterName)
                 .withStyle(ChatFormatting.GOLD)
@@ -85,8 +140,91 @@ public final class ReportDesk {
                 staff.sendSystemMessage(line);
             }
         }
-        return report.id;
+        changed.accept(reporter);
+        return report;
     }
+
+    /**
+     * A player's own submission from the hub ({@code kind} one of {@link #PLAYER_KINDS}; {@code target} a complaint's
+     * player). Evidence is added for staff. Null when filed, else why not (for the player).
+     */
+    @Nullable
+    public static Component submit(ServerPlayer player, String kind, @Nullable UUID target, String text) {
+        if (!maySubmit(player)) {
+            return Component.translatable("message.eden_ld.reports.not_allowed");
+        }
+        if (!PLAYER_KINDS.contains(kind)) {
+            return Component.translatable("message.eden_ld.reports.bad_kind");
+        }
+        if (ReportRules.clip(text, ReportRules.MAX_TEXT).isEmpty()) {
+            return Component.translatable("message.eden_ld.reports.empty");
+        }
+        MinecraftServer server = player.server;
+        boolean complaint = kind.equals(COMPLAINT);
+        if (complaint && (target == null || target.equals(player.getUUID()))) {
+            return Component.translatable("message.eden_ld.reports.no_target");
+        }
+        String targetName = complaint ? name(server, target) : "";
+        List<String> evidence = new ArrayList<>();
+        evidence.add("Reporter: " + player.getGameProfile().getName() + " @ " + where(player));
+        evidence.add("Time: " + Instant.now() + " (Eden_LD " + VERSION + ")");
+        if (complaint) {
+            ServerPlayer online = server.getPlayerList().getPlayer(target);
+            evidence.add("Target: " + targetName + (online != null ? " @ " + where(online) : " — offline"));
+            List<String> chat = ChatRecall.recall(player.getUUID(), targetName);
+            evidence.add("Chat the reporter received (last " + chat.size() + " lines):");
+            evidence.addAll(chat);
+        }
+        Report report = add(server, player.getUUID(), kind, complaint ? targetName : "", text, evidence,
+                complaint ? target : null, targetName, "");
+        if (report == null) {
+            return Component.translatable("message.eden_ld.reports.too_many", ReportRules.RATE_LIMIT);
+        }
+        return null;
+    }
+
+    /**
+     * Another mod's suggestion ({@code EdenModerationApi.suggest}): {@code payload} its proposed content, opaque here.
+     * The new id, or -1 when refused: blank text, the rate limit, or an open suggestion of the same category and
+     * reference from this player.
+     */
+    public static long suggest(MinecraftServer server, UUID author, String category, String reference, String text,
+                               String payload, List<String> log) {
+        Reports reports = Reports.get(server);
+        if (reports.hasOpen(author, category, reference)) {
+            return -1;
+        }
+        Report report = add(server, author, category, reference, text, log, null, "", payload == null ? "" : payload);
+        return report == null ? -1 : report.id;
+    }
+
+    /** A mod's review screen for its category ({@code EdenModerationApi.registerSuggestionEditor}). */
+    public static void registerEditor(String category, Editor editor) {
+        EDITORS.put(category, editor);
+    }
+
+    /**
+     * The owning mod's verdict on a suggestion: accepted or rejected with {@code reason} (shown to the author and
+     * mailed). False when there's no such report.
+     */
+    public static boolean resolve(MinecraftServer server, long id, boolean accepted, String reason, String by) {
+        Reports store = Reports.get(server);
+        Report report = store.byId(id);
+        if (report == null) {
+            return false;
+        }
+        update(server, store, report, accepted ? Report.ACCEPTED : Report.REJECTED,
+                ReportRules.clip(reason, ReportRules.MAX_REPLY), null, by);
+        return true;
+    }
+
+    /** "dimension x y z". */
+    private static String where(ServerPlayer player) {
+        return player.level().dimension().location() + " " + player.blockPosition().getX() + " "
+                + player.blockPosition().getY() + " " + player.blockPosition().getZ();
+    }
+
+    // ---------------------------------------------------------------- staff alerts
 
     /** "1 open report [Open]" / "N open reports [Open]" to staff who may handle them, while any are open. */
     public static void joinLine(ServerPlayer player) {
@@ -117,7 +255,7 @@ public final class ReportDesk {
     }
 
     /** The player's name: online, else the server's profile cache, else the uuid. */
-    private static String name(MinecraftServer server, UUID player) {
+    static String name(MinecraftServer server, UUID player) {
         ServerPlayer online = server.getPlayerList().getPlayer(player);
         if (online != null) {
             return online.getGameProfile().getName();
@@ -127,12 +265,42 @@ public final class ReportDesk {
                 : cache.get(player).map(com.mojang.authlib.GameProfile::getName).orElse(player.toString());
     }
 
+    // ---------------------------------------------------------------- the reporter's side
+
+    /** The player's own submissions, newest first: what their tab shows. */
+    static List<Report> mine(MinecraftServer server, UUID player) {
+        return Reports.get(server).byReporter(player, MINE);
+    }
+
+    /** Status and/or reply changed: stored, the reporter's tab follows, and they get mail. */
+    private static void update(MinecraftServer server, Reports store, Report report, int status, @Nullable String reply,
+                               @Nullable String note, String by) {
+        long now = System.currentTimeMillis();
+        boolean statusChanged = store.setStatus(report, status, by, now);
+        boolean replyChanged = reply != null && store.setReply(report, reply);
+        if (note != null) {
+            store.setNote(report, note);
+        }
+        if (statusChanged || replyChanged) {
+            EdenLD.LOGGER.info("[Reports] {} set #{} to status {}{}", by, report.id, report.status,
+                    report.reply.isEmpty() ? "" : " (reply: " + report.reply + ")");
+            net.ledok.eden_ld.hub.mail.MailHub.reportMail(report.reporter, report.id, report.status,
+                    excerpt(report.text), report.reply);
+            changed.accept(report.reporter);
+        }
+    }
+
+    private static String excerpt(String text) {
+        String line = text.replace('\n', ' ');
+        return line.length() > 80 ? line.substring(0, 79) + "…" : line;
+    }
+
     // ---------------------------------------------------------------- the Moderation window
 
     /**
-     * The admin's view: {@code filter}, {@code open} (open reports, for the filter's label), {@code total} (matching
-     * the filter), {@code rows} (newest first, at most {@link #ROWS}), and the picked report's {@code detail} — kept
-     * shown after it leaves the filter (just marked handled), so it can be reopened.
+     * The admin's view: {@code filter} and {@code kind}, {@code open} (to-do count), {@code total} (matching),
+     * {@code rows} (newest first, at most {@link #ROWS}), and the picked report's {@code detail} — kept shown after it
+     * leaves the filter (just handled), so it can be changed again.
      */
     static CompoundTag data(ServerPlayer admin, MinecraftServer server) {
         View view = VIEWS.getOrDefault(admin.getUUID(), DEFAULT_VIEW);
@@ -143,7 +311,7 @@ public final class ReportDesk {
         Report first = null;
         for (int i = all.size() - 1; i >= 0; i--) {
             Report report = all.get(i);
-            if (!matches(view.filter(), report)) {
+            if (!matches(view.filter(), report) || !matchesKind(view.kind(), report)) {
                 continue;
             }
             total++;
@@ -160,6 +328,7 @@ public final class ReportDesk {
         }
         CompoundTag tag = new CompoundTag();
         tag.putInt("filter", view.filter());
+        tag.putInt("kind", view.kind());
         tag.putInt("open", store.openCount());
         tag.putInt("total", total);
         tag.put("rows", rows);
@@ -171,8 +340,22 @@ public final class ReportDesk {
 
     private static boolean matches(int filter, Report report) {
         return switch (filter) {
-            case OPEN -> !report.handled;
-            case HANDLED -> report.handled;
+            case TO_DO -> !report.handled();
+            case ACCEPTED_ONLY -> report.status == Report.ACCEPTED;
+            case REJECTED_ONLY -> report.status == Report.REJECTED;
+            case NEW_ONLY -> report.status == Report.NEW;
+            case REVIEWING_ONLY -> report.status == Report.REVIEWING;
+            default -> true;
+        };
+    }
+
+    private static boolean matchesKind(int kind, Report report) {
+        return switch (kind) {
+            case KIND_BUG -> report.category.equals(BUG);
+            case KIND_COMPLAINT -> report.category.equals(COMPLAINT);
+            case KIND_IDEA -> report.category.equals(IDEA);
+            case KIND_OTHER -> report.category.equals(OTHER);
+            case KIND_MODS -> !PLAYER_KINDS.contains(report.category);
             default -> true;
         };
     }
@@ -184,7 +367,8 @@ public final class ReportDesk {
         row.putString("reporter", report.reporterName);
         row.putString("category", report.category);
         row.putString("reference", report.reference);
-        row.putBoolean("handled", report.handled);
+        row.putBoolean("handled", report.handled());
+        row.putInt("status", report.status);
         return row;
     }
 
@@ -198,22 +382,30 @@ public final class ReportDesk {
         tag.putString("handled_by", report.handledBy);
         tag.putLong("handled_at", report.handledAt);
         tag.putString("note", report.note);
+        tag.putString("reply", report.reply);
+        tag.putString("target", report.targetName);
+        tag.putInt("payload", report.payload.length());
+        tag.putBoolean("editor", EDITORS.containsKey(report.category));
         return tag;
     }
 
     /**
-     * {@code view} ({@code filter} and/or {@code id}: what the admin looks at — no notice), {@code handle} /
-     * {@code reopen} (with the {@code note} as typed), {@code note} (only the note). Null when there's nothing to say.
+     * {@code view} ({@code filter}, {@code kind} and/or {@code id}: what the admin looks at — no notice); {@code save}
+     * ({@code status}, {@code reply}, {@code note}); the older {@code handle} / {@code reopen} / {@code note};
+     * {@code editor} (the suggestion's review screen). Null when there's nothing to say.
      */
     @Nullable
     static Component act(ServerPlayer admin, String action, CompoundTag args) {
         UUID uuid = admin.getUUID();
         View view = VIEWS.getOrDefault(uuid, DEFAULT_VIEW);
         if (action.equals("view")) {
-            int filter = args.contains("filter") ? Math.max(OPEN, Math.min(ALL, args.getInt("filter"))) : view.filter();
+            int filter = args.contains("filter") ? Math.max(TO_DO, Math.min(REVIEWING_ONLY, args.getInt("filter")))
+                    : view.filter();
+            int kind = args.contains("kind") ? Math.max(ANY_KIND, Math.min(KIND_MODS, args.getInt("kind"))) : view.kind();
             // Another filter starts from its newest report.
-            long selected = args.contains("id") ? args.getLong("id") : args.contains("filter") ? -1 : view.selected();
-            VIEWS.put(uuid, new View(filter, selected));
+            boolean refiltered = args.contains("filter") || args.contains("kind");
+            long selected = args.contains("id") ? args.getLong("id") : refiltered ? -1 : view.selected();
+            VIEWS.put(uuid, new View(filter, kind, selected));
             return null;
         }
         Reports store = Reports.get(admin.server);
@@ -221,23 +413,42 @@ public final class ReportDesk {
         if (report == null) {
             return Component.translatable("message.eden_ld.reports.gone");
         }
-        VIEWS.put(uuid, new View(view.filter(), report.id));
+        VIEWS.put(uuid, new View(view.filter(), view.kind(), report.id));
         String name = admin.getGameProfile().getName();
         String note = ReportRules.clip(args.getString("note"), ReportRules.MAX_NOTE);
-        store.setNote(report, note);
-        long now = System.currentTimeMillis();
         return switch (action) {
+            case "save" -> {
+                String reply = ReportRules.clip(args.getString("reply"), ReportRules.MAX_REPLY);
+                int status = args.contains("status") ? args.getInt("status") : report.status;
+                update(admin.server, store, report, status, reply, note, name);
+                yield Component.translatable("message.eden_ld.reports.saved", report.id);
+            }
             case "handle" -> {
-                store.setHandled(report, true, name, now);
-                EdenLD.LOGGER.info("[Reports] {} marked #{} handled{}", name, report.id, note.isEmpty() ? "" : ": " + note);
+                update(admin.server, store, report, Report.ACCEPTED, null, note, name);
                 yield Component.translatable("message.eden_ld.reports.handled", report.id);
             }
             case "reopen" -> {
-                store.setHandled(report, false, name, now);
-                EdenLD.LOGGER.info("[Reports] {} reopened #{}", name, report.id);
+                update(admin.server, store, report, Report.REVIEWING, null, note, name);
                 yield Component.translatable("message.eden_ld.reports.reopened", report.id);
             }
-            default -> Component.translatable("message.eden_ld.reports.note_saved", report.id);
+            case "editor" -> {
+                Editor editor = EDITORS.get(report.category);
+                if (editor == null) {
+                    yield Component.translatable("message.eden_ld.reports.no_editor", report.category);
+                }
+                try {
+                    editor.open(admin, report.id, report.reporter, report.reporterName, report.reference, report.text,
+                            report.payload);
+                } catch (RuntimeException e) {
+                    EdenLD.LOGGER.error("[Reports] The editor for {} failed on #{}", report.category, report.id, e);
+                    yield Component.translatable("message.eden_ld.reports.editor_failed", report.category);
+                }
+                yield null;
+            }
+            default -> {
+                store.setNote(report, note);
+                yield Component.translatable("message.eden_ld.reports.note_saved", report.id);
+            }
         };
     }
 }

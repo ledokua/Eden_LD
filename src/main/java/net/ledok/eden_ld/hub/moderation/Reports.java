@@ -62,21 +62,22 @@ public final class Reports extends SavedData {
     int openCount() {
         int open = 0;
         for (Report report : reports) {
-            if (!report.handled) {
+            if (!report.handled()) {
                 open++;
             }
         }
         return open;
     }
 
-    /** Marks a report handled (by {@code by}) or open again; false when nothing changed. */
-    boolean setHandled(Report report, boolean handled, String by, long now) {
-        if (report.handled == handled) {
+    /** Sets the status (by {@code by}); false when it was already that. */
+    boolean setStatus(Report report, int status, String by, long now) {
+        int valid = Report.validStatus(status);
+        if (report.status == valid) {
             return false;
         }
-        report.handled = handled;
-        report.handledBy = handled ? by : "";
-        report.handledAt = handled ? now : 0;
+        report.status = valid;
+        report.handledBy = by;
+        report.handledAt = now;
         setDirty();
         return true;
     }
@@ -86,6 +87,46 @@ public final class Reports extends SavedData {
             report.note = note;
             setDirty();
         }
+    }
+
+    /** Staff's answer to the player; false when unchanged. */
+    boolean setReply(Report report, String reply) {
+        if (report.reply.equals(reply)) {
+            return false;
+        }
+        report.reply = reply;
+        setDirty();
+        return true;
+    }
+
+    /** Adds the complaint target and the suggestion payload to a just-filed report. */
+    void details(Report report, @Nullable UUID target, String targetName, String payload) {
+        report.target = target;
+        report.targetName = targetName;
+        report.payload = payload;
+        setDirty();
+    }
+
+    /** Everything {@code reporter} filed, newest first. */
+    List<Report> byReporter(UUID reporter, int max) {
+        List<Report> mine = new ArrayList<>();
+        for (int i = reports.size() - 1; i >= 0 && mine.size() < max; i--) {
+            if (reports.get(i).reporter.equals(reporter)) {
+                mine.add(reports.get(i));
+            }
+        }
+        return mine;
+    }
+
+    /** Whether {@code reporter} has an unhandled report of {@code category} about {@code reference}. */
+    boolean hasOpen(UUID reporter, String category, String reference) {
+        for (Report report : reports) {
+            if (!report.handled() && report.reporter.equals(reporter) && report.category.equals(category)
+                    && report.reference.equals(reference)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -104,13 +145,23 @@ public final class Reports extends SavedData {
             ListTag log = new ListTag();
             report.log.forEach(line -> log.add(StringTag.valueOf(line)));
             r.put("log", log);
-            if (report.handled) {
-                r.putBoolean("handled", true);
+            r.putInt("status", report.status);
+            if (!report.handledBy.isEmpty()) {
                 r.putString("handled_by", report.handledBy);
                 r.putLong("handled_at", report.handledAt);
             }
             if (!report.note.isEmpty()) {
                 r.putString("note", report.note);
+            }
+            if (!report.reply.isEmpty()) {
+                r.putString("reply", report.reply);
+            }
+            if (report.target != null) {
+                r.putUUID("target", report.target);
+                r.putString("target_name", report.targetName);
+            }
+            if (!report.payload.isEmpty()) {
+                r.putString("payload", report.payload);
             }
             list.add(r);
         }
@@ -134,10 +185,18 @@ public final class Reports extends SavedData {
             }
             Report report = new Report(r.getLong("id"), r.getLong("time"), r.getUUID("reporter"),
                     r.getString("reporter_name"), r.getString("category"), r.getString("reference"), r.getString("text"), log);
-            report.handled = r.getBoolean("handled");
+            // Before statuses: handled meant done (accepted).
+            report.status = r.contains("status") ? Report.validStatus(r.getInt("status"))
+                    : r.getBoolean("handled") ? Report.ACCEPTED : Report.NEW;
             report.handledBy = r.getString("handled_by");
             report.handledAt = r.getLong("handled_at");
             report.note = r.getString("note");
+            report.reply = r.getString("reply");
+            if (r.hasUUID("target")) {
+                report.target = r.getUUID("target");
+                report.targetName = r.getString("target_name");
+            }
+            report.payload = r.getString("payload");
             data.reports.add(report);
             highest = Math.max(highest, report.id);
         }

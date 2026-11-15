@@ -1,0 +1,229 @@
+package net.ledok.eden_ld.client.hub;
+
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.ledok.eden_ld.client.EdenParchment;
+import net.ledok.eden_ld.hub.HubPayloads;
+import net.ledok.eden_ld.hub.HubPayloads.ReportCandidate;
+import net.ledok.eden_ld.hub.HubPayloads.ReportEntry;
+import net.ledok.vectorlib.client.canvas.layout.Align;
+import net.ledok.vectorlib.client.canvas.layout.Flex;
+import net.ledok.vectorlib.client.canvas.layout.Insets;
+import net.ledok.vectorlib.client.canvas.layout.Justify;
+import net.ledok.vectorlib.client.canvas.layout.Sizing;
+import net.ledok.vectorlib.client.canvas.widget.Button;
+import net.ledok.vectorlib.client.canvas.widget.Dropdown;
+import net.ledok.vectorlib.client.canvas.widget.Label;
+import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
+import net.ledok.vectorlib.client.canvas.widget.TextArea;
+import net.minecraft.network.chat.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * The «Звернення» tab: send staff a bug report, a complaint about a player, an idea or anything else, and see every
+ * submission with its status (Нове / Розглядається / Прийнято / Відхилено) and staff's reply — other mods'
+ * suggestions (Codex entries, recipes) among them. A complaint says up front what's attached to it (recent chat and
+ * positions). Opened from the hub, the inventory's button and {@code /report [player]}.
+ */
+public final class ReportsTab {
+
+    /** Eden's kinds, in the form's order (the server's {@code ReportDesk.PLAYER_KINDS}). */
+    private static final List<String> KINDS = List.of("eden_ld:bug", "eden_ld:complaint", "eden_ld:idea", "eden_ld:other");
+    private static final String COMPLAINT = "eden_ld:complaint";
+    private static final int MAX_TEXT = 500;
+    private static final float LANE = 6;
+    private static final int[] STATUS_COLORS = {0xFF3A6EA5, 0xFFB07A1E, 0xFF3C8A3C, 0xFFA03A32};
+
+    /** The form, kept while the hub is open (rebuilds keep what was typed). */
+    private static String kind = KINDS.get(0);
+    private static UUID target;
+    private static String text = "";
+    /** A submission is on its way: the form empties once the server's list holds one more. */
+    private static int sentAt = -1;
+
+    private ReportsTab() {
+    }
+
+    private static Component tr(String key, Object... args) {
+        return Component.translatable("gui.eden_ld.hub.reports." + key, args);
+    }
+
+    /** {@code /report <player>}: the form as a complaint about them (matched by name once the list arrives). */
+    static void preselect(String name) {
+        kind = COMPLAINT;
+        target = null;
+        pendingName = name;
+    }
+
+    private static String pendingName;
+
+    /** Fresh data: a pending complaint name finds its player; a sent submission empties the form. */
+    public static void onData(HubPayloads.ReportsData data) {
+        if (pendingName != null) {
+            for (ReportCandidate candidate : data.players()) {
+                if (candidate.name().equalsIgnoreCase(pendingName)) {
+                    target = candidate.uuid();
+                }
+            }
+            pendingName = null;
+        }
+        if (sentAt >= 0 && data.entries().size() > sentAt) {
+            text = "";
+            target = null;
+            sentAt = -1;
+        }
+    }
+
+    static void build(HubScreen screen, Flex content) {
+        HubPayloads.ReportsData data = HubState.reportsData;
+        if (data == null) {
+            Flex center = Flex.column().justify(Justify.CENTER).alignItems(Align.CENTER);
+            center.sizing(Sizing.fill(), Sizing.expand());
+            center.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
+            content.item(center);
+            return;
+        }
+        float width = HubScreen.innerWidth();
+        if (data.allowed()) {
+            content.item(form(screen, data, width));
+            content.item(EdenParchment.hairline());
+        } else {
+            content.item(EdenParchment.text(tr("not_allowed"), EdenParchment.INK_DIM, (int) width));
+        }
+        content.item(EdenParchment.text(tr("mine"), EdenParchment.INK));
+        if (data.entries().isEmpty()) {
+            content.item(EdenParchment.text(tr("none"), EdenParchment.INK_DIM, (int) width));
+            return;
+        }
+        Flex list = Flex.column().gap(3);
+        for (ReportEntry entry : data.entries()) {
+            list.item(card(entry, width - LANE));
+        }
+        ScrollPanel panel = HubScroll.panel("reports", width, 80, list);
+        panel.sizing(Sizing.fill(), Sizing.expand());
+        content.item(panel);
+    }
+
+    // ---------------------------------------------------------------- the form
+
+    private static Flex form(HubScreen screen, HubPayloads.ReportsData data, float width) {
+        Flex form = Flex.column().gap(4);
+        form.sizing(Sizing.fill(), Sizing.content());
+
+        Flex row = Flex.row().gap(6).alignItems(Align.CENTER);
+        row.item(EdenParchment.text(tr("kind"), EdenParchment.INK_MID));
+        Dropdown<String> kinds = new Dropdown<>(110, KINDS, kind, value -> kindName(value), value -> {
+            kind = value;
+            screen.onReportsData();
+        });
+        row.item(kinds);
+        boolean complaint = kind.equals(COMPLAINT);
+        if (complaint) {
+            row.item(EdenParchment.text(tr("player"), EdenParchment.INK_MID));
+            List<UUID> ids = new ArrayList<>();
+            ids.add(null);
+            data.players().forEach(candidate -> ids.add(candidate.uuid()));
+            if (target != null && !ids.contains(target)) {
+                target = null;
+            }
+            Dropdown<UUID> players = new Dropdown<>(130, ids, target, id -> playerName(data, id), id -> {
+                target = id;
+                screen.onReportsData();
+            });
+            players.searchable(true);
+            row.item(players);
+        }
+        form.item(row);
+
+        if (complaint) {
+            // Said plainly, so nobody is surprised (LeDok, 2026-11-15).
+            form.item(EdenParchment.text(tr("evidence"), EdenParchment.INK_DIM, (int) width));
+        }
+        TextArea area = new TextArea(width, 46, text, value -> text = value);
+        area.hint(tr("hint." + kindKey(kind)).getString()).maxLength(MAX_TEXT);
+        form.item(area);
+
+        Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
+        actions.spacer();
+        Button send = EdenParchment.fitButton(tr("send"), 70, 14, () -> send(data));
+        actions.item(send);
+        form.item(actions);
+        return form;
+    }
+
+    private static void send(HubPayloads.ReportsData data) {
+        if (text.isBlank()) {
+            return;
+        }
+        boolean complaint = kind.equals(COMPLAINT);
+        if (complaint && target == null) {
+            return;
+        }
+        sentAt = data.entries().size();
+        ClientPlayNetworking.send(new HubPayloads.ReportSubmit(kind, complaint ? Optional.of(target) : Optional.empty(),
+                text));
+    }
+
+    private static Component playerName(HubPayloads.ReportsData data, UUID id) {
+        if (id == null) {
+            return tr("pick_player");
+        }
+        for (ReportCandidate candidate : data.players()) {
+            if (candidate.uuid().equals(id)) {
+                return candidate.online() ? Component.literal(candidate.name())
+                        : tr("left_recently", candidate.name());
+            }
+        }
+        return Component.literal("?");
+    }
+
+    // ---------------------------------------------------------------- the list
+
+    private static Flex card(ReportEntry entry, float width) {
+        Flex card = Flex.column().gap(2).padding(Insets.of(4, 6, 4, 6));
+        card.sizing(Sizing.fixed(width), Sizing.content());
+        card.background(EdenParchment.framed(entry.status() >= 2 ? EdenParchment.ROW_BG_ALT : EdenParchment.ROW_BG,
+                EdenParchment.HAIRLINE));
+        float inner = width - 12;
+
+        Flex head = Flex.row().gap(6).alignItems(Align.CENTER);
+        Component title = Component.literal("#" + entry.id() + " · ").append(kindName(entry.category()))
+                .append(entry.target().isEmpty() ? Component.empty() : Component.literal(" · " + entry.target()))
+                .append(entry.reference().isEmpty() || !entry.target().isEmpty() ? Component.empty()
+                        : Component.literal(" · " + entry.reference()));
+        Component status = tr("status." + Math.max(0, Math.min(3, entry.status())));
+        float statusWidth = EdenParchment.fitWidth(status, 40);
+        Label label = Label.of(inner - statusWidth - 6, title);
+        label.color(EdenParchment.INK);
+        label.tooltipWhenCut(true);
+        head.item(label);
+        head.spacer();
+        head.item(EdenParchment.text(status, STATUS_COLORS[Math.max(0, Math.min(3, entry.status()))]));
+        card.item(head);
+
+        card.item(EdenParchment.text(Component.literal(HubDates.full(entry.time())), EdenParchment.INK_DIM));
+        card.item(EdenParchment.text(Component.literal(entry.text()), EdenParchment.INK_MID, (int) inner));
+        if (!entry.reply().isEmpty()) {
+            card.item(EdenParchment.text(tr("reply", entry.reply()), EdenParchment.INK, (int) inner));
+        }
+        return card;
+    }
+
+    /** Eden's kinds by name; a mod's category by its lang key {@code gui.eden_ld.hub.reports.category.<ns>.<path>}. */
+    private static Component kindName(String category) {
+        if (KINDS.contains(category)) {
+            return tr("kind." + kindKey(category));
+        }
+        return Component.translatableWithFallback("gui.eden_ld.hub.reports.category." + category.replace(':', '.'),
+                category);
+    }
+
+    private static String kindKey(String category) {
+        int colon = category.indexOf(':');
+        return (colon < 0 ? category : category.substring(colon + 1)).toLowerCase(Locale.ROOT);
+    }
+}

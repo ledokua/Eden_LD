@@ -35,15 +35,20 @@ import static net.ledok.eden_ld.client.hub.ModerationScreen.text;
 
 /**
  * The Moderation window's <b>Reports</b> section ({@code eden_ld.admin.reports}): players' reports other mods file
- * (Duels_LD's wager disputes, …). The list, newest first, filtered Open / Handled / All; the picked report's text,
- * its log, a staff note, and Mark handled / Reopen. The server keeps what each admin looks at (filter, pick), so
+ * (Duels_LD's wager disputes, …) and players' own (the hub's «Звернення»: bugs, complaints, ideas). The list, newest
+ * first, filtered by status and kind; the picked report's text, its log (evidence), the reply the player sees, a staff
+ * note, the status, Save, and [Open in editor] for a mod's suggestion. The server keeps what each admin looks at (filter, pick), so
  * every answer is the whole view ({@code ReportDesk}).
  */
 final class ReportsSection {
 
     private static final float LIST = 190;
     private static final float ROW_H = 24;
-    private static final int OPEN = 0, HANDLED = 1, ALL = 2;
+    /** The server's status filters ({@code ReportDesk}): to do, accepted, rejected, all, new, being looked at. */
+    private static final java.util.List<Integer> FILTERS = java.util.List.of(0, 4, 5, 1, 2, 3);
+    /** Kind filters: all, bugs, complaints, ideas, other, mods' reports and suggestions. */
+    private static final java.util.List<Integer> KINDS = java.util.List.of(0, 1, 2, 3, 4, 5);
+    private static final int[] STATUS_COLORS = {0xFF6FA8DC, 0xFFE0C850, 0xFF6CC070, 0xFFE06A5A};
     private static final int WARN = 0xFFE0C850;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
@@ -55,6 +60,9 @@ final class ReportsSection {
     private String note = "";
     private long noteFor = -1;
     private boolean noteDirty;
+    /** The reply to the player and the status, as picked (sent with Save). */
+    private String reply = "";
+    private int status;
 
     ReportsSection(ModerationScreen screen, float width) {
         this.screen = screen;
@@ -80,16 +88,25 @@ final class ReportsSection {
         if (id != noteFor || !noteDirty) {
             noteFor = id;
             note = detail.getString("note");
+            reply = detail.getString("reply");
+            status = detail.getInt("status");
             noteDirty = false;
         }
         return true;
     }
 
-    /** What the admin looks at (filter and / or pick); the server answers with the view. */
+    /** What the admin looks at (filters and / or pick); the server answers with the view. */
     private void view(@Nullable Integer filter, @Nullable Long id) {
+        view(filter, null, id);
+    }
+
+    private void view(@Nullable Integer filter, @Nullable Integer kind, @Nullable Long id) {
         CompoundTag args = new CompoundTag();
         if (filter != null) {
             args.putInt("filter", filter);
+        }
+        if (kind != null) {
+            args.putInt("kind", kind);
         }
         if (id != null) {
             args.putLong("id", id);
@@ -101,6 +118,8 @@ final class ReportsSection {
         CompoundTag args = new CompoundTag();
         args.putLong("id", id);
         args.putString("note", note);
+        args.putString("reply", reply);
+        args.putInt("status", status);
         noteDirty = false;
         PlayerTabs.action(AdminTools.REPORTS, Util.NIL_UUID, action, args);
     }
@@ -113,19 +132,11 @@ final class ReportsSection {
         header.item(text(Component.translatable("gui.eden_ld.moderation.section.reports"), TEXT));
         header.item(PlayerTabs.spacer());
         if (data != null) {
-            int filter = data.getInt("filter");
-            String[] keys = {"filter.open", "filter.handled", "filter.all"};
-            for (int i = OPEN; i <= ALL; i++) {
-                int choice = i;
-                Component label = i == OPEN ? tr(keys[i], data.getInt("open")) : tr(keys[i]);
-                float w = Math.max(50, net.minecraft.client.Minecraft.getInstance().font.width(label) + 10);
-                Button button = new Button(w, 14, label, () -> view(choice, null));
-                button.sizing(Sizing.fixed(w), Sizing.fixed(14));
-                if (choice == filter) {
-                    button.style(ModerationScreen.SELECTED);
-                }
-                header.item(button);
-            }
+            int open = data.getInt("open");
+            header.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(110, FILTERS, data.getInt("filter"),
+                    value -> value == 0 ? tr("filter.0", open) : tr("filter." + value), value -> view(value, null, null)));
+            header.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(110, KINDS, data.getInt("kind"),
+                    value -> tr("kind." + value), value -> view(null, value, null)));
         }
         main.item(header);
         if (data == null) {
@@ -171,9 +182,19 @@ final class ReportsSection {
         long time = report.getLong("time");
         box.item(text(tr("from", report.getString("reporter"), PunishSection.ago(time),
                 DATE.format(Instant.ofEpochMilli(time))), DIM, (int) w));
-        box.item(text(handled ? tr("status_handled", report.getString("handled_by"),
-                        PunishSection.ago(report.getLong("handled_at"))) : tr("status_open"),
-                handled ? GOOD : WARN, (int) w));
+        int current = Math.max(0, Math.min(3, report.getInt("status")));
+        Component statusLine = tr("status." + current);
+        if (!report.getString("handled_by").isEmpty()) {
+            statusLine = tr("status_by", statusLine, report.getString("handled_by"),
+                    PunishSection.ago(report.getLong("handled_at")));
+        }
+        box.item(text(statusLine, STATUS_COLORS[current], (int) w));
+        if (!report.getString("target").isEmpty()) {
+            box.item(text(tr("target", report.getString("target")), TEXT, (int) w));
+        }
+        if (report.getInt("payload") > 0) {
+            box.item(text(tr("payload", report.getInt("payload")), DIM, (int) w));
+        }
         // The player's words and the mod's log scroll together: the text alone may run to 500 characters.
         Flex body = Flex.column().gap(2).padding(Insets.of(3, 4, 3, 4));
         body.item(text(Component.literal(report.getString("text")), TEXT, (int) w - 20));
@@ -202,13 +223,30 @@ final class ReportsSection {
         field.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_NOTE);
         box.item(field);
 
+        // The answer the player sees in their tab (and gets by mail when it changes).
+        TextField replyField = new TextField(w, reply, value -> {
+            if (!value.equals(reply)) {
+                reply = value;
+                noteDirty = true;
+            }
+        });
+        replyField.size(w, 16);
+        replyField.hint(tr("reply_hint").getString());
+        replyField.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_REPLY);
+        box.item(replyField);
+
         Flex actions = Flex.row().gap(4).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
+        if (report.getBoolean("editor")) {
+            actions.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
+        }
         actions.item(PlayerTabs.spacer());
-        actions.item(small("gui.eden_ld.moderation.reports.save_note", 60, () -> send("note", id)));
-        actions.item(handled
-                ? small("gui.eden_ld.moderation.reports.reopen", 70, () -> send("reopen", id))
-                : small("gui.eden_ld.moderation.reports.handle", 80, () -> send("handle", id)));
+        actions.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(100, java.util.List.of(0, 1, 2, 3), status,
+                value -> tr("status." + value), value -> {
+                    status = value;
+                    noteDirty = true;
+                }));
+        actions.item(small("gui.eden_ld.moderation.reports.save", 60, () -> send("save", id)));
         box.item(actions);
     }
 
@@ -237,10 +275,10 @@ final class ReportsSection {
                     .stroke(Stroke.of(on ? ACCENT : hovered ? DIM : LINE, 1)));
             add(TextNode.of(Component.literal("#" + row.getLong("id") + "  ").append(label(row)))
                     .at(4, 3).maxWidth((int) width - 8).ellipsis(true).color(TEXT).shadow(false));
-            boolean handled = row.getBoolean("handled");
-            Component state = tr(handled ? "row_handled" : "row_open");
+            int rowStatus = Math.max(0, Math.min(3, row.getInt("status")));
+            Component state = tr("status." + rowStatus);
             float stateWidth = net.minecraft.client.Minecraft.getInstance().font.width(state) * 0.8f;
-            add(TextNode.of(state).at(width - 4, 13).align(TextNode.Align.RIGHT).color(handled ? GOOD : WARN)
+            add(TextNode.of(state).at(width - 4, 13).align(TextNode.Align.RIGHT).color(STATUS_COLORS[rowStatus])
                     .shadow(false).scale(0.8f));
             Component who = Component.literal(row.getString("reporter") + " · ").append(PunishSection.ago(row.getLong("time")));
             add(TextNode.of(who).at(4, 13).maxWidth((int) ((width - 12 - stateWidth) / 0.8f)).ellipsis(true)

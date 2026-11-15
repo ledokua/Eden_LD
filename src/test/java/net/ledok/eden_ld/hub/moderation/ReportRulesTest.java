@@ -26,7 +26,7 @@ class ReportRulesTest {
 
     private static Report handled(long time) {
         Report report = report(ALEX, time);
-        report.handled = true;
+        report.status = Report.ACCEPTED;
         return report;
     }
 

@@ -15,6 +15,13 @@ public final class ReportRules {
     public static final int MAX_LOG_LINES = 200;
     public static final int MAX_LOG_LINE = 300;
     public static final int MAX_NOTE = 200;
+    /** Staff's answer to the player. */
+    public static final int MAX_REPLY = 500;
+    /**
+     * A suggestion's payload, in characters: NBT strings take at most 65,535 bytes of UTF-8, and Cyrillic is two
+     * bytes a character.
+     */
+    public static final int MAX_PAYLOAD = 30_000;
     /** Category and reference: ids, not prose. */
     public static final int MAX_LABEL = 64;
     /** Reports one player may file within {@link #RATE_WINDOW_MILLIS}. */
@@ -84,7 +91,7 @@ public final class ReportRules {
         }
         for (Iterator<Report> it = reports.iterator(); it.hasNext() && excess > 0; ) {
             Report report = it.next();
-            if (report.handled && now - report.time > HANDLED_AGE_MILLIS) {
+            if (report.handled() && now - report.time > HANDLED_AGE_MILLIS) {
                 it.remove();
                 excess--;
             }

@@ -58,6 +58,17 @@ public final class LuckPermsCompat {
         return player.hasPermissions(2);
     }
 
+    /** Whether the player has a permission node; {@code fallback} when LuckPerms is missing or the node is unset. */
+    public static boolean hasPermissionOr(ServerPlayer player, String node, boolean fallback) {
+        if (LOADED) {
+            Boolean value = Hook.permission(player.getUUID(), node);
+            if (value != null) {
+                return value;
+            }
+        }
+        return fallback;
+    }
+
     /**
      * As {@link #hasPermission(ServerPlayer, String)} for a command source: a player's LuckPerms
      * node when set, else the source's op level 2 (the console and command blocks always pass).

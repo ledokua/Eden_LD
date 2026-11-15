@@ -104,6 +104,11 @@ public class HubScreen extends CanvasScreen {
     }
 
     private static void selectTab(String tab) {
+        // "reports:<name>" (/report <player>): the «Звернення» form as a complaint about them.
+        if (tab.startsWith("reports:")) {
+            ReportsTab.preselect(tab.substring("reports:".length()));
+            tab = "reports";
+        }
         for (HubTab candidate : HubTab.values()) {
             if (candidate.name().equalsIgnoreCase(tab)) {
                 if (candidate == HubTab.PROFILE) {
@@ -310,6 +315,7 @@ public class HubScreen extends CanvasScreen {
             case MAIL -> MailTab.build(this, content);
             case DAILIES -> DailiesTab.build(this, content);
             case KITS -> KitsTab.build(this, content);
+            case REPORTS -> ReportsTab.build(this, content);
             case WAYSTONES -> WaystonesTab.build(this, content);
             case ACTIVITIES -> ActivitiesTab.build(this, content);
             case WARDROBE -> WardrobeTab.build(this, content);
@@ -502,6 +508,8 @@ public class HubScreen extends CanvasScreen {
             case WAYSTONES -> HubState.waystonesAvailable();
             case MAIL -> HubState.mailData != null;
             case KITS -> HubState.kitsData != null;
+            // Only where the server knows the tab (1.3.83+).
+            case REPORTS -> ClientPlayNetworking.canSend(HubPayloads.ReportsRequest.TYPE);
             case MODERATION -> HubState.homeData != null
                     && (HubState.homeData.staff() & HubPayloads.HomeData.STAFF_MODERATION) != 0;
             default -> true;
@@ -623,6 +631,9 @@ public class HubScreen extends CanvasScreen {
         } else if (tab == HubTab.KITS) {
             ClientPlayNetworking.send(HubPayloads.KitsRequest.INSTANCE);
             KitsTab.build(this, content);
+        } else if (tab == HubTab.REPORTS) {
+            ClientPlayNetworking.send(HubPayloads.ReportsRequest.INSTANCE);
+            ReportsTab.build(this, content);
         } else if (tab == HubTab.WAYSTONES) {
             HubState.waystoneMessage = null;
             ClientPlayNetworking.send(HubPayloads.WaystonesDataRequest.INSTANCE);
@@ -954,6 +965,15 @@ public class HubScreen extends CanvasScreen {
     public void onBalance() {
         if (HubState.lastTab == HubTab.HOME) {
             rebuildContent();
+        }
+    }
+
+    /** Fresh «Звернення» data, or the form changed (kind, player): the tab again. */
+    public void onReportsData() {
+        if (HubState.lastTab == HubTab.REPORTS) {
+            content.clear();
+            content.id(HubSpotlights.page(HubTab.REPORTS));
+            ReportsTab.build(this, content);
         }
     }
 

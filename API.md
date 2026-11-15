@@ -252,6 +252,39 @@ if (id < 0) {
 - The reporter may be offline (their name comes from the server's profile cache).
 - Reports are kept in the world (`data/eden_ld/reports.dat`), at most the newest 2000 — past that,
   handled ones older than 90 days go first, then the oldest.
+- Since 1.3.83 every report has a **status** (New, Under review, Accepted, Rejected) and an optional **staff reply**;
+  the reporter sees both in their hub tab «Звернення» (Reports) and gets Eden mail when either changes. Name your
+  category in the player's language with the lang keys `gui.eden_ld.hub.reports.category.<namespace>.<path>`
+  (e.g. `...category.duels_ld.wager`); without one the tab shows the raw category.
+
+### Suggestions (1.3.83+)
+
+The same queue takes **suggestions**: a player proposes content your mod owns (a Codex entry, a recipe), staff
+review it in your own screen, and you report back the verdict.
+
+```java
+// Codex_LD: register the review screen once (server start).
+EdenModerationApi.registerSuggestionEditor("codex_ld:entry",
+        (staff, id, author, authorName, reference, text, payload) ->
+                CodexReview.open(staff, id, reference, payload));   // your own screen
+
+// A player submits a proposal from your editor.
+long id = EdenModerationApi.suggest(server, player.getUUID(), "codex_ld:entry", "codex_ld:nether",
+        "Added the soul sand valley drops.", proposalJson, List.of());
+if (id < 0) { /* refused: tell the player */ }
+
+// Staff decided in your screen.
+EdenModerationApi.resolve(server, id, true, "Thanks, added!", staff.getGameProfile().getName());
+```
+
+- `payload` is opaque to Eden: your proposed content, up to `EdenModerationApi.MAX_PAYLOAD` (30,000) characters
+  (longer is cut). It's stored with the suggestion and handed back to your editor.
+- `suggest` returns **-1** when refused: blank text, the rate limit, or this player already has an **open**
+  suggestion of the same category and reference.
+- In Moderation → Reports a suggestion of a category with an editor shows **[Open in editor]**, which calls your
+  `SuggestionEditor` on the server thread for that staff member. Open your screen from there.
+- `resolve` sets Accepted or Rejected, shows `reason` to the author in their tab and mails them. Staff can also set
+  the status and reply by hand in the Reports section.
 
 ## Minestar profiles
 

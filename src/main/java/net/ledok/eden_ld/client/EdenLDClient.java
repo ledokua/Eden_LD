@@ -348,6 +348,13 @@ public class EdenLDClient implements ClientModInitializer {
                 screen.onSettingsData();
             }
         });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ReportsData.TYPE, (payload, context) -> {
+            net.ledok.eden_ld.client.hub.ReportsTab.onData(payload);
+            HubState.reportsData = payload;
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onReportsData();
+            }
+        });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.MapSharingData.TYPE, (payload, context) -> {
             HubState.mapHidden = payload.hidden();
             if (context.client().screen instanceof HubScreen screen) {

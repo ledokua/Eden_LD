@@ -48,6 +48,7 @@
     "RentalUseOnBlockMixin",
     "SavedDataAsyncMixin",
     "ServerAdvancementsRecipeMixin",
+    "ServerPlayerChatRecallMixin",
     "ServerPlayerPvpMixin",
     "ServerPlayerStatMixin",
     "ServerPlayerTabListMixin",
