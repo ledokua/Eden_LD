@@ -265,6 +265,81 @@ public final class ReportDesk {
                 : cache.get(player).map(com.mojang.authlib.GameProfile::getName).orElse(player.toString());
     }
 
+    // ---------------------------------------------------------------- the conversation (1.3.93)
+
+    /** Messages one report may hold; and the reporter's pause between their own messages. */
+    static final int MAX_MESSAGES = 60;
+    private static final long PLAYER_PAUSE_MILLIS = 10_000;
+    private static final Map<UUID, Long> LAST_PLAYER_MESSAGE = new ConcurrentHashMap<>();
+
+    /** The reporter writes in their own open submission. Null when added, else why not. */
+    @Nullable
+    public static Component playerMessage(ServerPlayer player, long id, String text) {
+        Reports store = Reports.get(player.server);
+        Report report = store.byId(id);
+        if (report == null || !report.reporter.equals(player.getUUID())) {
+            return Component.translatable("message.eden_ld.reports.gone");
+        }
+        if (report.handled()) {
+            return Component.translatable("message.eden_ld.reports.closed");
+        }
+        String body = ReportRules.clip(text, ReportRules.MAX_TEXT);
+        if (body.isEmpty()) {
+            return Component.translatable("message.eden_ld.reports.empty");
+        }
+        if (report.messages.size() >= MAX_MESSAGES) {
+            return Component.translatable("message.eden_ld.reports.thread_full");
+        }
+        long now = System.currentTimeMillis();
+        Long last = LAST_PLAYER_MESSAGE.get(player.getUUID());
+        if (last != null && now - last < PLAYER_PAUSE_MILLIS) {
+            return Component.translatable("message.eden_ld.reports.slow_down");
+        }
+        LAST_PLAYER_MESSAGE.put(player.getUUID(), now);
+        store.addMessage(report, new Report.Message(now, player.getGameProfile().getName(), Report.PLAYER, body));
+        store.markRead(report, now);
+        Component line = Component.translatable("message.eden_ld.reports.player_reply", report.id, report.reporterName)
+                .withStyle(ChatFormatting.GOLD).append(" ").append(openButton());
+        for (ServerPlayer staff : player.server.getPlayerList().getPlayers()) {
+            if (mayHandle(staff)) {
+                staff.sendSystemMessage(line);
+            }
+        }
+        changed.accept(report.reporter);
+        return null;
+    }
+
+    /** The reporter closes their own submission ("Питання вирішено"). Null when closed, else why not. */
+    @Nullable
+    public static Component playerClose(ServerPlayer player, long id) {
+        Reports store = Reports.get(player.server);
+        Report report = store.byId(id);
+        if (report == null || !report.reporter.equals(player.getUUID())) {
+            return Component.translatable("message.eden_ld.reports.gone");
+        }
+        if (report.handled()) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        String name = player.getGameProfile().getName();
+        store.addMessage(report, new Report.Message(now, name, Report.SYSTEM, "closed_by_player"));
+        store.setStatus(report, Report.ACCEPTED, name, now);
+        store.markRead(report, now);
+        EdenLD.LOGGER.info("[Reports] {} closed their #{}", name, report.id);
+        changed.accept(report.reporter);
+        return null;
+    }
+
+    /** The reporter opened the thread: staff replies so far are read. */
+    public static void playerRead(ServerPlayer player, long id) {
+        Reports store = Reports.get(player.server);
+        Report report = store.byId(id);
+        if (report != null && report.reporter.equals(player.getUUID()) && report.unreadForPlayer()) {
+            store.markRead(report, System.currentTimeMillis());
+            changed.accept(report.reporter);
+        }
+    }
+
     // ---------------------------------------------------------------- the reporter's side
 
     /** The player's own submissions, newest first: what their tab shows. */
@@ -338,6 +413,39 @@ public final class ReportDesk {
         return tag;
     }
 
+    /**
+     * Staff to where the reporter (or a complaint's target) was when it was filed: the evidence's
+     * "Reporter: name @ dimension x y z" / "Target: …" line.
+     */
+    @Nullable
+    private static Component teleport(ServerPlayer admin, Report report, boolean target) {
+        String prefix = target ? "Target: " : "Reporter: ";
+        for (String line : report.log) {
+            if (!line.startsWith(prefix) || !line.contains(" @ ")) {
+                continue;
+            }
+            String[] parts = line.substring(line.indexOf(" @ ") + 3).trim().split(" ");
+            if (parts.length < 4) {
+                break;
+            }
+            net.minecraft.resources.ResourceLocation dimension = net.minecraft.resources.ResourceLocation.tryParse(parts[0]);
+            var level = dimension == null ? null : admin.server.getLevel(net.minecraft.resources.ResourceKey.create(
+                    net.minecraft.core.registries.Registries.DIMENSION, dimension));
+            try {
+                if (level != null) {
+                    admin.teleportTo(level, Integer.parseInt(parts[1]) + 0.5, Integer.parseInt(parts[2]),
+                            Integer.parseInt(parts[3]) + 0.5, admin.getYRot(), admin.getXRot());
+                    EdenLD.LOGGER.info("[Reports] {} teleported to #{}'s {}", admin.getGameProfile().getName(), report.id,
+                            target ? "target" : "reporter");
+                    return null;
+                }
+            } catch (NumberFormatException ignored) {
+                break;
+            }
+        }
+        return Component.translatable("message.eden_ld.reports.no_position");
+    }
+
     private static boolean matches(int filter, Report report) {
         return switch (filter) {
             case TO_DO -> !report.handled();
@@ -369,6 +477,8 @@ public final class ReportDesk {
         row.putString("reference", report.reference);
         row.putBoolean("handled", report.handled());
         row.putInt("status", report.status);
+        row.putString("assignee", report.assignee);
+        row.putBoolean("waiting", !report.handled() && report.waitingForStaff());
         return row;
     }
 
@@ -386,7 +496,37 @@ public final class ReportDesk {
         tag.putString("target", report.targetName);
         tag.putInt("payload", report.payload.length());
         tag.putBoolean("editor", EDITORS.containsKey(report.category));
+        ListTag messages = new ListTag();
+        // Before 1.3.93 a report had one note and one reply: shown as the thread's first messages.
+        if (!report.note.isEmpty()) {
+            messages.add(message(new Report.Message(report.handledAt, report.handledBy, Report.NOTE, report.note)));
+        }
+        if (!report.reply.isEmpty()) {
+            messages.add(message(new Report.Message(report.handledAt, report.handledBy, Report.STAFF, report.reply)));
+        }
+        report.messages.forEach(message -> messages.add(message(message)));
+        tag.put("messages", messages);
+        tag.putBoolean("has_reporter_pos", hasPosition(report, "Reporter: "));
+        tag.putBoolean("has_target_pos", hasPosition(report, "Target: "));
         return tag;
+    }
+
+    private static CompoundTag message(Report.Message message) {
+        CompoundTag tag = new CompoundTag();
+        tag.putLong("time", message.time());
+        tag.putString("author", message.author());
+        tag.putInt("role", message.role());
+        tag.putString("text", message.text());
+        return tag;
+    }
+
+    private static boolean hasPosition(Report report, String prefix) {
+        for (String line : report.log) {
+            if (line.startsWith(prefix) && line.contains(" @ ")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -415,14 +555,43 @@ public final class ReportDesk {
         }
         VIEWS.put(uuid, new View(view.filter(), view.kind(), report.id));
         String name = admin.getGameProfile().getName();
-        String note = ReportRules.clip(args.getString("note"), ReportRules.MAX_NOTE);
+        // Fields the client didn't send stay as they are (1.3.93's Save sends only the status).
+        String note = args.contains("note") ? ReportRules.clip(args.getString("note"), ReportRules.MAX_NOTE) : null;
         return switch (action) {
             case "save" -> {
-                String reply = ReportRules.clip(args.getString("reply"), ReportRules.MAX_REPLY);
+                String reply = args.contains("reply") ? ReportRules.clip(args.getString("reply"), ReportRules.MAX_REPLY) : null;
                 int status = args.contains("status") ? args.getInt("status") : report.status;
                 update(admin.server, store, report, status, reply, note, name);
                 yield Component.translatable("message.eden_ld.reports.saved", report.id);
             }
+            case "message" -> {
+                // A reply to the player (mailed) or a staff-only note; with "status", that too.
+                String text = ReportRules.clip(args.getString("text"), ReportRules.MAX_REPLY);
+                boolean noteOnly = args.getBoolean("note");
+                if (text.isEmpty()) {
+                    yield Component.translatable("message.eden_ld.reports.empty");
+                }
+                if (report.messages.size() >= MAX_MESSAGES) {
+                    yield Component.translatable("message.eden_ld.reports.thread_full");
+                }
+                long now = System.currentTimeMillis();
+                store.addMessage(report, new Report.Message(now, name, noteOnly ? Report.NOTE : Report.STAFF, text));
+                if (!noteOnly) {
+                    if (report.status == Report.NEW) {
+                        store.setStatus(report, Report.REVIEWING, name, now);
+                    }
+                    EdenLD.LOGGER.info("[Reports] {} replied to #{}: {}", name, report.id, text);
+                    net.ledok.eden_ld.hub.mail.MailHub.reportReplyMail(report.reporter, report.id, excerpt(report.text),
+                            text);
+                    changed.accept(report.reporter);
+                }
+                yield null;
+            }
+            case "assign" -> {
+                store.setAssignee(report, report.assignee.equals(name) ? "" : name);
+                yield null;
+            }
+            case "tp" -> teleport(admin, report, args.getBoolean("target"));
             case "handle" -> {
                 update(admin.server, store, report, Report.ACCEPTED, null, note, name);
                 yield Component.translatable("message.eden_ld.reports.handled", report.id);
@@ -446,7 +615,9 @@ public final class ReportDesk {
                 yield null;
             }
             default -> {
-                store.setNote(report, note);
+                if (note != null) {
+                    store.setNote(report, note);
+                }
                 yield Component.translatable("message.eden_ld.reports.note_saved", report.id);
             }
         };

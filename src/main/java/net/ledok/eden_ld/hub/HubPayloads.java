@@ -3398,7 +3398,7 @@ public final class HubPayloads {
      * {@code text}, staff's {@code reply}, a complaint's {@code target} name ("" otherwise).
      */
     public record ReportEntry(long id, String category, String reference, long time, int status, String text,
-                              String reply, String target) {
+                              String reply, String target, List<ReportLine> messages, boolean unread) {
         static void write(RegistryFriendlyByteBuf buf, ReportEntry e) {
             buf.writeVarLong(e.id);
             buf.writeUtf(e.category, 64);
@@ -3408,11 +3408,49 @@ public final class HubPayloads {
             buf.writeUtf(e.text, 2048);
             buf.writeUtf(e.reply, 2048);
             buf.writeUtf(e.target, 64);
+            writeList(buf, e.messages, ReportLine::write);
+            buf.writeBoolean(e.unread);
         }
 
         static ReportEntry read(RegistryFriendlyByteBuf buf) {
             return new ReportEntry(buf.readVarLong(), buf.readUtf(64), buf.readUtf(64), buf.readLong(), buf.readVarInt(),
-                    buf.readUtf(2048), buf.readUtf(2048), buf.readUtf(64));
+                    buf.readUtf(2048), buf.readUtf(2048), buf.readUtf(64), readList(buf, ReportLine::read),
+                    buf.readBoolean());
+        }
+    }
+
+    /**
+     * One message of a submission's conversation as the reporter sees it (1.3.93): {@code role} 0 theirs, 1 staff, 3 a
+     * system line (staff notes are never sent); {@code author} who wrote it.
+     */
+    public record ReportLine(long time, String author, int role, String text) {
+        static void write(RegistryFriendlyByteBuf buf, ReportLine line) {
+            buf.writeLong(line.time);
+            buf.writeUtf(line.author, 64);
+            buf.writeVarInt(line.role);
+            buf.writeUtf(line.text, 2048);
+        }
+
+        static ReportLine read(RegistryFriendlyByteBuf buf) {
+            return new ReportLine(buf.readLong(), buf.readUtf(64), buf.readVarInt(), buf.readUtf(2048));
+        }
+    }
+
+    /** C2S (1.3.93+): in the player's own submission {@code id}: {@code action} 0 write {@code text}, 1 close, 2 read. */
+    public record ReportThreadAction(long report, int action, String text) implements CustomPacketPayload {
+        public static final int WRITE = 0, CLOSE = 1, READ = 2;
+        public static final Type<ReportThreadAction> TYPE = new Type<>(id("report_thread_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReportThreadAction> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeVarLong(p.report);
+                    buf.writeVarInt(p.action);
+                    buf.writeUtf(p.text, 2048);
+                },
+                buf -> new ReportThreadAction(buf.readVarLong(), buf.readVarInt(), buf.readUtf(2048)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
         }
     }
 
@@ -3813,6 +3851,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(PollVote.TYPE, PollVote.CODEC);
         PayloadTypeRegistry.playC2S().register(ReportsRequest.TYPE, ReportsRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(ReportSubmit.TYPE, ReportSubmit.CODEC);
+        PayloadTypeRegistry.playC2S().register(ReportThreadAction.TYPE, ReportThreadAction.CODEC);
         PayloadTypeRegistry.playS2C().register(ReportsData.TYPE, ReportsData.CODEC);
         PayloadTypeRegistry.playS2C().register(KitsData.TYPE, KitsData.CODEC);
         PayloadTypeRegistry.playC2S().register(KitClaim.TYPE, KitClaim.CODEC);

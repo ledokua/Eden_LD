@@ -970,6 +970,8 @@ public class HubScreen extends CanvasScreen {
 
     /** Fresh «Звернення» data, or the form changed (kind, player): the tab again. */
     public void onReportsData() {
+        // The tab's badge counts unread staff replies.
+        rebuildTabRow();
         if (HubState.lastTab == HubTab.REPORTS) {
             content.clear();
             content.id(HubSpotlights.page(HubTab.REPORTS));

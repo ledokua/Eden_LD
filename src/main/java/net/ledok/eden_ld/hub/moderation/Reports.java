@@ -107,6 +107,21 @@ public final class Reports extends SavedData {
         setDirty();
     }
 
+    void addMessage(Report report, Report.Message message) {
+        report.messages.add(message);
+        setDirty();
+    }
+
+    void setAssignee(Report report, String assignee) {
+        report.assignee = assignee;
+        setDirty();
+    }
+
+    void markRead(Report report, long now) {
+        report.readAt = now;
+        setDirty();
+    }
+
     /** Everything {@code reporter} filed, newest first. */
     List<Report> byReporter(UUID reporter, int max) {
         List<Report> mine = new ArrayList<>();
@@ -163,6 +178,24 @@ public final class Reports extends SavedData {
             if (!report.payload.isEmpty()) {
                 r.putString("payload", report.payload);
             }
+            if (!report.messages.isEmpty()) {
+                ListTag messages = new ListTag();
+                for (Report.Message message : report.messages) {
+                    CompoundTag m = new CompoundTag();
+                    m.putLong("time", message.time());
+                    m.putString("author", message.author());
+                    m.putInt("role", message.role());
+                    m.putString("text", message.text());
+                    messages.add(m);
+                }
+                r.put("messages", messages);
+            }
+            if (!report.assignee.isEmpty()) {
+                r.putString("assignee", report.assignee);
+            }
+            if (report.readAt > 0) {
+                r.putLong("read_at", report.readAt);
+            }
             list.add(r);
         }
         tag.put("reports", list);
@@ -197,6 +230,14 @@ public final class Reports extends SavedData {
                 report.targetName = r.getString("target_name");
             }
             report.payload = r.getString("payload");
+            ListTag messages = r.getList("messages", Tag.TAG_COMPOUND);
+            for (int j = 0; j < messages.size(); j++) {
+                CompoundTag m = messages.getCompound(j);
+                report.messages.add(new Report.Message(m.getLong("time"), m.getString("author"), m.getInt("role"),
+                        m.getString("text")));
+            }
+            report.assignee = r.getString("assignee");
+            report.readAt = r.getLong("read_at");
             data.reports.add(report);
             highest = Math.max(highest, report.id);
         }

@@ -63,6 +63,9 @@ final class ReportsSection {
     /** The reply to the player and the status, as picked (sent with Save). */
     private String reply = "";
     private int status;
+    /** The message being written (a reply or a note), and the list's player filter. */
+    private String message = "";
+    private String search = "";
 
     ReportsSection(ModerationScreen screen, float width) {
         this.screen = screen;
@@ -90,6 +93,7 @@ final class ReportsSection {
             note = detail.getString("note");
             reply = detail.getString("reply");
             status = detail.getInt("status");
+            message = "";
             noteDirty = false;
         }
         return true;
@@ -155,14 +159,28 @@ final class ReportsSection {
         }
         for (int i = 0; i < list.size(); i++) {
             CompoundTag row = list.getCompound(i);
+            if (!search.isBlank() && !row.getString("reporter").toLowerCase(java.util.Locale.ROOT)
+                    .contains(search.toLowerCase(java.util.Locale.ROOT).strip())) {
+                continue;
+            }
             rows.item(new Row(row, row.getLong("id") == selected));
         }
         if (data.getInt("total") > list.size()) {
             rows.item(text(tr("more", list.size(), data.getInt("total")), DIM, (int) LIST - 10));
         }
         ScrollPanel scroll = HubScroll.panel("mod/reports/list", LIST, 100, rows);
-        scroll.sizing(Sizing.fixed(LIST), Sizing.fill());
-        columns.item(scroll);
+        scroll.sizing(Sizing.fixed(LIST), Sizing.expand());
+        // Above the list: filter by the player's name (the server sends the newest 500).
+        Flex left = Flex.column().gap(3);
+        left.sizing(Sizing.fixed(LIST), Sizing.fill());
+        // Applied on Enter: rebuilding on every key would take the field's focus away.
+        TextField find = new TextField(LIST, search, value -> search = value);
+        find.onSubmit(screen::rebuild);
+        find.size(LIST, 16);
+        find.hint(tr("search_hint").getString());
+        left.item(find);
+        left.item(scroll);
+        columns.item(left);
 
         Flex right = Flex.column().gap(4);
         right.sizing(Sizing.expand(), Sizing.fill());
@@ -212,60 +230,138 @@ final class ReportsSection {
         framed.item(scroll);
         box.item(framed);
 
-        TextField field = new TextField(w, note, value -> {
-            if (!value.equals(note)) {
-                note = value;
-                noteDirty = true;
-            }
-        });
+        // The conversation after the evidence (1.3.93): replies to the player, staff-only notes, system lines.
+        ListTag messages = report.getList("messages", Tag.TAG_COMPOUND);
+        if (!messages.isEmpty()) {
+            body.item(ModerationScreen.gap(3));
+            body.item(text(tr("thread", messages.size()), DIM, (int) w - 20));
+        }
+        for (int i = 0; i < messages.size(); i++) {
+            CompoundTag message = messages.getCompound(i);
+            int role = message.getInt("role");
+            Component who = switch (role) {
+                case 0 -> tr("role.player", message.getString("author"));
+                case 1 -> tr("role.staff", message.getString("author"));
+                case 2 -> tr("role.note", message.getString("author"));
+                default -> Component.empty();
+            };
+            Component line = role == 3 ? Component.translatable("gui.eden_ld.hub.reports.system." + message.getString("text"))
+                    : Component.empty().append(who).append(": " + message.getString("text"));
+            int color = switch (role) {
+                case 0 -> TEXT;
+                case 1 -> 0xFF8FC8FF;
+                case 2 -> WARN;
+                default -> DIM;
+            };
+            body.item(text(line, color, (int) w - 20));
+        }
+
+        // Write: a reply the player sees (and gets by mail), or a note only staff see.
+        TextField field = new TextField(w, message, value -> message = value);
         field.size(w, 16);
-        field.hint(tr("note_hint").getString());
-        field.tooltip(tr("note_tip"));
-        field.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_NOTE);
+        field.hint(tr("message_hint").getString());
+        field.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_REPLY);
         box.item(field);
+        Flex write = Flex.row().gap(4).alignItems(Align.CENTER);
+        write.sizing(Sizing.fill(), Sizing.content());
+        java.util.List<Integer> templates = java.util.List.of(0, 1, 2, 3, 4);
+        write.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(76, templates, 0,
+                value -> value == 0 ? tr("templates") : tr("template." + value), value -> {
+                    if (value > 0) {
+                        message = tr("template." + value + ".text").getString();
+                        screen.rebuild();
+                    }
+                }));
+        write.item(PlayerTabs.spacer());
+        var noteButton = small("gui.eden_ld.moderation.reports.add_note", 50, () -> sendMessage(id, true));
+        noteButton.tooltip(tr("add_note.hint"));
+        write.item(noteButton);
+        var sendButton = small("gui.eden_ld.moderation.reports.send_reply", 70, () -> sendMessage(id, false));
+        sendButton.tooltip(tr("send_reply.hint"));
+        write.item(sendButton);
+        box.item(write);
 
-        // The answer the player sees in their tab (and gets by mail when it changes).
-        TextField replyField = new TextField(w, reply, value -> {
-            if (!value.equals(reply)) {
-                reply = value;
-                noteDirty = true;
-            }
-        });
-        replyField.size(w, 16);
-        replyField.hint(tr("reply_hint").getString());
-        replyField.tooltip(tr("reply_tip"));
-        replyField.maxLength(net.ledok.eden_ld.hub.moderation.ReportRules.MAX_REPLY);
-        box.item(replyField);
+        // Tools: take it, the reporter's page, teleports to the evidence's positions.
+        Flex tools = Flex.row().gap(4).alignItems(Align.CENTER);
+        tools.sizing(Sizing.fill(), Sizing.content());
+        String assignee = report.getString("assignee");
+        String me = net.minecraft.client.Minecraft.getInstance().getUser().getName();
+        tools.item(small(assignee.equals(me) ? "gui.eden_ld.moderation.reports.unassign"
+                : "gui.eden_ld.moderation.reports.assign", 56, () -> send("assign", id)));
+        if (report.hasUUID("reporter_uuid")) {
+            java.util.UUID reporterId = report.getUUID("reporter_uuid");
+            String reporterName = report.getString("reporter");
+            tools.item(small("gui.eden_ld.moderation.reports.profile", 46, () -> screen.openPlayer(reporterId, reporterName)));
+        }
+        tools.item(PlayerTabs.spacer());
+        if (report.getBoolean("has_reporter_pos")) {
+            var tp = small("gui.eden_ld.moderation.reports.tp", 26, () -> teleport(id, false));
+            tp.tooltip(tr("tp.hint"));
+            tools.item(tp);
+        }
+        if (report.getBoolean("has_target_pos")) {
+            var tpTarget = small("gui.eden_ld.moderation.reports.tp_target", 50, () -> teleport(id, true));
+            tpTarget.tooltip(tr("tp_target.hint"));
+            tools.item(tpTarget);
+        }
+        box.item(tools);
 
-        // The detail column is 226 units: the editor and reward buttons get their own row (with the status and Save
-        // they overflowed).
         boolean editor = report.getBoolean("editor");
         boolean reward = screen.mayMail();
         if (editor || reward) {
-            Flex tools = Flex.row().gap(4).alignItems(Align.CENTER);
-            tools.sizing(Sizing.fill(), Sizing.content());
-            tools.item(PlayerTabs.spacer());
+            Flex extra = Flex.row().gap(4).alignItems(Align.CENTER);
+            extra.sizing(Sizing.fill(), Sizing.content());
+            extra.item(PlayerTabs.spacer());
             if (reward) {
                 // A reward (items, LC) goes as staff mail: the mail editor, already addressed and written.
                 String reporter = report.getString("reporter");
-                tools.item(small("gui.eden_ld.moderation.reports.reward", 60, () -> screen.rewardMail(reporter,
-                        tr("reward_title", id).getString(), reply)));
+                extra.item(small("gui.eden_ld.moderation.reports.reward", 60, () -> screen.rewardMail(reporter,
+                        tr("reward_title", id).getString(), message)));
             }
             if (editor) {
-                tools.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
+                extra.item(small("gui.eden_ld.moderation.reports.editor", 90, () -> send("editor", id)));
             }
-            box.item(tools);
+            box.item(extra);
         }
+
         Flex actions = Flex.row().gap(4).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
+        if (!assignee.isEmpty()) {
+            actions.item(text(tr("assigned", assignee), DIM));
+        }
         actions.item(PlayerTabs.spacer());
         actions.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(100, java.util.List.of(0, 1, 2, 3), status,
                 value -> tr("status." + value), value -> {
                     status = value;
                     noteDirty = true;
                 }));
-        actions.item(small("gui.eden_ld.moderation.reports.save", 60, () -> send("save", id)));
+        actions.item(small("gui.eden_ld.moderation.reports.save", 60, () -> {
+            CompoundTag args = new CompoundTag();
+            args.putLong("id", id);
+            args.putInt("status", status);
+            noteDirty = false;
+            PlayerTabs.action(AdminTools.REPORTS, Util.NIL_UUID, "save", args);
+        }));
         box.item(actions);
+    }
+
+    private void sendMessage(long id, boolean note) {
+        if (message.isBlank()) {
+            return;
+        }
+        CompoundTag args = new CompoundTag();
+        args.putLong("id", id);
+        args.putString("text", message);
+        args.putBoolean("note", note);
+        message = "";
+        PlayerTabs.action(AdminTools.REPORTS, Util.NIL_UUID, "message", args);
+    }
+
+    private void teleport(long id, boolean target) {
+        CompoundTag args = new CompoundTag();
+        args.putLong("id", id);
+        args.putBoolean("target", target);
+        PlayerTabs.action(AdminTools.REPORTS, Util.NIL_UUID, "tp", args);
     }
 
     /**
@@ -306,7 +402,9 @@ final class ReportsSection {
             float stateWidth = net.minecraft.client.Minecraft.getInstance().font.width(state) * 0.8f;
             add(TextNode.of(state).at(width - 4, 13).align(TextNode.Align.RIGHT).color(STATUS_COLORS[rowStatus])
                     .shadow(false).scale(0.8f));
-            Component who = Component.literal(row.getString("reporter") + " · ").append(PunishSection.ago(row.getLong("time")));
+            Component who = Component.literal((row.getBoolean("waiting") ? "● " : "") + row.getString("reporter")
+                    + (row.getString("assignee").isEmpty() ? "" : " → " + row.getString("assignee")) + " · ")
+                    .append(PunishSection.ago(row.getLong("time")));
             add(TextNode.of(who).at(4, 13).maxWidth((int) ((width - 12 - stateWidth) / 0.8f)).ellipsis(true)
                     .color(DIM).shadow(false).scale(0.8f));
         }

@@ -44,6 +44,14 @@ public final class ReportsHub {
                 (payload, context) -> context.server().execute(() -> send(context.player())));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ReportSubmit.TYPE,
                 (payload, context) -> context.server().execute(() -> submit(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ReportThreadAction.TYPE,
+                (payload, context) -> context.server().execute(() -> thread(context.player(), payload)));
+        // On join: unread staff replies show as the tab's badge at once.
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> {
+            if (!handler.getPlayer().hasDisconnected()) {
+                send(handler.getPlayer());
+            }
+        }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server,
                 () -> remember(handler.getPlayer())));
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> RECENT.clear());
@@ -98,6 +106,20 @@ public final class ReportsHub {
         send(player);
     }
 
+    private static void thread(ServerPlayer player, HubPayloads.ReportThreadAction action) {
+        Component refused = switch (action.action()) {
+            case HubPayloads.ReportThreadAction.WRITE -> ReportDesk.playerMessage(player, action.report(), action.text());
+            case HubPayloads.ReportThreadAction.CLOSE -> ReportDesk.playerClose(player, action.report());
+            default -> {
+                ReportDesk.playerRead(player, action.report());
+                yield null;
+            }
+        };
+        if (refused != null) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(refused, false));
+        }
+    }
+
     /** A report of this player changed (filed, status, reply): their tab follows when they're online. */
     private static void changed(UUID reporter) {
         MinecraftServer server = net.ledok.eden_ld.EdenLD.server();
@@ -114,8 +136,18 @@ public final class ReportsHub {
         MinecraftServer server = player.server;
         List<HubPayloads.ReportEntry> entries = new ArrayList<>();
         for (Report report : ReportDesk.mine(server, player.getUUID())) {
+            List<HubPayloads.ReportLine> lines = new ArrayList<>();
+            if (!report.reply.isEmpty()) {
+                // Before 1.3.93: the one reply.
+                lines.add(new HubPayloads.ReportLine(report.handledAt, report.handledBy, Report.STAFF, report.reply));
+            }
+            for (Report.Message message : report.messages) {
+                if (message.role() != Report.NOTE) {
+                    lines.add(new HubPayloads.ReportLine(message.time(), message.author(), message.role(), message.text()));
+                }
+            }
             entries.add(new HubPayloads.ReportEntry(report.id, report.category, report.reference, report.time,
-                    report.status, report.text, report.reply, report.targetName));
+                    report.status, report.text, report.lastReply(), report.targetName, lines, report.unreadForPlayer()));
         }
         List<HubPayloads.ReportCandidate> players = new ArrayList<>();
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {

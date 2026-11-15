@@ -42,6 +42,56 @@ public final class Report {
     String targetName = "";
     /** A suggestion's proposed content, opaque to Eden (the owning mod's editor reads it). */
     String payload = "";
+    /**
+     * The conversation after the first text (1.3.93): the reporter's follow-ups, staff replies, staff-only notes and
+     * system lines, oldest first.
+     */
+    final List<Message> messages = new java.util.ArrayList<>();
+    /** The staff member who took it ("Взяти собі"); "" for nobody. */
+    String assignee = "";
+    /** When the reporter last opened the thread (staff replies after this are unread for them). */
+    long readAt;
+
+    /** Message roles: the reporter, staff (shown to the player), a staff-only note, a system line. */
+    public static final int PLAYER = 0, STAFF = 1, NOTE = 2, SYSTEM = 3;
+
+    /** One message of the thread. */
+    record Message(long time, String author, int role, String text) {
+    }
+
+    /** The newest staff reply (what the player last heard), or "". */
+    String lastReply() {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (messages.get(i).role() == STAFF) {
+                return messages.get(i).text();
+            }
+        }
+        return reply;
+    }
+
+    /** Staff replies the reporter hasn't seen yet. */
+    boolean unreadForPlayer() {
+        for (Message message : messages) {
+            if (message.role() == STAFF && message.time() > readAt) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The last word is the reporter's (they wait for staff). */
+    boolean waitingForStaff() {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            int role = messages.get(i).role();
+            if (role == PLAYER) {
+                return true;
+            }
+            if (role == STAFF) {
+                return false;
+            }
+        }
+        return false;
+    }
 
     Report(long id, long time, UUID reporter, String reporterName, String category, String reference, String text,
            List<String> log) {

@@ -121,11 +121,22 @@ public final class MailHub {
         }
     }
 
+    /** A staff reply in a report's conversation: «Нова відповідь у зверненні #N» and the reply. */
+    public static void reportReplyMail(java.util.UUID to, long id, String excerpt, String reply) {
+        if (LOADED) {
+            Economy.reportMail(to, id, "mail.eden_ld.report.reply_title", "mail.eden_ld.report.body_reply", excerpt, reply);
+        }
+    }
+
     /** The only class touching Economy_LD types. */
     private static final class Economy {
         static void reportMail(java.util.UUID to, long id, int status, String excerpt, String reply) {
-            var content = net.ledok.economy_ld.mail.MailContent.translated("mail.eden_ld.report.title." + status,
-                    reply.isEmpty() ? "mail.eden_ld.report.body" : "mail.eden_ld.report.body_reply",
+            reportMail(to, id, "mail.eden_ld.report.title." + status,
+                    reply.isEmpty() ? "mail.eden_ld.report.body" : "mail.eden_ld.report.body_reply", excerpt, reply);
+        }
+
+        static void reportMail(java.util.UUID to, long id, String titleKey, String bodyKey, String excerpt, String reply) {
+            var content = net.ledok.economy_ld.mail.MailContent.translated(titleKey, bodyKey,
                     java.util.List.of(String.valueOf(id), excerpt, reply));
             var draft = net.ledok.economy_ld.mail.MailDraft.builder(net.ledok.economy_ld.mail.MailKind.SYSTEM, content)
                     .expiresInDays(30)

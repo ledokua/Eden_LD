@@ -45,6 +45,11 @@ public final class ReportsTab {
     private static String text = "";
     /** A submission is on its way: the form empties once the server's list holds one more. */
     private static int sentAt = -1;
+    /** The submission whose conversation is open (-1: the form and the list), and the reply being typed. */
+    private static long openThread = -1;
+    private static String reply = "";
+    /** A reply is on its way: the box empties once the thread holds one more message. */
+    private static int replySentAt = -1;
 
     private ReportsTab() {
     }
@@ -77,6 +82,42 @@ public final class ReportsTab {
             target = null;
             sentAt = -1;
         }
+        // A staff reply arriving while its thread is open is read at once.
+        ReportEntry shown = openThread >= 0 ? entry(data, openThread) : null;
+        if (shown != null && shown.unread()) {
+            ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(shown.id(), HubPayloads.ReportThreadAction.READ, ""));
+        }
+        if (replySentAt >= 0) {
+            ReportEntry open = entry(data, openThread);
+            if (open == null || open.messages().size() > replySentAt) {
+                reply = "";
+                replySentAt = -1;
+            }
+        }
+    }
+
+    private static ReportEntry entry(HubPayloads.ReportsData data, long id) {
+        for (ReportEntry entry : data.entries()) {
+            if (entry.id() == id) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    /** Submissions with staff replies the player hasn't read (the tab's badge). */
+    static int unread() {
+        HubPayloads.ReportsData data = HubState.reportsData;
+        if (data == null) {
+            return 0;
+        }
+        int unread = 0;
+        for (ReportEntry entry : data.entries()) {
+            if (entry.unread()) {
+                unread++;
+            }
+        }
+        return unread;
     }
 
     static void build(HubScreen screen, Flex content) {
@@ -89,6 +130,12 @@ public final class ReportsTab {
             return;
         }
         float width = HubScreen.innerWidth();
+        ReportEntry open = openThread >= 0 ? entry(data, openThread) : null;
+        if (open != null) {
+            thread(screen, content, open, width);
+            return;
+        }
+        openThread = -1;
         if (data.allowed()) {
             content.item(form(screen, data, width));
             content.item(EdenParchment.hairline());
@@ -102,7 +149,7 @@ public final class ReportsTab {
         }
         Flex list = Flex.column().gap(3);
         for (ReportEntry entry : data.entries()) {
-            list.item(card(entry, width - LANE));
+            list.item(card(screen, entry, width - LANE));
         }
         ScrollPanel panel = HubScroll.panel("reports", width, 80, list);
         panel.sizing(Sizing.fill(), Sizing.expand());
@@ -211,13 +258,40 @@ public final class ReportsTab {
 
     // ---------------------------------------------------------------- the list
 
-    private static Flex card(ReportEntry entry, float width) {
+    /** A submission in the list: #, kind, status, the start of its text, a new-reply mark, and Open. */
+    private static Flex card(HubScreen screen, ReportEntry entry, float width) {
         Flex card = Flex.column().gap(2).padding(Insets.of(4, 6, 4, 6));
         card.sizing(Sizing.fixed(width), Sizing.content());
         card.background(EdenParchment.framed(entry.status() >= 2 ? EdenParchment.ROW_BG_ALT : EdenParchment.ROW_BG,
                 EdenParchment.HAIRLINE));
         float inner = width - 12;
+        card.item(head(entry, inner));
 
+        Flex line = Flex.row().gap(6).alignItems(Align.CENTER);
+        Component open = tr("open_thread");
+        float openWidth = EdenParchment.fitWidth(open, 60);
+        String first = entry.text().replace('\n', ' ');
+        Label excerpt = Label.of(inner - openWidth - 6, Component.literal(first));
+        excerpt.color(EdenParchment.INK_MID);
+        excerpt.tooltipWhenCut(true);
+        line.item(excerpt);
+        line.spacer();
+        line.item(EdenParchment.fitButton(open, 60, 14, () -> openThread(screen, entry)));
+        card.item(line);
+
+        Component meta = Component.literal(HubDates.full(entry.time()));
+        if (entry.unread()) {
+            meta = Component.empty().append(meta).append("  ").append(Component.translatable("gui.eden_ld.hub.reports.new_reply")
+                    .withStyle(style -> style.withColor(EdenParchment.NOTIFY)));
+        } else if (!entry.messages().isEmpty()) {
+            meta = Component.empty().append(meta).append("  ").append(tr("messages", entry.messages().size() + 1));
+        }
+        card.item(EdenParchment.text(meta, EdenParchment.INK_DIM));
+        return card;
+    }
+
+    /** "#2 · Баг · …" and the status, on one line. */
+    private static Flex head(ReportEntry entry, float inner) {
         Flex head = Flex.row().gap(6).alignItems(Align.CENTER);
         Component title = Component.literal("#" + entry.id() + " · ").append(kindName(entry.category()))
                 .append(entry.target().isEmpty() ? Component.empty() : Component.literal(" · " + entry.target()))
@@ -231,14 +305,97 @@ public final class ReportsTab {
         head.item(label);
         head.spacer();
         head.item(EdenParchment.text(status, STATUS_COLORS[Math.max(0, Math.min(3, entry.status()))]));
-        card.item(head);
+        return head;
+    }
 
-        card.item(EdenParchment.text(Component.literal(HubDates.full(entry.time())), EdenParchment.INK_DIM));
-        card.item(EdenParchment.text(Component.literal(entry.text()), EdenParchment.INK_MID, (int) inner));
-        if (!entry.reply().isEmpty()) {
-            card.item(EdenParchment.text(tr("reply", entry.reply()), EdenParchment.INK, (int) inner));
+    private static void openThread(HubScreen screen, ReportEntry entry) {
+        openThread = entry.id();
+        reply = "";
+        if (entry.unread()) {
+            ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(entry.id(), HubPayloads.ReportThreadAction.READ, ""));
         }
-        return card;
+        screen.onReportsData();
+    }
+
+    // ---------------------------------------------------------------- the conversation
+
+    /**
+     * One submission as a conversation: the player's messages on the right, staff's on the left with their name, system
+     * lines in the middle; then, while it's open, a reply box with Надіслати and «Питання вирішено».
+     */
+    private static void thread(HubScreen screen, Flex content, ReportEntry entry, float width) {
+        Flex top = Flex.row().gap(6).alignItems(Align.CENTER);
+        top.sizing(Sizing.fill(), Sizing.content());
+        top.item(EdenParchment.fitButton(tr("back"), 40, 14, () -> {
+            openThread = -1;
+            screen.onReportsData();
+        }));
+        float headWidth = width - EdenParchment.fitWidth(tr("back"), 40) - 6;
+        top.item(head(entry, headWidth));
+        content.item(top);
+
+        float bubble = (width - LANE) * 0.8f;
+        Flex list = Flex.column().gap(4);
+        list.item(message(new HubPayloads.ReportLine(entry.time(), "", 0, entry.text()), width - LANE, bubble));
+        for (HubPayloads.ReportLine line : entry.messages()) {
+            list.item(message(line, width - LANE, bubble));
+        }
+        ScrollPanel panel = HubScroll.panel("reports/thread/" + entry.id(), width, 80, list);
+        panel.sizing(Sizing.fill(), Sizing.expand());
+        // Newest at the bottom, as in a chat: start there.
+        panel.scrollTo(1_000_000f);
+        content.item(panel);
+
+        if (entry.status() >= 2) {
+            content.item(EdenParchment.text(tr("thread_closed"), EdenParchment.INK_DIM, (int) width));
+            return;
+        }
+        TextArea area = new TextArea(width, 34, reply, value -> reply = value);
+        area.hint(tr("reply_hint").getString()).maxLength(MAX_TEXT);
+        content.item(area);
+        Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
+        actions.sizing(Sizing.fill(), Sizing.content());
+        Button close = EdenParchment.fitButton(tr("close_thread"), 80, 14, () -> ClientPlayNetworking.send(
+                new HubPayloads.ReportThreadAction(entry.id(), HubPayloads.ReportThreadAction.CLOSE, "")));
+        close.tooltip(tr("close_thread.hint"));
+        actions.item(close);
+        actions.spacer();
+        actions.item(EdenParchment.fitButton(tr("send"), 70, 14, () -> {
+            if (!reply.isBlank()) {
+                replySentAt = entry.messages().size();
+                ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(entry.id(),
+                        HubPayloads.ReportThreadAction.WRITE, reply));
+            }
+        }));
+        content.item(actions);
+    }
+
+    /** A message: the player's own on the right, staff's on the left (their name above), a system line centered. */
+    private static Flex message(HubPayloads.ReportLine line, float width, float bubble) {
+        Flex row = Flex.row().gap(0);
+        row.sizing(Sizing.fixed(width), Sizing.content());
+        if (line.role() == 3) {
+            row.spacer();
+            row.item(EdenParchment.text(tr("system." + line.text()), EdenParchment.INK_DIM));
+            row.spacer();
+            return row;
+        }
+        boolean mine = line.role() == 0;
+        Flex box = Flex.column().gap(1).padding(Insets.of(3, 5, 3, 5));
+        box.sizing(Sizing.fixed(bubble), Sizing.content());
+        box.background(EdenParchment.framed(mine ? EdenParchment.ROW_BG : EdenParchment.PANEL_2, EdenParchment.HAIRLINE));
+        Component who = mine ? tr("you") : tr("staff_name", line.author());
+        box.item(EdenParchment.text(Component.empty().append(who).append(" · " + HubDates.full(line.time())),
+                mine ? EdenParchment.INK_DIM : EdenParchment.ACCENT));
+        box.item(EdenParchment.text(Component.literal(line.text()), EdenParchment.INK, (int) bubble - 10));
+        if (mine) {
+            row.spacer();
+            row.item(box);
+        } else {
+            row.item(box);
+            row.spacer();
+        }
+        return row;
     }
 
     private static boolean available(EdenReportsClientApi.Starter starter) {
