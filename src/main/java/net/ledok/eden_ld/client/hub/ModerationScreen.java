@@ -131,7 +131,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private final ActivitiesSection activities = new ActivitiesSection(this, WIDTH - SIDEBAR - 16);
     private final WorldSection world = new WorldSection(this, WIDTH - SIDEBAR - 16);
     private final ReportsSection reports = new ReportsSection(this, WIDTH - SIDEBAR - 16);
-    private final PollsSection polls = new PollsSection(WIDTH - SIDEBAR - 16);
+    private final PollsSection polls = new PollsSection(this, WIDTH - SIDEBAR - 16);
     private final GuildsSection guilds = new GuildsSection(this, WIDTH - SIDEBAR - 16);
 
     /** The news as edited here (published with Publish); loaded from the server until edited. */
@@ -440,7 +440,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
 
     // ---------------------------------------------------------------- layout
 
-    private void rebuild() {
+    void rebuild() {
         root.clear();
         root.item(sidebar());
         main.clear();
