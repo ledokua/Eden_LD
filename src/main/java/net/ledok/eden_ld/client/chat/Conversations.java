@@ -7,6 +7,7 @@ import net.ledok.eden_ld.client.chat.model.ChatTabs;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.client.chat.panel.ChatStore;
 import net.ledok.eden_ld.hub.HubPayloads;
+import net.ledok.eden_ld.hub.HubSettings.ChannelNotify;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
@@ -47,6 +48,8 @@ public final class Conversations {
         int unseen;
         /** The unseen count the server was last told about: reading everything sends READ once. */
         int reported;
+        /** The player's notifications for it (1.3.95): every line pings by default. */
+        ChannelNotify notify = ChannelNotify.ALL_MESSAGES;
 
         Conv(String id) {
             this.id = id;
@@ -94,6 +97,7 @@ public final class Conversations {
         conv.owner = data.owner();
         conv.members = List.copyOf(data.members());
         conv.hidden = data.hidden();
+        conv.notify = ChannelNotify.of(data.level());
         if (!conv.hidden && wasHidden) {
             conv.opened = ++openCounter;
         }
@@ -294,6 +298,17 @@ public final class Conversations {
         return conv != null && conv.group && minecraft.player != null && minecraft.player.getUUID().equals(conv.owner);
     }
 
+    /** The player's notifications for it: every line, only @mentions, or nothing (no ping, no dot). */
+    public static ChannelNotify notify(@Nullable String id) {
+        Conv conv = id == null ? null : BY_ID.get(id);
+        return conv == null ? ChannelNotify.ALL_MESSAGES : conv.notify;
+    }
+
+    /** Whether its tab shows a dot: lines not seen yet, unless its notifications are Nothing. */
+    public static boolean dot(@Nullable String id) {
+        return notify(id) != ChannelNotify.NOTHING && unseen(id) > 0;
+    }
+
     /** The other player of a DM (null for a group). */
     @Nullable
     public static HubPayloads.ConvMember partner(@Nullable String id) {
@@ -353,6 +368,17 @@ public final class Conversations {
                 entry.markSeen();
             }
         }
+    }
+
+    /** Notifications ▸ on its tab: kept here at once, and by the server for the next join. */
+    public static void setNotify(String id, ChannelNotify level) {
+        Conv conv = BY_ID.get(id);
+        if (conv == null || conv.notify == level) {
+            return;
+        }
+        conv.notify = level;
+        ClientPlayNetworking.send(new HubPayloads.ConvAction(id, HubPayloads.ConvAction.NOTIFY,
+                Integer.toString(level.ordinal())));
     }
 
     public static void action(String id, int action, String text) {

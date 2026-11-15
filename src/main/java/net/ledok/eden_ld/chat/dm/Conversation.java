@@ -17,12 +17,17 @@ import java.util.UUID;
  */
 final class Conversation {
 
+    /** {@code ChannelNotify.ALL_MESSAGES}: a private line pings, as before 1.3.95. */
+    static final int DEFAULT_NOTIFY = net.ledok.eden_ld.hub.HubSettings.ChannelNotify.ALL_MESSAGES.ordinal();
+
     /** A member: their name when last seen, when they joined (a group's older lines aren't theirs to read), what they read. */
     static final class Member {
         String name;
         final long joined;
         long readAt;
         boolean hidden;
+        /** Their notifications for it (1.3.95): a {@code HubSettings.ChannelNotify} ordinal, every line by default. */
+        int notify = DEFAULT_NOTIFY;
 
         Member(String name, long joined) {
             this.name = name;
@@ -82,6 +87,9 @@ final class Conversation {
             m.putLong("joined", entry.getValue().joined);
             m.putLong("read", entry.getValue().readAt);
             m.putBoolean("hidden", entry.getValue().hidden);
+            if (entry.getValue().notify != DEFAULT_NOTIFY) {
+                m.putByte("notify", (byte) entry.getValue().notify);
+            }
             memberList.add(m);
         }
         tag.put("members", memberList);
@@ -114,6 +122,7 @@ final class Conversation {
             Member member = new Member(m.getString("name"), m.getLong("joined"));
             member.readAt = m.getLong("read");
             member.hidden = m.getBoolean("hidden");
+            member.notify = m.contains("notify") ? m.getByte("notify") : DEFAULT_NOTIFY;
             conv.members.put(m.getUUID("uuid"), member);
         }
         ListTag lineList = tag.getList("lines", Tag.TAG_COMPOUND);

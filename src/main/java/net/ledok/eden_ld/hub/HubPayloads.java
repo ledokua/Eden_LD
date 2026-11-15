@@ -2921,7 +2921,7 @@ public final class HubPayloads {
      * ({@code ChatMarker.Kind.DM}).
      */
     public record ConvData(String conv, boolean group, String name, java.util.UUID owner, List<ConvMember> members,
-                           boolean hidden, boolean focus, boolean full, long readAt, List<ConvLine> lines)
+                           boolean hidden, boolean focus, boolean full, long readAt, int level, List<ConvLine> lines)
             implements CustomPacketPayload {
         public static final Type<ConvData> TYPE = new Type<>(id("conv_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ConvData> CODEC = StreamCodec.of(
@@ -2935,11 +2935,12 @@ public final class HubPayloads {
                     buf.writeBoolean(p.focus);
                     buf.writeBoolean(p.full);
                     buf.writeVarLong(p.readAt);
+                    buf.writeVarInt(p.level);
                     writeList(buf, p.lines, ConvLine::write);
                 },
                 buf -> new ConvData(buf.readUtf(96), buf.readBoolean(), buf.readUtf(64), buf.readUUID(),
                         readList(buf, ConvMember::read), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
-                        buf.readVarLong(), readList(buf, ConvLine::read)));
+                        buf.readVarLong(), buf.readVarInt(), readList(buf, ConvLine::read)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -2994,6 +2995,8 @@ public final class HubPayloads {
      */
     public record ConvAction(String conv, int action, String text) implements CustomPacketPayload {
         public static final int HIDE = 0, READ = 1, LEAVE = 2, RENAME = 3, INVITE = 4;
+        /** 1.3.95: the player's notifications for it, {@code text} the {@link HubSettings.ChannelNotify} ordinal. */
+        public static final int NOTIFY = 5;
         public static final Type<ConvAction> TYPE = new Type<>(id("conv_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ConvAction> CODEC = StreamCodec.of(
                 (buf, p) -> {

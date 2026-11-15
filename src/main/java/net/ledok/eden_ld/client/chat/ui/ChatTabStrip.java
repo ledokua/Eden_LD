@@ -183,7 +183,7 @@ public final class ChatTabStrip {
             name = font.plainSubstrByWidth(name, PM_LABEL_MAX - font.width("…")) + "…";
         }
         label[slot] = Component.literal(name);
-        struck[slot] = label[slot];
+        struck[slot] = label[slot].copy().withStyle(ChatFormatting.STRIKETHROUGH);
         slotWidth[slot] = font.width(label[slot]) + 2 * PAD;
     }
 
@@ -247,7 +247,7 @@ public final class ChatTabStrip {
     /** The dot: lines not seen yet (on the active tab too), not while @N shows; never on All or Spy. */
     private boolean dotOn(int slot) {
         if (slot >= ChatTabs.SLOTS) {
-            return net.ledok.eden_ld.client.chat.Conversations.unseen(conversation[slot]) > 0;
+            return net.ledok.eden_ld.client.chat.Conversations.dot(conversation[slot]);
         }
         if (slot == ChatTabs.SYSTEM_SLOT) {
             return ChatActivity.unseenSystem();
@@ -262,8 +262,11 @@ public final class ChatTabStrip {
         return channel == null ? 0 : ChatActivity.mentions(channel);
     }
 
-    /** Muted, or notifications Nothing: GM's "ignored" mark. */
-    private static boolean struck(int slot) {
+    /** Muted, or notifications Nothing (a conversation's too): GM's "ignored" mark. */
+    private boolean struck(int slot) {
+        if (slot >= ChatTabs.SLOTS) {
+            return net.ledok.eden_ld.client.chat.Conversations.notify(conversation[slot]) == ChannelNotify.NOTHING;
+        }
         Channel channel = channel(slot);
         return channel != null
                 && (ChatActivity.muted(channel) || ChatActivity.notify(channel) == ChannelNotify.NOTHING);
@@ -471,7 +474,8 @@ public final class ChatTabStrip {
     private long tipState(int slot) {
         if (slot >= ChatTabs.SLOTS) {
             String id = conversation[slot];
-            return (long) net.ledok.eden_ld.client.chat.Conversations.unseen(id) << 32
+            return (long) net.ledok.eden_ld.client.chat.Conversations.unseen(id) << 34
+                    | (long) net.ledok.eden_ld.client.chat.Conversations.notify(id).ordinal() << 32
                     | (id == null ? 0 : id.hashCode() & 0xFFFFFFFFL);
         }
         Channel typing = ClientChatChannel.current();
@@ -507,6 +511,10 @@ public final class ChatTabStrip {
         int unseen = net.ledok.eden_ld.client.chat.Conversations.unseen(id);
         if (unseen > 0) {
             lines.add(gray(Component.translatable("chat.eden_ld.dm.tab.unread", unseen)));
+        }
+        ChannelNotify notify = net.ledok.eden_ld.client.chat.Conversations.notify(id);
+        if (notify != ChannelNotify.ALL_MESSAGES) {
+            lines.add(gray(Component.translatable("chat.eden_ld.pip.notify", ChannelMenu.notifyLabel(notify))));
         }
         lines.add(hint("chat.eden_ld.dm.tab.hint"));
         lines.add(hint("chat.eden_ld.tab.keys"));

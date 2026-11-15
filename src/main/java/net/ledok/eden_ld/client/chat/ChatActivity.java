@@ -77,8 +77,11 @@ public final class ChatActivity {
         }
         Channel channel = entry.channel();
         if (entry.dm()) {
-            // A private line from someone else: the ping, unless the open chat shows it right now.
-            if (!entry.seen() && !added.repeat()
+            // A private line from someone else: the ping, unless the open chat shows it right now or the player
+            // turned its notifications down (only @mentions, or nothing).
+            ChannelNotify level = Conversations.notify(entry.mark() == null ? null : entry.mark().conversation());
+            boolean wanted = level == ChannelNotify.ALL_MESSAGES || level == ChannelNotify.ONLY_MENTIONS && mention;
+            if (wanted && !entry.seen() && !added.repeat()
                     && !(minecraft.gui.getChat().isChatFocused() && ChatViews.main().shows(entry))) {
                 MentionSound.play();
             }

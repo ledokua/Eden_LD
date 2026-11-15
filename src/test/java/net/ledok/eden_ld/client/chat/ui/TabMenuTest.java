@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -291,28 +292,43 @@ class TabMenuTest {
     void aGroupsTabForItsCreator() {
         ChatTabSpec tab = ChatTabSpec.pm("g:1", "Raid");
         TabMenu.Spec spec = new TabMenu.Spec(tab, null, null, false, false, null, NONE, true, INK_DIM, DANGER,
-                new TabMenu.Pm(true, true, List.of("Me", "Bob"), List.of("Alex"), false), true);
+                new TabMenu.Pm(true, true, List.of("Me", "Bob"), List.of("Alex"), false,
+                        ChannelNotify.ALL_MESSAGES), true);
         List<ContextMenu.Entry> rows = TabMenu.entries(spec, new Recorder());
-        // Name, Mark as read, Members ▸, Invite ▸, Rename…, Leave, Close tab, New group…, a line, Chat settings.
-        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Item.class, ContextMenu.Submenu.class,
-                ContextMenu.Submenu.class, ContextMenu.Item.class, ContextMenu.Item.class, ContextMenu.Item.class,
-                ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class), kinds(rows));
+        // Name, Notifications ▸, Mark as read, Members ▸, Invite ▸, Rename…, Leave, Close tab, New group…, a line,
+        // Chat settings.
+        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Submenu.class, ContextMenu.Item.class,
+                ContextMenu.Submenu.class, ContextMenu.Submenu.class, ContextMenu.Item.class, ContextMenu.Item.class,
+                ContextMenu.Item.class, ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class),
+                kinds(rows));
         assertEquals("Raid", ((ContextMenu.Header) rows.get(0)).text().getString());
-        assertTrue(((ContextMenu.Submenu) rows.get(3)).enabled());
-        assertEquals("chat.eden_ld.dm.menu.rename", key(((ContextMenu.Item) rows.get(4)).label()));
-        assertEquals("chat.eden_ld.dm.menu.close", key(((ContextMenu.Item) rows.get(6)).label()));
-        assertEquals("chat.eden_ld.dm.menu.new_group", key(((ContextMenu.Item) rows.get(7)).label()));
+        assertTrue(((ContextMenu.Submenu) rows.get(4)).enabled());
+        assertEquals("chat.eden_ld.dm.menu.rename", key(((ContextMenu.Item) rows.get(5)).label()));
+        assertEquals("chat.eden_ld.dm.menu.close", key(((ContextMenu.Item) rows.get(7)).label()));
+        assertEquals("chat.eden_ld.dm.menu.new_group", key(((ContextMenu.Item) rows.get(8)).label()));
     }
 
     @Test
     void aDmsTabHasNoGroupRows() {
         ChatTabSpec tab = ChatTabSpec.pm("dm:a:b", "Bob");
         TabMenu.Spec spec = new TabMenu.Spec(tab, null, null, false, false, null, NONE, false, INK_DIM, DANGER,
-                new TabMenu.Pm(false, false, List.of("Me", "Bob"), List.of(), false), false);
+                new TabMenu.Pm(false, false, List.of("Me", "Bob"), List.of(), false,
+                        ChannelNotify.NOTHING), false);
         List<ContextMenu.Entry> rows = TabMenu.entries(spec, new Recorder());
-        // Name, Mark as read (greyed: nothing unread), Open profile, Close tab, a line, Chat settings.
-        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Item.class, ContextMenu.Item.class,
-                ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class), kinds(rows));
-        assertFalse(((ContextMenu.Item) rows.get(1)).enabled());
+        // Name, Notifications ▸, Mark as read (greyed: nothing unread), Open profile, Close tab, a line, Chat settings.
+        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Submenu.class, ContextMenu.Item.class,
+                ContextMenu.Item.class, ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class),
+                kinds(rows));
+        assertFalse(((ContextMenu.Item) rows.get(2)).enabled());
+    }
+
+    @Test
+    void aConversationsNotificationsShowItsLevel() {
+        ChatTabSpec tab = ChatTabSpec.pm("dm:a:b", "Bob");
+        TabMenu.Spec spec = new TabMenu.Spec(tab, null, null, false, false, null, NONE, false, INK_DIM, DANGER,
+                new TabMenu.Pm(false, false, List.of("Me", "Bob"), List.of(), false, ChannelNotify.ONLY_MENTIONS),
+                false);
+        ContextMenu.Submenu row = (ContextMenu.Submenu) TabMenu.entries(spec, new Recorder()).get(1);
+        assertTrue(row.label().getString().contains("chat.eden_ld.notify.only_mentions"));
     }
 }

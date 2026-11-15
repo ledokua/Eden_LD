@@ -32,7 +32,7 @@ import java.util.Objects;
  *   <li>System: its name, Mark as read, "Also in channel tabs" (where the server keeps that switch).</li>
  *   <li>All: its name, Mark all as read, Hide tab (greyed where the server doesn't keep the All tab's switch).</li>
  *   <li>Spy (phase 10): its name in the danger color.</li>
- *   <li>A conversation (1.3.94): its name, Mark as read; a DM's Open profile; a group's Members ▸, Invite ▸, Rename…
+ *   <li>A conversation (1.3.94): its name, Notifications ▸ (1.3.95), Mark as read; a DM's Open profile; a group's Members ▸, Invite ▸, Rename…
  *   (its creator) and Leave group; Close tab.</li>
  * </ul>
  * Then Show hidden tabs ▸ while something is hidden, New group… where the server keeps conversations, a line and Chat
@@ -78,8 +78,10 @@ public final class TabMenu {
      * @param members   the group's members' names
      * @param invitable online players who aren't in it yet (Invite ▸); empty when the group is full
      * @param full      the group has its most members
+     * @param level     the player's notifications for it (1.3.95)
      */
-    public record Pm(boolean group, boolean owner, List<String> members, List<String> invitable, boolean full) {
+    public record Pm(boolean group, boolean owner, List<String> members, List<String> invitable, boolean full,
+                     ChannelNotify level) {
     }
 
     /** What the rows do; a channel tab's own rows run {@link ChannelMenu.Actions}. */
@@ -188,8 +190,11 @@ public final class TabMenu {
     private static List<ContextMenu.Entry> pmEntries(Spec spec, Actions actions) {
         List<ContextMenu.Entry> entries = new ArrayList<>();
         entries.add(new ContextMenu.Header(spec.tab().label(), spec.tab().color()));
-        entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
         Pm pm = spec.pm();
+        if (pm != null) {
+            entries.add(ChannelMenu.notifyRow(pm.level(), spec.inkDim(), actions));
+        }
+        entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
         if (pm != null && pm.group()) {
             List<String> members = pm.members();
             entries.add(new ContextMenu.Submenu(Component.translatable("chat.eden_ld.dm.menu.members", members.size()),
@@ -283,7 +288,7 @@ public final class TabMenu {
         }
         boolean full = members.size() >= GroupScreen.MAX_MEMBERS;
         List<String> invitable = group && !full ? GroupScreen.onlineNames(in) : List.of();
-        return new Pm(group, Conversations.owns(id), members, invitable, full);
+        return new Pm(group, Conversations.owns(id), members, invitable, full, Conversations.notify(id));
     }
 
     /** Anything for Mark all as read: a channel's dot or mentions, System's dot, or a conversation's. */
@@ -313,6 +318,8 @@ public final class TabMenu {
             public void notify(ChannelNotify level) {
                 if (own != null) {
                     own.notify(level);
+                } else if (conversation != null) {
+                    Conversations.setNotify(conversation, level);
                 }
             }
 

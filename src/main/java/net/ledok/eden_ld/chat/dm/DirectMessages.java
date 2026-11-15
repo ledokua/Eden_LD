@@ -128,7 +128,8 @@ public final class DirectMessages {
             }
         }
         return new HubPayloads.ConvData(conv.id, conv.group, conv.name, conv.owner, members,
-                self != null && self.hidden, focus, full, self == null ? 0 : self.readAt, lines);
+                self != null && self.hidden, focus, full, self == null ? 0 : self.readAt,
+                self == null ? Conversation.DEFAULT_NOTIFY : self.notify, lines);
     }
 
     /** Sends the conversation to every online member with Eden (its lines only to those whose client hasn't it). */
@@ -423,6 +424,14 @@ public final class DirectMessages {
             case HubPayloads.ConvAction.READ -> {
                 self.readAt = System.currentTimeMillis();
                 store.changed();
+            }
+            case HubPayloads.ConvAction.NOTIFY -> {
+                try {
+                    self.notify = HubSettings.ChannelNotify.of(Integer.parseInt(action.text())).ordinal();
+                    store.changed();
+                } catch (NumberFormatException ignored) {
+                    // Not a level: nothing changes.
+                }
             }
             case HubPayloads.ConvAction.LEAVE -> leave(server, store, conv, player);
             case HubPayloads.ConvAction.RENAME -> rename(server, store, conv, player, action.text());

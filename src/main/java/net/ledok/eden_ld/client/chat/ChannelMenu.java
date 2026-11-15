@@ -177,11 +177,19 @@ public final class ChannelMenu {
             entries.add(new ContextMenu.Header(spec.mutedLine(), spec.inkDim()));
             entries.add(new ContextMenu.Item(tr("unmute"), () -> actions.mute(0), true));
         }
-        Component notify = Component.empty().append(tr("notify"))
-                .append(Component.literal("  ").append(notifyLabel(spec.level())).withColor(spec.inkDim() & 0xFFFFFF));
-        entries.add(new ContextMenu.Submenu(notify, () -> ChatMenus.build(notifyEntries(spec.level(), actions)), true));
+        entries.add(notifyRow(spec.level(), spec.inkDim(), actions));
         entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
         return entries;
+    }
+
+    /**
+     * Notifications ▸ with the level dim after it (a submenu row has no secondary text); a conversation tab's menu has
+     * it too (1.3.95).
+     */
+    public static ContextMenu.Entry notifyRow(ChannelNotify level, int inkDim, Actions actions) {
+        Component notify = Component.empty().append(tr("notify"))
+                .append(Component.literal("  ").append(notifyLabel(level)).withColor(inkDim & 0xFFFFFF));
+        return new ContextMenu.Submenu(notify, () -> ChatMenus.build(notifyEntries(level, actions)), true);
     }
 
     /** Mute ▸: 5 minutes … until turned back on. */
@@ -195,7 +203,7 @@ public final class ChannelMenu {
     }
 
     /** Notifications ▸: the three levels in Discord's order, a dot on {@code current}. */
-    static List<ContextMenu.Entry> notifyEntries(ChannelNotify current, Actions actions) {
+    public static List<ContextMenu.Entry> notifyEntries(ChannelNotify current, Actions actions) {
         List<ContextMenu.Entry> entries = new ArrayList<>();
         for (ChannelNotify level : List.of(ChannelNotify.ALL_MESSAGES, ChannelNotify.ONLY_MENTIONS, ChannelNotify.NOTHING)) {
             entries.add(new ContextMenu.Check(notifyLabel(level), level == current, () -> actions.notify(level), true));
