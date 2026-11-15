@@ -25,7 +25,8 @@ public final class ChatCounters {
         this.seenEpoch = seenEpoch;
         int system = 0;
         for (ChatEntry entry : entries) {
-            if (entry.seen()) {
+            // Private lines count on their conversation's tab (Conversations), not as system lines.
+            if (entry.seen() || entry.dm()) {
                 continue;
             }
             Channel channel = entry.channel();

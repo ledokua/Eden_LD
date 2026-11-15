@@ -1180,4 +1180,22 @@ public abstract class ChatScreenMixin extends Screen implements net.ledok.eden_l
     private String eden_ld$oneShot(String message) {
         return ClientChatChannel.takePrefix(message);
     }
+
+    /**
+     * On a private conversation's tab (1.3.94) a typed line goes to that conversation, not to a channel: Eden's
+     * payload instead of chat. A "!l " one-shot still goes to its channel, and commands are commands.
+     */
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "handleChatInput", at = @At(
+            value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/ClientPacketListener;sendChat(Ljava/lang/String;)V"))
+    private void eden_ld$toConversation(net.minecraft.client.multiplayer.ClientPacketListener connection,
+                                         String message,
+                                         com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
+        String conversation = ClientChatChannel.prefixTaken() ? null
+                : net.ledok.eden_ld.client.chat.ChatTabActions.typingConversation();
+        if (conversation == null) {
+            original.call(connection, message);
+            return;
+        }
+        net.ledok.eden_ld.client.chat.Conversations.send(conversation, EmojiFont.expandStickers(message, 256));
+    }
 }

@@ -43,7 +43,10 @@ import java.util.List;
  */
 public final class ChatTabStrip {
 
-    private static final int SLOTS = ChatTabs.SLOTS;
+    /** Every slot, the conversations' (1.3.94) after the fixed ones. */
+    private static final int SLOTS = ChatTabs.TOTAL;
+    /** A conversation's name is cut to this width (GUI units) on its chip. */
+    private static final int PM_LABEL_MAX = 80;
     private static final float TAB_H = TabStripLayout.TAB_H;
     private static final float PAD = TabStripLayout.PAD;
     /** The unread dot's size, its center in from the chip's top-right corner. */
@@ -64,7 +67,7 @@ public final class ChatTabStrip {
     private static final String[] BADGES = {"@1", "@2", "@3", "@4", "@5", "@6", "@7", "@8", "@9", "@9+"};
     private static final float BADGE_H = 9;
 
-    // ---------------------------------------------------------------- per slot (ChatTabs.SLOTS)
+    // ---------------------------------------------------------------- per slot (ChatTabs.TOTAL)
 
     private final Component[] label = new Component[SLOTS];
     /** The label struck through: a muted channel, or one set to Nothing. */
@@ -74,6 +77,8 @@ public final class ChatTabStrip {
     private final Motion.Spring[] hover = new Motion.Spring[SLOTS];
     private final Motion.Presence[] dot = new Motion.Presence[SLOTS];
     private final int[] badgeWidth = new int[BADGES.length];
+    /** A conversation slot's conversation, as of the last layout (null for the fixed slots). */
+    private final String[] conversation = new String[SLOTS];
 
     // ---------------------------------------------------------------- per chip shown (strip order)
 
@@ -117,9 +122,10 @@ public final class ChatTabStrip {
 
     public ChatTabStrip() {
         for (int slot = 0; slot < SLOTS; slot++) {
-            label[slot] = Component.translatable(ChatTabs.spec(slot).labelKey());
-            struck[slot] = Component.translatable(ChatTabs.spec(slot).labelKey())
-                    .withStyle(ChatFormatting.STRIKETHROUGH);
+            boolean fixed = slot < ChatTabs.SLOTS;
+            label[slot] = fixed ? Component.translatable(ChatTabs.spec(slot).labelKey()) : Component.empty();
+            struck[slot] = fixed ? Component.translatable(ChatTabs.spec(slot).labelKey())
+                    .withStyle(ChatFormatting.STRIKETHROUGH) : Component.empty();
             hover[slot] = new Motion.Spring(60);
             dot[slot] = new Motion.Presence(260, 0);
         }
@@ -147,6 +153,9 @@ public final class ChatTabStrip {
             count = tabs.count();
             for (int i = 0; i < count; i++) {
                 slotOf[i] = tabs.slotAt(i);
+                if (slotOf[i] >= ChatTabs.SLOTS) {
+                    measurePm(font, slotOf[i], tabs.specAt(slotOf[i]));
+                }
                 width[i] = slotWidth[slotOf[i]];
             }
             rows = TabStripLayout.layout(width, count, TabStripLayout.MARGIN, edge, x, row);
@@ -158,12 +167,24 @@ public final class ChatTabStrip {
     }
 
     private void measure(Font font) {
-        for (int slot = 0; slot < SLOTS; slot++) {
+        for (int slot = 0; slot < ChatTabs.SLOTS; slot++) {
             slotWidth[slot] = font.width(label[slot]) + 2 * PAD;
         }
         for (int i = 0; i < BADGES.length; i++) {
             badgeWidth[i] = font.width(BADGES[i]) + 4;
         }
+    }
+
+    /** A conversation's chip: its name (cut to {@link #PM_LABEL_MAX}), as the tabs have it now. */
+    private void measurePm(Font font, int slot, ChatTabSpec tab) {
+        conversation[slot] = tab.conversation();
+        String name = tab.labelKey();
+        if (font.width(name) > PM_LABEL_MAX) {
+            name = font.plainSubstrByWidth(name, PM_LABEL_MAX - font.width("…")) + "…";
+        }
+        label[slot] = Component.literal(name);
+        struck[slot] = label[slot];
+        slotWidth[slot] = font.width(label[slot]) + 2 * PAD;
     }
 
     /** A tab change while the chat is open (not its first frame) slides the history in from the new tab's side. */
@@ -224,7 +245,10 @@ public final class ChatTabStrip {
     }
 
     /** The dot: lines not seen yet (on the active tab too), not while @N shows; never on All or Spy. */
-    private static boolean dotOn(int slot) {
+    private boolean dotOn(int slot) {
+        if (slot >= ChatTabs.SLOTS) {
+            return net.ledok.eden_ld.client.chat.Conversations.unseen(conversation[slot]) > 0;
+        }
         if (slot == ChatTabs.SYSTEM_SLOT) {
             return ChatActivity.unseenSystem();
         }
@@ -258,6 +282,9 @@ public final class ChatTabStrip {
 
     /** The lit plate's foot line: the channel's color (Global's white too), All's in the theme's accent. */
     private static int footColor(int slot, ChatTheme theme) {
+        if (slot >= ChatTabs.SLOTS) {
+            return ChatTabSpec.PM_COLOR;
+        }
         return (slot == ChatTabs.ALL_SLOT ? theme.tokens.focusBorder() : ChatTabs.spec(slot).color()) | 0xFF000000;
     }
 
@@ -425,9 +452,12 @@ public final class ChatTabStrip {
         if (index < 0) {
             return false;
         }
-        ChatTabSpec tab = ChatTabs.spec(slotOf[index]);
+        ChatTabSpec tab = ChatTabActions.tabs().specAt(slotOf[index]);
         if (button == 0) {
             ChatTabActions.show(tab, tab.kind() == ChatTabSpec.Kind.CHANNEL);
+        } else if (button == 2 && tab.kind() == ChatTabSpec.Kind.PM) {
+            // A middle click closes a conversation's tab, as in a browser.
+            ChatTabActions.hide(tab);
         } else if (button == 1) {
             float y0 = TabStripLayout.rowTop(top, row[index]);
             canvas.openTabMenu(tab, x[index], y0, y0 + TAB_H);
@@ -438,7 +468,12 @@ public final class ChatTabStrip {
     // ---------------------------------------------------------------- the tooltip
 
     /** What the tooltip says depends on, packed: built again only when it changes. */
-    private static long tipState(int slot) {
+    private long tipState(int slot) {
+        if (slot >= ChatTabs.SLOTS) {
+            String id = conversation[slot];
+            return (long) net.ledok.eden_ld.client.chat.Conversations.unseen(id) << 32
+                    | (id == null ? 0 : id.hashCode() & 0xFFFFFFFFL);
+        }
         Channel typing = ClientChatChannel.current();
         long state = typing == null ? 0 : typing.ordinal() + 1;
         Channel channel = channel(slot);
@@ -456,9 +491,26 @@ public final class ChatTabStrip {
         if (slot != tipSlot || state != tipKey) {
             tipSlot = slot;
             tipKey = state;
-            tip = buildTooltip(slot);
+            tip = slot >= ChatTabs.SLOTS ? pmTooltip(conversation[slot], label[slot]) : buildTooltip(slot);
         }
         return tip;
+    }
+
+    /** A conversation's name, what it is (a DM, a group of N), its unread lines, then what the mouse does. */
+    private static List<Component> pmTooltip(@Nullable String id, Component name) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(name.copy().withColor(ChatTabSpec.PM_COLOR & 0xFFFFFF));
+        boolean group = net.ledok.eden_ld.client.chat.Conversations.group(id);
+        lines.add(gray(group ? Component.translatable("chat.eden_ld.dm.tab.group",
+                net.ledok.eden_ld.client.chat.Conversations.members(id).size())
+                : Component.translatable("chat.eden_ld.dm.tab.dm")));
+        int unseen = net.ledok.eden_ld.client.chat.Conversations.unseen(id);
+        if (unseen > 0) {
+            lines.add(gray(Component.translatable("chat.eden_ld.dm.tab.unread", unseen)));
+        }
+        lines.add(hint("chat.eden_ld.dm.tab.hint"));
+        lines.add(hint("chat.eden_ld.tab.keys"));
+        return lines;
     }
 
     /** Eden's 1.2 pip lines and GM's "write here from anywhere" line, then what the mouse and the keys do. */

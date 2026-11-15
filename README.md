@@ -1168,8 +1168,10 @@ has played here, online or not). From then on:
 - **Their chat is hidden**: Global, Local, Party and Guild lines, the hub's party and guild chat
   panels, the recent chat on join, and their deaths and advancements. Your client hides the marked
   lines, so *Stop ignoring* brings back what's still in your chat history.
-- **Whispers** (`/msg`, `/tell`, `/w`) and **`/me`** from them don't reach you (the server drops
-  them; those don't come back).
+- **Private messages and group chats** (1.3.94): neither of you can write to the other or add the other to a group
+  chat ("doesn't accept private messages from you"); their lines in a group chat you share are hidden. Whispers from
+  clients without Eden (`/msg`, `/tell`, `/w`) and **`/me`** from them don't reach you (the server drops them; those
+  don't come back).
 - **Their @mentions don't ping you.**
 - **Their party and guild invites** are refused like your "Allow party invites from" setting
   ("isn't accepting party invites from you"), and you're left out of their guild invite list.
@@ -1317,6 +1319,32 @@ narrator, other mods). What it adds:
     - The server adds or keeps lines in `chat_system_only.json` ([Configuration](#configuration)). At most 200 are
       kept, so they never push your chat history out.
     - The 1.2 look shows them as before and keeps all of them (its S pip dot ignores them).
+- **Private messages and group chats** (1.3.94): each conversation is a **tab** after System (pink, up to 8 at once).
+  A conversation's tab shows that conversation alone, and what you type there goes to it (the input's sign turns to
+  a pink **@**; `!g ` in front still sends one message to a channel, `/` is still a command). Its lines also show in
+  **All** (and the closed chat on All) as `[PM] Name: text` / `[PM → Name]` on your own, or `[Group] Name: text`,
+  never in the channel tabs or System. New lines from others ping you and light the tab's dot.
+  - **Starting**: right-click someone's message → **Write privately** («Написати»), or `/msg`, `/tell`, `/w` as
+    always — with Eden on your client those land in the DM tab instead of a whisper (the console, a client without
+    Eden or several targets keep Minecraft's whisper). The other side doesn't need Eden: they get the line as a plain
+    chat line, and clicking its `[PM]` tag answers with `/msg`.
+  - **Group chats**: any tab's menu → **New group chat…**: a name (up to 24 characters) and online players to add.
+    Members add more players from the group tab's menu (**Add a player ▸**, up to 10 members), **Leave chat**, and its
+    creator can **Rename…** it (when the creator leaves, the longest member takes over). A player is in up to 20 group
+    chats. Members added later see the lines from when they joined.
+  - **Closing**: the tab's menu → **Close tab** (or a middle click) hides it for you alone; the next line in it opens
+    it again.
+  - **History**: the server keeps each conversation's **last 100 lines for 7 days**, so you read what came while you
+    were away, unread lines marked, when you join. A DM goes once its lines are gone and nothing happened in it for
+    7 days, a group chat after 30 days without anything.
+  - **Privacy**: Settings → Privacy → **Private messages and group chats** — who may write to you and add you to
+    group chats: friends, your party, your guild, everyone else (all on by default; as the activity invites, someone
+    in several groups may if any of theirs is on). Someone you wrote to in a DM can always answer you. Players who
+    ignore each other can't write to each other or add each other to groups.
+  - **Staff don't read them**: nothing is logged, and nobody can open them. A complaint about a player carries the DM
+    lines between the two of you (as whispers did); DMs with anyone else and group chats never go into a complaint.
+  - The 1.2 look has no tabs: the lines show in its chat as they come, and *Write privately* puts `/msg Name ` in the
+    input.
 - **Click a channel tag** in chat (`[Local]`, `[Party]`…) to switch straight to that channel. In the new look it
   switches at once, with no "Chat channel" line: on a channel's tab the tab moves, on All or System the sign turns
   and the bar above the hotbar says so.
@@ -1796,6 +1824,7 @@ is the player's name.
 | `/invite <player>` | any player | Invites to your party — or, when solo, starts one (created when they accept). |
 | `/ignore [player]` | any player | Ignores a player (online, or anyone who has played here) — see [Ignoring players](#ignoring-players); without a name, lists who you ignore. |
 | `/unignore <player>` | any player | Stops ignoring them (suggests the names on your list). |
+| `/msg`, `/tell`, `/w <player> <message>` | any player | With Eden on the client (1.3.94): the line goes to your DM with them — kept, in its chat tab ([Private messages](#chat)); their privacy switches and the ignore list apply. Console, clients without Eden, several targets: Minecraft's whisper. |
 | `/p <message>` | any player | Sends a message to your party's chat. |
 | `/party-admin list` | `eden_ld.admin.parties` | Lists every party: tag, display name, member count. |
 | `/party-admin disband <tag>` | `eden_ld.admin.parties` | Force-disbands a party by tag — works with every member offline. |

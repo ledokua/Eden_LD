@@ -718,6 +718,10 @@ public final class HubServer {
             ServerPlayNetworking.send(player, new HubPayloads.MapSharingData(
                     HubSettings.mapHidden(server, player.getUUID())));
         }
+        if (ServerPlayNetworking.canSend(player, HubPayloads.DmPrivacyData.TYPE)) {
+            ServerPlayNetworking.send(player, new HubPayloads.DmPrivacyData(
+                    HubSettings.dmOff(server, player.getUUID())));
+        }
         // Only while Arenas_LD asks Eden about invites: otherwise the switches would do nothing.
         if (net.ledok.eden_ld.compat.arenas.ArenasHook.invitesFiltered()
                 && ServerPlayNetworking.canSend(player, HubPayloads.ActivityInvitesData.TYPE)) {

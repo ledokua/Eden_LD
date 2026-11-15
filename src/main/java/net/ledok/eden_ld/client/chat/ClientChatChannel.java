@@ -201,11 +201,19 @@ public final class ClientChatChannel {
         }
     }
 
+    /** The line being sent had a "!x " one-shot prefix (taken by {@link #takePrefix}): it goes to that channel. */
+    private static boolean prefixTaken;
+
+    public static boolean prefixTaken() {
+        return prefixTaken;
+    }
+
     /**
      * "!l hi" typed: tells the server the next message goes to LOCAL and returns "hi" — the
      * signed text stays prefix-free. Anything else is returned as is.
      */
     public static String takePrefix(String message) {
+        prefixTaken = false;
         if (message.startsWith("/") || current() == null || !ClientPlayNetworking.canSend(HubPayloads.ChatOneShot.TYPE)) {
             return message;
         }
@@ -217,6 +225,7 @@ public final class ClientChatChannel {
         if (rest.isEmpty()) {
             return message;
         }
+        prefixTaken = true;
         ClientPlayNetworking.send(new HubPayloads.ChatOneShot(typed.ordinal()));
         sentElsewhere(typed);
         return rest;

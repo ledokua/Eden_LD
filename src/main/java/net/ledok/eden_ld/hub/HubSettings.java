@@ -29,6 +29,12 @@ public final class HubSettings {
     public static final int ACTIVITY_INVITES_OTHERS = 1 << 3;
     private static final int ACTIVITY_INVITES_ALL = 0b1111;
     /**
+     * Who may not write to the player privately or add them to group chats (1.3.94), as the activity-invite bits
+     * ({@link #ACTIVITY_INVITES_FRIENDS}…{@link #ACTIVITY_INVITES_OTHERS}). 0 (the default) = everyone may. See
+     * {@code chat.dm.DirectMessages}.
+     */
+    public static final String DM_OFF = "dm_off";
+    /**
      * Who the player is hidden from on Xaero's minimap and world map, as bits: {@link #MAP_HIDDEN_GUILD},
      * {@link #MAP_HIDDEN_PARTY}. 0 (the default) = guildmates and party members see them. See
      * {@code compat.xaero.XaeroTracker}; OPAC's own location switches apply on top.
@@ -297,6 +303,11 @@ public final class HubSettings {
         return HubData.get(server).peek(player).getCompound(TAG).getInt(ACTIVITY_INVITES_OFF) & ACTIVITY_INVITES_ALL;
     }
 
+    /** Who may not write to the player privately ({@link #DM_OFF} bits; 0 = everyone may). */
+    public static int dmOff(MinecraftServer server, UUID player) {
+        return HubData.get(server).peek(player).getCompound(TAG).getInt(DM_OFF) & ACTIVITY_INVITES_ALL;
+    }
+
     public static InvitesFrom partyInvitesFrom(MinecraftServer server, UUID player) {
         CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
         return InvitesFrom.of(settings.getInt(PARTY_INVITES_FROM));
@@ -537,7 +548,7 @@ public final class HubSettings {
             settings(server, player).putInt(key, value);
             return true;
         }
-        if (ACTIVITY_INVITES_OFF.equals(key)) {
+        if (ACTIVITY_INVITES_OFF.equals(key) || DM_OFF.equals(key)) {
             if (value < 0 || value > ACTIVITY_INVITES_ALL) {
                 return false;
             }

@@ -326,9 +326,7 @@ final class ReportsSection {
 
         Flex actions = Flex.row().gap(4).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
-        if (!assignee.isEmpty()) {
-            actions.item(text(tr("assigned", assignee), DIM));
-        }
+        // Who took it shows in the list row and on the take/release button: this row stays narrow enough for Save.
         actions.item(PlayerTabs.spacer());
         actions.item(new net.ledok.vectorlib.client.canvas.widget.Dropdown<>(100, java.util.List.of(0, 1, 2, 3), status,
                 value -> tr("status." + value), value -> {
@@ -395,17 +393,26 @@ final class ReportsSection {
         protected void rebuild() {
             add(Shapes.rect(0, 0, width, height).fill(on ? PANEL : 0xFF22252A)
                     .stroke(Stroke.of(on ? ACCENT : hovered ? DIM : LINE, 1)));
+            net.minecraft.client.gui.Font font = net.minecraft.client.Minecraft.getInstance().font;
+            // Who took it, right-aligned on the first line: the second keeps clear of the status label.
+            String assignee = row.getString("assignee");
+            int assigneeWidth = 0;
+            if (!assignee.isEmpty()) {
+                Component taken = Component.literal("→ " + assignee);
+                assigneeWidth = font.width(taken) + 6;
+                add(TextNode.of(taken).at(width - 4, 3).align(TextNode.Align.RIGHT).color(DIM).shadow(false));
+            }
             add(TextNode.of(Component.literal("#" + row.getLong("id") + "  ").append(label(row)))
-                    .at(4, 3).maxWidth((int) width - 8).ellipsis(true).color(TEXT).shadow(false));
+                    .at(4, 3).maxWidth((int) width - 8 - assigneeWidth).ellipsis(true).color(TEXT).shadow(false));
             int rowStatus = Math.max(0, Math.min(3, row.getInt("status")));
             Component state = tr("status." + rowStatus);
-            float stateWidth = net.minecraft.client.Minecraft.getInstance().font.width(state) * 0.8f;
+            float stateWidth = font.width(state) * 0.8f;
             add(TextNode.of(state).at(width - 4, 13).align(TextNode.Align.RIGHT).color(STATUS_COLORS[rowStatus])
                     .shadow(false).scale(0.8f));
             Component who = Component.literal((row.getBoolean("waiting") ? "● " : "") + row.getString("reporter")
-                    + (row.getString("assignee").isEmpty() ? "" : " → " + row.getString("assignee")) + " · ")
-                    .append(PunishSection.ago(row.getLong("time")));
-            add(TextNode.of(who).at(4, 13).maxWidth((int) ((width - 12 - stateWidth) / 0.8f)).ellipsis(true)
+                    + " · ").append(PunishSection.ago(row.getLong("time")));
+            // maxWidth counts in the node's scaled units: this cuts the line before the status label.
+            add(TextNode.of(who).at(4, 13).maxWidth((int) (width - 14 - stateWidth)).ellipsis(true)
                     .color(DIM).shadow(false).scale(0.8f));
         }
 

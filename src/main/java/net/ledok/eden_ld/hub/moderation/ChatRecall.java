@@ -33,13 +33,32 @@ public final class ChatRecall {
     }
 
     private static final Map<UUID, Deque<Line>> LINES = new ConcurrentHashMap<>();
+    /** Set while a private line is sent ({@link #sendPrivate}): it is kept as a whisper, not as a system line. */
+    private static final ThreadLocal<Boolean> PRIVATE = ThreadLocal.withInitial(() -> false);
 
     private ChatRecall() {
     }
 
     /** A system line (Eden's channels, deaths, joins, notices); action-bar lines aren't kept. */
     public static void system(UUID player, Component line) {
-        add(player, line.getString(), null);
+        if (!PRIVATE.get()) {
+            add(player, line.getString(), null);
+        }
+    }
+
+    /**
+     * Sends a line of a private conversation (1.3.94, {@code chat.dm.DirectMessages}) and keeps it as a whisper with
+     * {@code with} (the other player's name in a DM): a complaint carries it only when {@code with} is the player
+     * reported. Group lines pass a partner no name can match ({@code DmRules.GROUP_PARTNER}), so they never do.
+     */
+    public static void sendPrivate(net.minecraft.server.level.ServerPlayer player, Component line, String with) {
+        add(player.getUUID(), line.getString(), with);
+        PRIVATE.set(true);
+        try {
+            player.sendSystemMessage(line);
+        } finally {
+            PRIVATE.set(false);
+        }
     }
 
     /** A signed chat line: a player's message, or a whisper (incoming or the sender's own copy). */

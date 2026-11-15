@@ -52,6 +52,7 @@ class ChatFilterEquivalenceTest {
             case GUILD -> oldChannelHidden(settings, 3, Channel.GUILD, own, selected);
             case DISCORD -> oldChannelHidden(settings, 4, Channel.GLOBAL, own, selected);
             case JOIN -> throw new IllegalArgumentException("1.2.5 had no join marks");
+            case DM -> throw new IllegalArgumentException("1.2.5 had no private lines");
         };
     }
 
@@ -89,8 +90,8 @@ class ChatFilterEquivalenceTest {
         Channel[] selections = Arrays.copyOf(Channel.values(), Channel.values().length + 1);
         int checked = 0;
         for (ChatMarker.Kind kind : ChatMarker.Kind.values()) {
-            if (kind == ChatMarker.Kind.JOIN) {
-                continue; // 1.3.42: joins were unmarked lines before
+            if (kind == ChatMarker.Kind.JOIN || kind == ChatMarker.Kind.DM) {
+                continue; // 1.3.42: joins were unmarked lines before; 1.3.94: private lines were whispers
             }
             for (boolean team : new boolean[]{false, true}) {
                 for (UUID sender : senders) {
@@ -115,7 +116,7 @@ class ChatFilterEquivalenceTest {
                 }
             }
         }
-        assertEquals((ChatMarker.Kind.values().length - 1) * 2 * 4 * 2 * 5 * (1 + 32 * 2 * 3 * 3), checked);
+        assertEquals((ChatMarker.Kind.values().length - 2) * 2 * 4 * 2 * 5 * (1 + 32 * 2 * 3 * 3), checked);
     }
 
     private static int compare(ChatMarker.Mark mark, boolean systemView, Settings settings, Channel selected) {

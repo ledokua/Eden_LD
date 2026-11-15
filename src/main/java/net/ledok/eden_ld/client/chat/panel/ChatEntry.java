@@ -87,6 +87,11 @@ public final class ChatEntry {
         return mark == null ? null : mark.sender();
     }
 
+    /** A line of a private conversation (1.3.94): its conversation's tab and All show it, nothing else. */
+    public boolean dm() {
+        return mark != null && mark.kind() == ChatMarker.Kind.DM;
+    }
+
     public boolean mention() {
         return mention;
     }

@@ -92,6 +92,8 @@ public class EdenLDClient implements ClientModInitializer {
             }
             // A chat channel held back after a pick applies once its hold runs out (ChatChannelState).
             net.ledok.eden_ld.client.chat.ClientChatChannel.tick();
+            // Reading a private conversation tells the server (its unread markers after a relog).
+            net.ledok.eden_ld.client.chat.Conversations.tick();
         });
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -100,6 +102,7 @@ public class EdenLDClient implements ClientModInitializer {
             net.ledok.eden_ld.client.hub.ClientPvp.reset();
             net.ledok.eden_ld.client.hub.PlayerNames.reset();
             net.ledok.eden_ld.client.chat.ClientChatChannel.reset();
+            net.ledok.eden_ld.client.chat.Conversations.reset();
             // Only the new look keeps system-only lines apart (the System tab), so only it caps them.
             net.ledok.eden_ld.client.chat.panel.ChatStore.capSystemOnly(net.ledok.eden_ld.client.chat.ui.ChatLook::enabled);
             // Eden's own system-only rules until this server sends its list (a 1.3.1 or older one never does).
@@ -363,6 +366,16 @@ public class EdenLDClient implements ClientModInitializer {
                 screen.onSettingsData();
             }
         });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.DmPrivacyData.TYPE, (payload, context) -> {
+            HubState.dmOff = payload.off();
+            if (context.client().screen instanceof HubScreen screen) {
+                screen.onSettingsData();
+            }
+        });
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ConvData.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.chat.Conversations.onData(payload));
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ConvGone.TYPE,
+                (payload, context) -> net.ledok.eden_ld.client.chat.Conversations.onGone(payload.conv()));
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityInvitesData.TYPE, (payload, context) -> {
             HubState.activityInvitesOff = payload.off();
             if (context.client().screen instanceof HubScreen screen) {

@@ -21,12 +21,18 @@ public final class ChatMarker {
     private static final String TEAM = ":team";
     /** A second invisible piece on deaths, advancements and joins: "p" about the reader's party, "g" their guild. */
     private static final String CIRCLE = "eden_ld:circle:";
+    /** A second invisible piece on private lines ({@link Kind#DM}): the conversation's id. */
+    private static final String CONVERSATION = "eden_ld:conv:";
     /** How deep {@link #find} looks: a chat line nests the marker in its sender part, a few levels down. */
     private static final int MAX_DEPTH = 6;
 
     public enum Kind {
-        /** JOIN: joining or leaving the server; clients before 1.3.42 don't know it and read the line as unmarked. */
-        GLOBAL, LOCAL, PARTY, GUILD, DISCORD, DEATH, ADVANCEMENT, JOIN;
+        /**
+         * JOIN: joining or leaving the server; clients before 1.3.42 don't know it and read the line as unmarked. DM
+         * (1.3.94): a line of a private conversation (a DM or a group chat), its id beside the marker; older clients
+         * read it as unmarked.
+         */
+        GLOBAL, LOCAL, PARTY, GUILD, DISCORD, DEATH, ADVANCEMENT, JOIN, DM;
 
         public String id() {
             return name().toLowerCase(Locale.ROOT);
@@ -38,8 +44,14 @@ public final class ChatMarker {
      * advancements); {@code sender}: who wrote it (chat lines — a player's own always show); {@code party} /
      * {@code guild}: a death, advancement or join about the reader or a member of their party / guild (the Party and
      * Guild tabs show only those). A line without the circle piece (an older server) counts as {@code team} for both.
+     * {@code conversation}: a {@link Kind#DM} line's conversation (null on every other kind).
      */
-    public record Mark(Kind kind, boolean team, @Nullable java.util.UUID sender, boolean party, boolean guild) {
+    public record Mark(Kind kind, boolean team, @Nullable java.util.UUID sender, boolean party, boolean guild,
+                       @Nullable String conversation) {
+
+        public Mark(Kind kind, boolean team, @Nullable java.util.UUID sender, boolean party, boolean guild) {
+            this(kind, team, sender, party, guild, null);
+        }
 
         public Mark(Kind kind, boolean team, @Nullable java.util.UUID sender) {
             this(kind, team, sender, team, team);
@@ -117,10 +129,32 @@ public final class ChatMarker {
                 .append(line);
     }
 
+    /**
+     * A line of the private conversation {@code conversation} written by {@code sender}: the DM marker and the
+     * conversation's id in front (Eden's client files it under that conversation's tab). A null sender: the server's
+     * note in the conversation (someone joined, a message refused).
+     */
+    public static MutableComponent markDm(Component line, String conversation, @Nullable java.util.UUID sender) {
+        return Component.empty().append(marker(Kind.DM, false, sender))
+                .append(Component.literal("").withStyle(Style.EMPTY.withInsertion(CONVERSATION + conversation)))
+                .append(line);
+    }
+
     /** The marker in a line (in its parts and translation arguments), or null for unmarked lines. */
     @Nullable
     public static Mark find(Component line) {
         Mark mark = find(line, 0);
+        if (mark != null && mark.kind() == Kind.DM) {
+            // The conversation piece sits beside the marker, at the top of the line.
+            for (Component sibling : line.getSiblings()) {
+                String insertion = sibling.getStyle().getInsertion();
+                if (insertion != null && insertion.startsWith(CONVERSATION) && sibling.getString().isEmpty()) {
+                    return new Mark(Kind.DM, false, mark.sender(), false, false,
+                            insertion.substring(CONVERSATION.length()));
+                }
+            }
+            return mark;
+        }
         if (mark == null || !(mark.kind() == Kind.DEATH || mark.kind() == Kind.ADVANCEMENT || mark.kind() == Kind.JOIN)) {
             return mark;
         }

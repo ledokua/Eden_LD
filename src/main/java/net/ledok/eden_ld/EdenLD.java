@@ -84,6 +84,7 @@ public class EdenLD implements ModInitializer {
         net.ledok.eden_ld.world.AsyncSavedData.initialize();
         net.ledok.eden_ld.world.BlockResync.initialize();
         net.ledok.eden_ld.chat.ChatStyle.initialize();
+        net.ledok.eden_ld.chat.dm.DirectMessages.initialize();
         net.ledok.eden_ld.tutorial.Tutorial.initialize();
         // Rental builds: the stash, its guards and the crash check at login (Balance/RENTAL-BUILDS.md).
         net.ledok.eden_ld.rental.RentalStash.initialize();

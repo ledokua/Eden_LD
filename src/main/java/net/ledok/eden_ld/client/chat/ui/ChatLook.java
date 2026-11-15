@@ -37,8 +37,8 @@ public final class ChatLook {
      * Last frame's tab strip (phase 5), for the close fade too: its chips (x0, y0, x1, y1 each) and how strong each was
      * drawn, the lit plate and its foot line. Filled in place every frame, so nothing is allocated.
      */
-    private static final float[] CHIPS = new float[ChatTabs.SLOTS * 4];
-    private static final float[] CHIP_ALPHA = new float[ChatTabs.SLOTS];
+    private static final float[] CHIPS = new float[ChatTabs.TOTAL * 4];
+    private static final float[] CHIP_ALPHA = new float[ChatTabs.TOTAL];
     private static int chips;
     private static final float[] LIT = new float[4];
     private static final float[] FOOT = new float[4];

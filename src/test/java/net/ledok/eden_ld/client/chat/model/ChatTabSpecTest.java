@@ -239,4 +239,27 @@ class ChatTabSpecTest {
         }
         assertFalse(ChatTabSpec.ALL.shows(line(Kind.LOCAL, TROLL), none));
     }
+
+    // ---------------------------------------------------------------- private conversations (1.3.94)
+
+    @Test
+    void aConversationsTabShowsItsOwnLinesAndAllShowsThemToo() {
+        ChatRules rules = rules(0, Channel.GLOBAL);
+        ChatTabSpec tab = ChatTabSpec.pm("dm:x", "Bob");
+        ChatMarker.Mark ours = new ChatMarker.Mark(Kind.DM, false, BOB, false, false, "dm:x");
+        ChatMarker.Mark another = new ChatMarker.Mark(Kind.DM, false, BOB, false, false, "g:1");
+        ChatMarker.Mark note = new ChatMarker.Mark(Kind.DM, false, null, false, false, "dm:x");
+        assertTrue(tab.shows(ours, rules));
+        assertTrue(tab.shows(note, rules));
+        assertFalse(tab.shows(another, rules));
+        assertFalse(tab.shows(line(Kind.GLOBAL, BOB), rules));
+        assertFalse(tab.shows(null, rules));
+        assertFalse(tab.shows(new ChatMarker.Mark(Kind.DM, false, TROLL, false, false, "dm:x"), rules));
+        assertTrue(tab.shows(new ChatMarker.Mark(Kind.DM, false, ME, false, false, "dm:x"), rules));
+        assertTrue(ChatTabSpec.ALL.shows(ours, rules));
+        assertFalse(ChatTabSpec.SYSTEM.shows(ours, rules));
+        // The new look keeps them out of the channel tabs; the 1.2 look's channel view has them.
+        assertFalse(ChatTabSpec.of(Channel.GLOBAL).shows(ours, newLook(0, Channel.GLOBAL, true)));
+        assertTrue(ChatTabSpec.of(Channel.GLOBAL).shows(ours, rules));
+    }
 }

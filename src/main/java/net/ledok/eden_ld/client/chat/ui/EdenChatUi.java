@@ -59,6 +59,8 @@ public final class EdenChatUi {
     private static final int GLYPH_PAD = 3;
     /** The glyph for a command (the line goes to no channel). */
     private static final Component SLASH = Component.literal("/");
+    /** The glyph on a private conversation's tab (1.3.94). */
+    private static final Component AT = Component.literal("@");
     private static final Channel[] CHANNELS = Channel.values();
 
     private final ChatScreen screen;
@@ -355,7 +357,7 @@ public final class EdenChatUi {
      * and its padding. The input line starts right after it (ChatScreenMixin, at init).
      */
     public static int glyphWidth(Font font) {
-        int widest = font.width(SLASH);
+        int widest = Math.max(font.width(SLASH), font.width(AT));
         for (Channel channel : CHANNELS) {
             widest = Math.max(widest, font.width(ClientChatChannel.glyphLabel(channel)));
         }
@@ -410,6 +412,8 @@ public final class EdenChatUi {
             glyphPop.snap(false).set(true);
         }
         boolean hover = !canvas.menuOpen() && overGlyph(mouseX, mouseY);
+        // On a conversation's tab the line goes there (1.3.94): "@" in the private color.
+        String conversation = command || Channel.byPrefix(value) != null ? null : ChatTabActions.typingConversation();
         ChatTheme theme = ChatTheme.current();
         float chrome = ChatLook.chrome();
         int y0 = screen.height - GLYPH_TOP;
@@ -418,10 +422,12 @@ public final class EdenChatUi {
         RoundedBox.draw(graphics, GLYPH_X, y0, glyphWidth, GLYPH_HEIGHT, hover ? theme.pipHover : theme.pip, chrome,
                 false);
         graphics.flush();
-        int color = ChatLook.textColor(command ? theme.tokens.inkDim() : ClientChatChannel.color(target), chrome);
+        int color = ChatLook.textColor(command ? theme.tokens.inkDim() : conversation != null
+                ? net.ledok.eden_ld.client.chat.model.ChatTabSpec.PM_COLOR : ClientChatChannel.color(target), chrome);
         if (color != 0) {
-            Component label = command ? SLASH : ClientChatChannel.glyphLabel(target);
-            int labelWidth = glyphLabelWidth[command ? CHANNELS.length : target.ordinal()];
+            Component label = command ? SLASH : conversation != null ? AT : ClientChatChannel.glyphLabel(target);
+            int labelWidth = conversation != null ? font.width(AT)
+                    : glyphLabelWidth[command ? CHANNELS.length : target.ordinal()];
             // A new channel's letter grows in past its size and settles.
             float pop = glyphPop.on() ? 0.5f + 0.5f * Motion.outBack(glyphPop.raw(), 1.4f) : 1f;
             float cx = GLYPH_X + glyphWidth / 2f;
@@ -440,8 +446,17 @@ public final class EdenChatUi {
         }
         graphics.pose().popPose();
         if (hover) {
-            graphics.renderComponentTooltip(font, glyphTooltip(current, target, command), mouseX, mouseY);
+            graphics.renderComponentTooltip(font, conversation != null ? dmTooltip()
+                    : glyphTooltip(current, target, command), mouseX, mouseY);
         }
+    }
+
+    /** On a conversation's tab: where the line goes (that tab's name), then what the mouse does. */
+    private List<Component> dmTooltip() {
+        net.ledok.eden_ld.client.chat.model.ChatTabSpec tab = ChatViews.main().tab();
+        return List.of(Component.translatable("chat.eden_ld.glyph.dm",
+                        tab.label().withColor(net.ledok.eden_ld.client.chat.model.ChatTabSpec.PM_COLOR & 0xFFFFFF)),
+                Component.translatable("chat.eden_ld.glyph.dm_hint").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     /** Where the message goes, then what the mouse does; built again only when that changes. */

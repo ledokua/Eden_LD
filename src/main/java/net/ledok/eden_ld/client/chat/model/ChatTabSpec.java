@@ -12,10 +12,13 @@ import java.util.Locale;
  * ({@link ChatTabs}, phase 5); the 1.2 look with its pips: System, the selected channel with "only the selected
  * channel" on, else All.
  *
- * @param channel the channel of a {@link Kind#CHANNEL} tab (null for the others)
- * @param color   ARGB, as the channel's tags in chat
+ * @param channel      the channel of a {@link Kind#CHANNEL} tab (null for the others)
+ * @param labelKey     the label's translation key; a {@link Kind#PM} tab's own name instead (a player's, a group's)
+ * @param color        ARGB, as the channel's tags in chat
+ * @param conversation a {@link Kind#PM} tab's conversation (1.3.94); null for the others
  */
-public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, String labelKey, int color) {
+public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, String labelKey, int color,
+                          @Nullable String conversation) {
 
     public enum Kind {
         CHANNEL,
@@ -24,8 +27,26 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
         ALL,
         /** Staff spy copies (phase 10): nothing is filed here yet. */
         SPY,
-        /** Private messages (phase 5b): nothing is filed here yet. */
+        /** A private conversation (1.3.94): a DM or a group chat, its lines alone. */
         PM
+    }
+
+    /** The color of private lines and tabs (vanilla's whisper pink). */
+    public static final int PM_COLOR = 0xFFFF77FF;
+
+    public ChatTabSpec(String id, Kind kind, @Nullable Channel channel, String labelKey, int color) {
+        this(id, kind, channel, labelKey, color, null);
+    }
+
+    /** A private conversation's tab, named {@code name}. */
+    public static ChatTabSpec pm(String conversation, String name) {
+        return new ChatTabSpec("pm:" + conversation, Kind.PM, null, name, PM_COLOR, conversation);
+    }
+
+    /** The tab's name as the strip shows it: translated, or a conversation's own name as it is. */
+    public net.minecraft.network.chat.MutableComponent label() {
+        return kind == Kind.PM ? net.minecraft.network.chat.Component.literal(labelKey)
+                : net.minecraft.network.chat.Component.translatable(labelKey);
     }
 
     public static final ChatTabSpec SYSTEM = new ChatTabSpec("system", Kind.SYSTEM, null,
@@ -71,11 +92,17 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
      * advancements by their own settings, in every tab
      * (Party's and Guild's only their members'; joins likewise, else as the server's lines); a channel's lines unless switched off in Settings → Chat — the
      * channel typed into always shows its own, and the player's lines ignore the switches. Discord lines have their
-     * own switch (bit 4), even in Global.
+     * own switch (bit 4), even in Global. A private line (DM, 1.3.94) shows in its conversation's tab and in All —
+     * with the 1.2 look in the channel views too — never in System; a PM tab shows nothing else.
      */
     public boolean shows(@Nullable ChatMarker.Mark mark, boolean systemOnly, ChatRules rules) {
-        if (kind == Kind.SPY || kind == Kind.PM) {
+        if (kind == Kind.SPY) {
             return false;
+        }
+        if (kind == Kind.PM) {
+            return mark != null && mark.kind() == ChatMarker.Kind.DM && conversation != null
+                    && conversation.equals(mark.conversation())
+                    && (mark.sender() == null || mark.sender().equals(rules.self()) || !rules.ignores(mark.sender()));
         }
         // A system-only line lives in System alone with the new look; the 1.2 look shows it as before.
         if (systemOnly && mark == null && rules.systemOnly()) {
@@ -110,6 +137,7 @@ public record ChatTabSpec(String id, Kind kind, @Nullable Channel channel, Strin
             case PARTY -> channelShown(2, Channel.PARTY, own, rules);
             case GUILD -> channelShown(3, Channel.GUILD, own, rules);
             case DISCORD -> channelShown(4, Channel.GLOBAL, own, rules);
+            case DM -> kind == Kind.ALL || kind == Kind.CHANNEL && !rules.systemOnly();
         };
     }
 

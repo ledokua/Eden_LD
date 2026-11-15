@@ -284,4 +284,35 @@ class TabMenuTest {
         // The glyph's: anchored at the canvas' bottom, it opens upward from there.
         assertEquals(123, ChatMenus.below(224, 224, 100, 224));
     }
+
+    // ---------------------------------------------------------------- conversations (1.3.94)
+
+    @Test
+    void aGroupsTabForItsCreator() {
+        ChatTabSpec tab = ChatTabSpec.pm("g:1", "Raid");
+        TabMenu.Spec spec = new TabMenu.Spec(tab, null, null, false, false, null, NONE, true, INK_DIM, DANGER,
+                new TabMenu.Pm(true, true, List.of("Me", "Bob"), List.of("Alex"), false), true);
+        List<ContextMenu.Entry> rows = TabMenu.entries(spec, new Recorder());
+        // Name, Mark as read, Members ▸, Invite ▸, Rename…, Leave, Close tab, New group…, a line, Chat settings.
+        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Item.class, ContextMenu.Submenu.class,
+                ContextMenu.Submenu.class, ContextMenu.Item.class, ContextMenu.Item.class, ContextMenu.Item.class,
+                ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class), kinds(rows));
+        assertEquals("Raid", ((ContextMenu.Header) rows.get(0)).text().getString());
+        assertTrue(((ContextMenu.Submenu) rows.get(3)).enabled());
+        assertEquals("chat.eden_ld.dm.menu.rename", key(((ContextMenu.Item) rows.get(4)).label()));
+        assertEquals("chat.eden_ld.dm.menu.close", key(((ContextMenu.Item) rows.get(6)).label()));
+        assertEquals("chat.eden_ld.dm.menu.new_group", key(((ContextMenu.Item) rows.get(7)).label()));
+    }
+
+    @Test
+    void aDmsTabHasNoGroupRows() {
+        ChatTabSpec tab = ChatTabSpec.pm("dm:a:b", "Bob");
+        TabMenu.Spec spec = new TabMenu.Spec(tab, null, null, false, false, null, NONE, false, INK_DIM, DANGER,
+                new TabMenu.Pm(false, false, List.of("Me", "Bob"), List.of(), false), false);
+        List<ContextMenu.Entry> rows = TabMenu.entries(spec, new Recorder());
+        // Name, Mark as read (greyed: nothing unread), Open profile, Close tab, a line, Chat settings.
+        assertEquals(List.of(ContextMenu.Header.class, ContextMenu.Item.class, ContextMenu.Item.class,
+                ContextMenu.Item.class, ContextMenu.Separator.class, ContextMenu.Item.class), kinds(rows));
+        assertFalse(((ContextMenu.Item) rows.get(1)).enabled());
+    }
 }

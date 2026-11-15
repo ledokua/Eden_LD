@@ -265,4 +265,48 @@ class ChatTabsTest {
         assertNull(ChatTabs.tagChannel("/msg Bob hi"));
         assertNull(ChatTabs.tagChannel("ch local"));
     }
+
+    // ---------------------------------------------------------------- private conversations (1.3.94)
+
+    @Test
+    void conversationsFollowTheFixedTabsAndCloseToAll() {
+        ChatTabSpec bob = ChatTabSpec.pm("dm:a:b", "Bob");
+        ChatTabSpec raid = ChatTabSpec.pm("g:1", "Raid");
+        ChatTabs tabs = new ChatTabs();
+        tabs.refresh(ALONE, 0, Channel.GLOBAL.ordinal(), true, false, new ChatTabSpec[]{bob, raid}, 2, 1);
+        assertArrayEquals(new int[]{0, 1, 2, 5, ChatTabs.SLOTS, ChatTabs.SLOTS + 1}, order(tabs));
+        assertEquals(ChatTabs.SLOTS + 1, tabs.slotOf(raid));
+        assertEquals(ChatTabs.SLOTS + 1, tabs.slotOf(ChatTabSpec.pm("g:1", "Renamed")));
+        assertSame(raid, tabs.specAt(ChatTabs.SLOTS + 1));
+        assertEquals(Mode.PM, ChatTabs.modeOf(ChatTabs.SLOTS));
+        assertFalse(tabs.canHide(ChatTabs.SLOTS));
+
+        tabs.pm("g:1");
+        assertTrue(tabs.refresh(ALONE, 0, Channel.GLOBAL.ordinal(), true, false, new ChatTabSpec[]{bob, raid}, 2, 1));
+        assertSame(raid, tabs.active(Channel.GLOBAL, true, false));
+        assertEquals(ChatTabs.SLOTS + 1, tabs.activeSlot());
+        assertEquals("g:1", tabs.pm());
+        int key = tabs.key();
+        assertFalse(tabs.refresh(ALONE, 0, Channel.GLOBAL.ordinal(), true, false, new ChatTabSpec[]{bob, raid}, 2, 1));
+        assertEquals(key, tabs.key());
+
+        // Its tab closes: the view goes to All, and the strip loses it.
+        assertTrue(tabs.refresh(ALONE, 0, Channel.GLOBAL.ordinal(), true, false, new ChatTabSpec[]{bob}, 1, 2));
+        assertSame(ChatTabSpec.ALL, tabs.active(Channel.GLOBAL, true, false));
+        assertEquals(-1, tabs.slotOf(raid));
+        assertArrayEquals(new int[]{0, 1, 2, 5, ChatTabs.SLOTS}, order(tabs));
+        assertNull(tabs.pm());
+    }
+
+    @Test
+    void atMostPmSlotsConversationTabs() {
+        ChatTabSpec[] many = new ChatTabSpec[ChatTabs.PM_SLOTS + 3];
+        for (int i = 0; i < many.length; i++) {
+            many[i] = ChatTabSpec.pm("g:" + i, "G" + i);
+        }
+        ChatTabs tabs = new ChatTabs();
+        tabs.refresh(ALONE, 0, Channel.GLOBAL.ordinal(), true, false, many, many.length, 1);
+        assertEquals(4 + ChatTabs.PM_SLOTS, tabs.count());
+        assertEquals(-1, tabs.slotOf(many[ChatTabs.PM_SLOTS]));
+    }
 }

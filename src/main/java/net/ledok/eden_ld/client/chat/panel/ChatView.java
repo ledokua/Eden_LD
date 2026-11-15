@@ -109,6 +109,8 @@ public final class ChatView {
     /** The lines the tab shows, newest first, and what they were picked with. */
     private List<Row> rows = List.of();
     private int builtVersion = -1;
+    /** The conversations' lines as they were ({@code Conversations.linesVersion}). */
+    private int builtLines = -1;
     private int builtWidth = -1;
     private int builtFonts = -1;
     private int builtRules = -1;
@@ -221,7 +223,9 @@ public final class ChatView {
         ChatTabSpec tab = tab(newLook);
         boolean focused = frame.open();
         String search = viewport.search();
-        if (builtRules != ChatViews.rulesEpoch() || builtVersion != ChatStore.version() || builtWidth != width
+        int convLines = net.ledok.eden_ld.client.chat.Conversations.linesVersion();
+        if (builtRules != ChatViews.rulesEpoch() || builtVersion != ChatStore.version() || builtLines != convLines
+                || builtWidth != width
                 || builtFonts != ChatEntry.fontEpoch() || builtSettings != settings || builtTyping != typing
                 || builtTab != tab || !builtSearch.equals(search) || builtFocused != focused
                 || builtNewLook != newLook) {
@@ -231,7 +235,9 @@ public final class ChatView {
             // where it came from); they leave once the chat opens.
             boolean mentions = newLook && !focused;
             List<Row> built = new ArrayList<>();
-            List<ChatEntry> entries = ChatStore.entries();
+            // A conversation's tab reads its own lines (the stored ones from before joining among them).
+            List<ChatEntry> entries = tab.kind() == ChatTabSpec.Kind.PM
+                    ? net.ledok.eden_ld.client.chat.Conversations.entries(tab.conversation()) : ChatStore.entries();
             for (int i = entries.size() - 1; i >= 0; i--) {
                 ChatEntry entry = entries.get(i);
                 if (!tab.shows(entry.mark, entry.systemOnly, rules)
@@ -252,6 +258,7 @@ public final class ChatView {
             }
             builtRules = ChatViews.rulesEpoch();
             builtVersion = ChatStore.version();
+            builtLines = convLines;
             builtWidth = width;
             builtFonts = ChatEntry.fontEpoch();
             builtSettings = settings;

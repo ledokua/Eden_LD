@@ -44,7 +44,14 @@ public final class ActivityInvites {
     }
 
     private static boolean allowedBySettings(MinecraftServer server, UUID from, UUID invitee) {
-        int off = HubSettings.activityInvitesOff(server, invitee);
+        return allowedBy(server, from, invitee, HubSettings.activityInvitesOff(server, invitee));
+    }
+
+    /**
+     * Whether {@code from} passes {@code invitee}'s switches {@code off} (the activity-invite bits; private messages
+     * use the same groups): someone in several groups if any of theirs is on, "everyone else" only for strangers.
+     */
+    public static boolean allowedBy(MinecraftServer server, UUID from, UUID invitee, int off) {
         if (off == 0) {
             return true;
         }

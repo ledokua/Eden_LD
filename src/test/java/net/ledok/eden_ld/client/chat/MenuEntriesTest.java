@@ -262,4 +262,17 @@ class MenuEntriesTest {
         assertEquals(2, rows.size());
         assertEquals(List.of("copy"), runAll(rows, actions));
     }
+
+    @Test
+    void someoneElsesMessageWhereTheServerKeepsConversations() {
+        MessageMenu.Spec spec = new MessageMenu.Spec(Component.literal("Steve's message"), INK_DIM, true, true, false,
+                Component.literal("Ignore"), true);
+        List<ContextMenu.Entry> rows = MessageMenu.entries(spec, new Recorder());
+        assertEquals(6, rows.size());
+        assertEquals("chat.eden_ld.action.write", ((net.minecraft.network.chat.contents.TranslatableContents)
+                ((ContextMenu.Item) rows.get(2)).label().getContents()).getKey());
+        // Their own line: nobody to write to.
+        assertEquals(3, MessageMenu.entries(new MessageMenu.Spec(Component.literal("x"), INK_DIM, false, true, false,
+                Component.literal("Ignore"), true), new Recorder()).size());
+    }
 }

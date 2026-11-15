@@ -2870,6 +2870,162 @@ public final class HubPayloads {
     }
 
     /**
+     * S2C (1.3.94+): who may write to the player privately and add them to groups ({@code HubSettings.DM_OFF} bits;
+     * {@code chat.dm.DirectMessages}). Its own payload, sent after {@link SettingsData} only to clients that know it;
+     * without it the Settings tab leaves those switches out.
+     */
+    public record DmPrivacyData(int off) implements CustomPacketPayload {
+        public static final Type<DmPrivacyData> TYPE = new Type<>(id("dm_privacy_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, DmPrivacyData> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeVarInt(p.off), buf -> new DmPrivacyData(buf.readVarInt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** A member of a private conversation, under the name they had when last seen. */
+    public record ConvMember(java.util.UUID uuid, String name) {
+        static void write(RegistryFriendlyByteBuf buf, ConvMember member) {
+            buf.writeUUID(member.uuid);
+            buf.writeUtf(member.name, 16);
+        }
+
+        static ConvMember read(RegistryFriendlyByteBuf buf) {
+            return new ConvMember(buf.readUUID(), buf.readUtf(16));
+        }
+    }
+
+    /**
+     * A stored line of a private conversation as its reader's chat shows it (markers, tag, name and text, built by the
+     * server), and when it was written (server clock, ms).
+     */
+    public record ConvLine(long time, net.minecraft.network.chat.Component line) {
+        static void write(RegistryFriendlyByteBuf buf, ConvLine line) {
+            buf.writeVarLong(line.time);
+            net.minecraft.network.chat.ComponentSerialization.TRUSTED_STREAM_CODEC.encode(buf, line.line);
+        }
+
+        static ConvLine read(RegistryFriendlyByteBuf buf) {
+            return new ConvLine(buf.readVarLong(),
+                    net.minecraft.network.chat.ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf));
+        }
+    }
+
+    /**
+     * S2C (1.3.94+): a private conversation — a DM or a group — as the player sees it: its tab ({@code hidden}: closed
+     * by the player), its members and, with {@code full}, its stored lines (else the client keeps the lines it has).
+     * {@code readAt}: the player read everything up to then (server clock); later lines from others are unread.
+     * {@code focus}: the player asked for it («Написати»), so the chat shows its tab. Live lines arrive as chat lines
+     * ({@code ChatMarker.Kind.DM}).
+     */
+    public record ConvData(String conv, boolean group, String name, java.util.UUID owner, List<ConvMember> members,
+                           boolean hidden, boolean focus, boolean full, long readAt, List<ConvLine> lines)
+            implements CustomPacketPayload {
+        public static final Type<ConvData> TYPE = new Type<>(id("conv_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ConvData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.conv, 96);
+                    buf.writeBoolean(p.group);
+                    buf.writeUtf(p.name, 64);
+                    buf.writeUUID(p.owner);
+                    writeList(buf, p.members, ConvMember::write);
+                    buf.writeBoolean(p.hidden);
+                    buf.writeBoolean(p.focus);
+                    buf.writeBoolean(p.full);
+                    buf.writeVarLong(p.readAt);
+                    writeList(buf, p.lines, ConvLine::write);
+                },
+                buf -> new ConvData(buf.readUtf(96), buf.readBoolean(), buf.readUtf(64), buf.readUUID(),
+                        readList(buf, ConvMember::read), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
+                        buf.readVarLong(), readList(buf, ConvLine::read)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** S2C (1.3.94+): the player is no longer in the conversation (left, removed, or it expired): its tab goes. */
+    public record ConvGone(String conv) implements CustomPacketPayload {
+        public static final Type<ConvGone> TYPE = new Type<>(id("conv_gone"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ConvGone> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeUtf(p.conv, 96), buf -> new ConvGone(buf.readUtf(96)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S (1.3.94+): «Написати» on a player — open (or start) the DM with them; the answer is a focused ConvData. */
+    public record ConvOpen(java.util.UUID target) implements CustomPacketPayload {
+        public static final Type<ConvOpen> TYPE = new Type<>(id("conv_open"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ConvOpen> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeUUID(p.target), buf -> new ConvOpen(buf.readUUID()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S (1.3.94+): a line typed in a conversation's tab. */
+    public record ConvSend(String conv, String text) implements CustomPacketPayload {
+        public static final Type<ConvSend> TYPE = new Type<>(id("conv_send"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ConvSend> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.conv, 96);
+                    buf.writeUtf(p.text, 512);
+                },
+                buf -> new ConvSend(buf.readUtf(96), buf.readUtf(512)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * C2S (1.3.94+): something done to a conversation from its tab: {@link #HIDE} (close the tab), {@link #READ}
+     * (everything seen), {@link #LEAVE} (a group), {@link #RENAME} ({@code text} the new name; the group's creator),
+     * {@link #INVITE} ({@code text} an online player's name).
+     */
+    public record ConvAction(String conv, int action, String text) implements CustomPacketPayload {
+        public static final int HIDE = 0, READ = 1, LEAVE = 2, RENAME = 3, INVITE = 4;
+        public static final Type<ConvAction> TYPE = new Type<>(id("conv_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ConvAction> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.conv, 96);
+                    buf.writeVarInt(p.action);
+                    buf.writeUtf(p.text, 64);
+                },
+                buf -> new ConvAction(buf.readUtf(96), buf.readVarInt(), buf.readUtf(64)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S (1.3.94+): a new group chat with this name, the creator and these players in it. */
+    public record GroupCreate(String name, List<java.util.UUID> invite) implements CustomPacketPayload {
+        public static final Type<GroupCreate> TYPE = new Type<>(id("group_create"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, GroupCreate> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeUtf(p.name, 64);
+                    writeList(buf, p.invite, (b, uuid) -> b.writeUUID(uuid));
+                },
+                buf -> new GroupCreate(buf.readUtf(64), readList(buf, b -> b.readUUID())));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
      * S2C: someone @mentioned the player in a chat channel ({@code ChatChannels.Channel} ordinal) — the client plays
      * the ping at the player's own volume, unless that channel's notifications are Nothing.
      */
@@ -3834,6 +3990,13 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(SettingsData.TYPE, SettingsData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatFlags.TYPE, ChatFlags.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityInvitesData.TYPE, ActivityInvitesData.CODEC);
+        PayloadTypeRegistry.playS2C().register(DmPrivacyData.TYPE, DmPrivacyData.CODEC);
+        PayloadTypeRegistry.playS2C().register(ConvData.TYPE, ConvData.CODEC);
+        PayloadTypeRegistry.playS2C().register(ConvGone.TYPE, ConvGone.CODEC);
+        PayloadTypeRegistry.playC2S().register(ConvOpen.TYPE, ConvOpen.CODEC);
+        PayloadTypeRegistry.playC2S().register(ConvSend.TYPE, ConvSend.CODEC);
+        PayloadTypeRegistry.playC2S().register(ConvAction.TYPE, ConvAction.CODEC);
+        PayloadTypeRegistry.playC2S().register(GroupCreate.TYPE, GroupCreate.CODEC);
         PayloadTypeRegistry.playS2C().register(MapSharingData.TYPE, MapSharingData.CODEC);
         PayloadTypeRegistry.playS2C().register(ChatSystemOnly.TYPE, ChatSystemOnly.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivitiesData.TYPE, ActivitiesData.CODEC);

@@ -51,7 +51,8 @@ public final class ChatTabActions {
         HubPayloads.SettingsData settings = HubState.settingsData;
         Channel typing = ClientChatChannel.current();
         tabs().refresh(open, settings == null ? 0 : settings.chatHidden(), typing == null ? -1 : typing.ordinal(),
-                HubState.chatAllTab(), false);
+                HubState.chatAllTab(), false, Conversations.tabs(), Conversations.tabCount(),
+                Conversations.tabsEpoch());
     }
 
     /**
@@ -59,7 +60,7 @@ public final class ChatTabActions {
      * {@code jump} — a click, as on 1.2's pips — scrolls to its oldest unseen mention. Open menus close first.
      */
     public static void show(ChatTabSpec tab, boolean jump) {
-        int slot = ChatTabs.slot(tab);
+        int slot = tabs().slotOf(tab);
         if (slot < 0) {
             return;
         }
@@ -67,7 +68,11 @@ public final class ChatTabActions {
         if (ui != null) {
             ui.canvas().closeMenus();
         }
-        tabs().mode(ChatTabs.modeOf(slot));
+        if (tab.kind() == ChatTabSpec.Kind.PM && tab.conversation() != null) {
+            tabs().pm(tab.conversation());
+        } else {
+            tabs().mode(ChatTabs.modeOf(slot));
+        }
         Channel channel = tab.channel();
         if (channel != null) {
             ClientChatChannel.select(channel);
@@ -89,8 +94,21 @@ public final class ChatTabActions {
         if (to < 0) {
             return false;
         }
-        show(ChatTabs.spec(tabs.slotAt(to)), false);
+        show(tabs.specAt(tabs.slotAt(to)), false);
         return true;
+    }
+
+    /**
+     * The conversation a typed line goes to: the one whose tab the new look's open chat shows (null on any other tab,
+     * with the 1.2 look, or on a server that keeps no conversations).
+     */
+    @org.jetbrains.annotations.Nullable
+    public static String typingConversation() {
+        if (!ChatFilter.newLook() || !Conversations.available()) {
+            return null;
+        }
+        ChatTabSpec tab = ChatViews.main().tab();
+        return tab.kind() == ChatTabSpec.Kind.PM ? tab.conversation() : null;
     }
 
     // ---------------------------------------------------------------- hiding and showing
@@ -113,6 +131,14 @@ public final class ChatTabActions {
      * (Settings → Chat then moves the typing channel off a hidden one, {@link ClientChatChannel#onSettings}).
      */
     public static void hide(ChatTabSpec tab) {
+        if (tab.kind() == ChatTabSpec.Kind.PM && tab.conversation() != null) {
+            // A conversation's tab closes for this player alone; the view goes to All (or the typing channel's).
+            if (tab.conversation().equals(tabs().pm())) {
+                tabs().mode(HubState.chatAllTab() ? ChatTabs.Mode.ALL : ChatTabs.Mode.CHANNEL);
+            }
+            Conversations.close(tab.conversation());
+            return;
+        }
         if (!canHide(tab)) {
             return;
         }

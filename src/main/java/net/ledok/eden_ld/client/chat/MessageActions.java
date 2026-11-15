@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.client.chat;
 
 import net.ledok.eden_ld.chat.ChatChannels.Channel;
+import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.panel.ChatEntry;
 import net.ledok.eden_ld.client.chat.panel.MessageText;
 import net.ledok.eden_ld.client.hub.HubScreen;
@@ -35,6 +36,14 @@ public final class MessageActions {
 
     /** Into the message's channel, with "@Name " in front of what's typed. */
     public static void reply(ChatEntry entry) {
+        if (entry.dm()) {
+            // A private line: its conversation's tab, where typing answers it.
+            ChatTabSpec tab = entry.mark() == null ? null : Conversations.spec(entry.mark().conversation());
+            if (tab != null && ChatFilter.newLook()) {
+                ChatTabActions.show(tab, false);
+            }
+            return;
+        }
         Channel channel = entry.channel();
         if (channel != null && ClientChatChannel.open(channel)) {
             ClientChatChannel.select(channel);
@@ -42,6 +51,29 @@ public final class MessageActions {
         String name = MessageText.senderName(entry);
         if (name != null && Minecraft.getInstance().screen instanceof ChatScreen chat) {
             ((net.ledok.eden_ld.mixin.ChatScreenAccessor) chat).eden_ld$insertText("@" + name + " ", false);
+        }
+    }
+
+    /** «Написати» applies: someone else's line, on a server that keeps conversations. */
+    public static boolean canWrite(ChatEntry entry) {
+        return fromOther(entry) && Conversations.available();
+    }
+
+    /**
+     * «Написати»: the DM with the line's writer — its tab with the new look (the server answers with it, shown); the
+     * 1.2 look has no tabs, so "/msg Name " goes in the input (the server files it in the conversation all the same).
+     */
+    public static void write(ChatEntry entry) {
+        if (entry.sender() == null) {
+            return;
+        }
+        if (ChatFilter.newLook()) {
+            Conversations.write(entry.sender());
+            return;
+        }
+        String name = MessageText.senderName(entry);
+        if (name != null && Minecraft.getInstance().screen instanceof ChatScreen chat) {
+            ((net.ledok.eden_ld.mixin.ChatScreenAccessor) chat).eden_ld$insertText("/msg " + name + " ", false);
         }
     }
 

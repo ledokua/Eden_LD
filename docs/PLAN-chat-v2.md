@@ -1148,6 +1148,21 @@ the core, right after the tab strip (Phase 5b); spy and archive still leave PMs 
 "Boxes" demo) · 6 yes (Noto Sans, trial off; dark/overgrown/parchment smooth after sign-off; stone_tablet pixel) ·
 7 yes (core stops at one movable chat + toasts + PMs; detached chats, quest chips, region blur stay optional).
 
+## Phase 5b as built (1.3.94, owner's decision 2026-11-15)
+
+The pin model over signed `/msg` was replaced by **server-kept conversations** (`chat.dm.DirectMessages`):
+- DMs and group chats (up to 10 members) are tabs after System (`ChatTabSpec.Kind.PM`, `ChatTabs` slots 7..14, at most
+  `PM_SLOTS` = 8 shown). A PM tab shows only its conversation; typing there sends `ConvSend` instead of chat.
+  Closing a tab hides it for that player (kept on the server); the next line reopens it.
+- Live lines are chat lines marked `ChatMarker.Kind.DM` plus an `eden_ld:conv:<id>` piece; the client files the same
+  `ChatEntry` in All and in the conversation (`client.chat.Conversations`). Stored lines (last 100, 7 days,
+  `data/eden_ld/conversations.dat`) arrive on join in `ConvData` and live in the tab only, unread ones marked
+  (`readAt`; the client sends `ConvAction.READ` once everything is seen).
+- `/msg`, `/tell`, `/w` from a player with Eden are routed into the DM (`MsgCommandDmMixin`); console, clients without
+  Eden and several targets keep vanilla whispers.
+- Privacy: ignore list both ways, Settings switches `dm_off` (activity-invite bits). Staff never read them; complaints
+  carry only DM lines between reporter and target (`ChatRecall.sendPrivate`, group lines never).
+
 ## Decisions asked (2026-10-17, answered above)
 
 1. **Tab means typing channel.** The viewed channel tab is where you type. All and System keep the last channel; `!x` stays; `CHAT_FOCUS` is removed; unmarked lines still show in channel tabs. **Default: yes.** This changes Phase 5.

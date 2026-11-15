@@ -117,6 +117,9 @@ final class SettingsTab {
         if (HubState.activityInvitesOff >= 0) {
             activityInvites(settings, data);
         }
+        if (HubState.dmOff >= 0) {
+            dmPrivacy(settings, data);
+        }
         if (HubState.mapHidden >= 0) {
             settings.heading(tr("section.map"));
             settings.add(mapSharing("map.guild", HubSettings.MAP_HIDDEN_GUILD));
@@ -156,6 +159,31 @@ final class SettingsTab {
                     send(HubSettings.ACTIVITY_INVITES_OFF, next);
                 })
                 .text(tr("activity_invites.toggle")).hint(tr(name + ".hint")).defaultValue(true);
+    }
+
+    /**
+     * Who may write to the player privately and add them to group chats (1.3.94): one switch per group, as the
+     * activity invites. Players the player ignores never may (nor may anyone they write to who ignores them).
+     */
+    private static void dmPrivacy(Settings settings, HubPayloads.SettingsData data) {
+        settings.heading(tr("section.dm"));
+        if (data.friendsAvailable()) {
+            settings.add(dmSwitch("friends", HubSettings.ACTIVITY_INVITES_FRIENDS));
+        }
+        settings.add(dmSwitch("party", HubSettings.ACTIVITY_INVITES_PARTY));
+        settings.add(dmSwitch("guild", HubSettings.ACTIVITY_INVITES_GUILD));
+        settings.add(dmSwitch("others", HubSettings.ACTIVITY_INVITES_OTHERS));
+    }
+
+    private static Option<?, ?> dmSwitch(String who, int bit) {
+        String name = "dm." + who;
+        return Option.toggle(tr(name), (Math.max(0, HubState.dmOff) & bit) == 0, on -> {
+                    int now = Math.max(0, HubState.dmOff);
+                    int next = on ? now & ~bit : now | bit;
+                    HubState.dmOff = next;
+                    send(HubSettings.DM_OFF, next);
+                })
+                .text(tr("dm.toggle")).hint(tr(name + ".hint")).defaultValue(true);
     }
 
     /**

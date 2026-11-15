@@ -76,6 +76,14 @@ public final class ChatActivity {
             ChatViews.added(entry);
         }
         Channel channel = entry.channel();
+        if (entry.dm()) {
+            // A private line from someone else: the ping, unless the open chat shows it right now.
+            if (!entry.seen() && !added.repeat()
+                    && !(minecraft.gui.getChat().isChatFocused() && ChatViews.main().shows(entry))) {
+                MentionSound.play();
+            }
+            return;
+        }
         if (entry.seen() || channel == null) {
             return;
         }
@@ -169,7 +177,7 @@ public final class ChatActivity {
     /** Mark as read on the System tab: the lines of no channel (the server's, other mods', deaths, advancements). */
     public static void markReadSystem() {
         for (ChatEntry entry : ChatStore.entries()) {
-            if (entry.channel() == null) {
+            if (entry.channel() == null && !entry.dm()) {
                 entry.markSeen();
             }
         }
@@ -180,6 +188,7 @@ public final class ChatActivity {
         for (ChatEntry entry : ChatStore.entries()) {
             entry.markSeen();
         }
+        Conversations.markAllRead();
         TOASTS.clear();
     }
 

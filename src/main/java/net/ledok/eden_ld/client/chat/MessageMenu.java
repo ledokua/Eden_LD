@@ -73,7 +73,13 @@ public final class MessageMenu {
      * someone else's, whether it has a writer, whether the player is staff, and Ignore's label (or Stop ignoring).
      */
     public record Spec(Component title, int titleColor, boolean fromOther, boolean hasSender, boolean staff,
-                       Component ignoreLabel) {
+                       Component ignoreLabel, boolean canWrite) {
+
+        /** Without «Написати» (a server that keeps no conversations). */
+        public Spec(Component title, int titleColor, boolean fromOther, boolean hasSender, boolean staff,
+                    Component ignoreLabel) {
+            this(title, titleColor, fromOther, hasSender, staff, ignoreLabel, false);
+        }
     }
 
     /** What the rows do. */
@@ -87,13 +93,18 @@ public final class MessageMenu {
         void ignore();
 
         void moderate();
+
+        /** «Написати»: a private conversation with the line's writer (1.3.94). */
+        default void write() {
+        }
     }
 
     /** The menu for {@code target}; {@code inkDim} is the chat theme's dim text (the title). */
     public static Spec spec(ChatEntry target, int inkDim) {
         return new Spec(title(target), inkDim, MessageActions.fromOther(target), target.sender() != null,
                 MessageActions.staff(),
-                target.sender() == null ? Component.empty() : Ignoring.menuLabel(target.sender()));
+                target.sender() == null ? Component.empty() : Ignoring.menuLabel(target.sender()),
+                MessageActions.canWrite(target));
     }
 
     /** The rows acting on {@code target} ({@link MessageActions}). */
@@ -123,6 +134,11 @@ public final class MessageMenu {
             public void moderate() {
                 MessageActions.moderate(target);
             }
+
+            @Override
+            public void write() {
+                MessageActions.write(target);
+            }
         };
     }
 
@@ -132,6 +148,9 @@ public final class MessageMenu {
         entries.add(new ContextMenu.Header(spec.title(), spec.titleColor()));
         if (spec.fromOther()) {
             entries.add(new ContextMenu.Item(tr("reply"), actions::reply, true));
+            if (spec.canWrite()) {
+                entries.add(new ContextMenu.Item(tr("write"), actions::write, true));
+            }
         }
         entries.add(new ContextMenu.Item(tr("copy"), actions::copy, true));
         if (spec.hasSender()) {
@@ -153,6 +172,9 @@ public final class MessageMenu {
         boolean other = MessageActions.fromOther(target);
         if (other) {
             rows.add(new Row(tr("reply"), () -> MessageActions.reply(target)));
+            if (MessageActions.canWrite(target)) {
+                rows.add(new Row(tr("write"), () -> MessageActions.write(target)));
+            }
         }
         rows.add(new Row(tr("copy"), () -> MessageActions.copy(target)));
         if (target.sender() != null) {

@@ -4,6 +4,8 @@ import net.ledok.eden_ld.chat.ChatChannels.Channel;
 import net.ledok.eden_ld.client.chat.ChannelMenu;
 import net.ledok.eden_ld.client.chat.ChatActivity;
 import net.ledok.eden_ld.client.chat.ChatTabActions;
+import net.ledok.eden_ld.client.chat.Conversations;
+import net.ledok.eden_ld.client.chat.GroupScreen;
 import net.ledok.eden_ld.client.chat.model.ChatTabSpec;
 import net.ledok.eden_ld.client.chat.model.ChatTabs;
 import net.ledok.eden_ld.client.hub.HubScreen;
@@ -30,9 +32,11 @@ import java.util.Objects;
  *   <li>System: its name, Mark as read, "Also in channel tabs" (where the server keeps that switch).</li>
  *   <li>All: its name, Mark all as read, Hide tab (greyed where the server doesn't keep the All tab's switch).</li>
  *   <li>Spy (phase 10): its name in the danger color.</li>
+ *   <li>A conversation (1.3.94): its name, Mark as read; a DM's Open profile; a group's Members ▸, Invite ▸, Rename…
+ *   (its creator) and Leave group; Close tab.</li>
  * </ul>
- * Then Show hidden tabs ▸ while something is hidden, a line and Chat settings. Hiding and showing are Settings → Chat
- * switches: the strip changes when the server's answer arrives.
+ * Then Show hidden tabs ▸ while something is hidden, New group… where the server keeps conversations, a line and Chat
+ * settings. Hiding and showing are Settings → Chat switches: the strip changes when the server's answer arrives.
  */
 public final class TabMenu {
 
@@ -55,7 +59,27 @@ public final class TabMenu {
      */
     public record Spec(ChatTabSpec tab, @Nullable ChannelMenu.Spec channel, @Nullable Boolean discordShown,
                        boolean hidden, boolean hideable, @Nullable Boolean systemInTabs, int[] showable,
-                       boolean unread, int inkDim, int danger) {
+                       boolean unread, int inkDim, int danger, @Nullable Pm pm, boolean newGroup) {
+
+        /** As before conversations: no conversation rows, no New group. */
+        public Spec(ChatTabSpec tab, @Nullable ChannelMenu.Spec channel, @Nullable Boolean discordShown,
+                    boolean hidden, boolean hideable, @Nullable Boolean systemInTabs, int[] showable,
+                    boolean unread, int inkDim, int danger) {
+            this(tab, channel, discordShown, hidden, hideable, systemInTabs, showable, unread, inkDim, danger, null,
+                    false);
+        }
+    }
+
+    /**
+     * A conversation tab's own rows (1.3.94).
+     *
+     * @param group     a group chat (else a DM)
+     * @param owner     the player made the group: Rename…
+     * @param members   the group's members' names
+     * @param invitable online players who aren't in it yet (Invite ▸); empty when the group is full
+     * @param full      the group has its most members
+     */
+    public record Pm(boolean group, boolean owner, List<String> members, List<String> invitable, boolean full) {
     }
 
     /** What the rows do; a channel tab's own rows run {@link ChannelMenu.Actions}. */
@@ -75,6 +99,30 @@ public final class TabMenu {
         void markReadSystem();
 
         void markReadAll();
+
+        /** New group…: the form for a new group chat. */
+        default void newGroup() {
+        }
+
+        /** A conversation's Close tab. */
+        default void closeTab() {
+        }
+
+        /** A group's Invite ▸ row: this online player. */
+        default void invite(String name) {
+        }
+
+        /** A group's Rename… (its creator). */
+        default void rename() {
+        }
+
+        /** A group's Leave group. */
+        default void leave() {
+        }
+
+        /** A DM's Open profile: the other player's. */
+        default void profile() {
+        }
     }
 
     private static Component tr(String key) {
@@ -112,8 +160,9 @@ public final class TabMenu {
                 entries.add(new ContextMenu.Item(tr("read_all"), actions::markReadAll, spec.unread()));
                 entries.add(hideRow(spec, actions));
             }
+            case PM -> entries = pmEntries(spec, actions);
             default -> {
-                // Spy (phase 10 adds "Stop spying" with its command); PM tabs come in phase 5b.
+                // Spy (phase 10 adds "Stop spying" with its command).
                 entries = new ArrayList<>();
                 entries.add(new ContextMenu.Header(Component.translatable(tab.labelKey()), spec.danger()));
             }
@@ -123,8 +172,52 @@ public final class TabMenu {
             entries.add(new ContextMenu.Submenu(tr("show_tabs"), () -> ChatMenus.build(showEntries(slots, actions)),
                     true));
         }
+        if (spec.newGroup()) {
+            entries.add(new ContextMenu.Item(dm("new_group"), actions::newGroup, true));
+        }
         entries.add(new ContextMenu.Separator());
         entries.add(new ContextMenu.Item(tr("settings"), actions::settings, true));
+        return entries;
+    }
+
+    private static Component dm(String key) {
+        return Component.translatable("chat.eden_ld.dm.menu." + key);
+    }
+
+    /** A conversation's rows: its name, Mark as read, a DM's profile or a group's members and doings, Close tab. */
+    private static List<ContextMenu.Entry> pmEntries(Spec spec, Actions actions) {
+        List<ContextMenu.Entry> entries = new ArrayList<>();
+        entries.add(new ContextMenu.Header(spec.tab().label(), spec.tab().color()));
+        entries.add(new ContextMenu.Item(tr("read"), actions::markRead, spec.unread()));
+        Pm pm = spec.pm();
+        if (pm != null && pm.group()) {
+            List<String> members = pm.members();
+            entries.add(new ContextMenu.Submenu(Component.translatable("chat.eden_ld.dm.menu.members", members.size()),
+                    () -> {
+                        List<ContextMenu.Entry> rows = new ArrayList<>();
+                        for (String name : members) {
+                            rows.add(new ContextMenu.Item(Component.literal(name), () -> {
+                            }, false));
+                        }
+                        return ChatMenus.build(rows);
+                    }, true));
+            List<String> invitable = pm.invitable();
+            entries.add(new ContextMenu.Submenu(dm(pm.full() ? "invite_full" : "invite"), () -> {
+                List<ContextMenu.Entry> rows = new ArrayList<>();
+                for (String name : invitable) {
+                    rows.add(new ContextMenu.Item(Component.literal(name), () -> actions.invite(name), true));
+                }
+                return ChatMenus.build(rows);
+            }, !pm.full() && !invitable.isEmpty()));
+            if (pm.owner()) {
+                entries.add(new ContextMenu.Item(dm("rename"), actions::rename, true));
+            }
+            entries.add(new ContextMenu.Item(dm("leave"), actions::leave, true));
+        } else {
+            entries.add(new ContextMenu.Item(Component.translatable("chat.eden_ld.action.profile"), actions::profile,
+                    true));
+        }
+        entries.add(new ContextMenu.Item(dm("close"), actions::closeTab, true));
         return entries;
     }
 
@@ -149,7 +242,7 @@ public final class TabMenu {
     /** The menu for {@code tab} as it is now, in the theme's dim text and danger colors. */
     public static Spec spec(ChatTabSpec tab, int inkDim, int danger) {
         ChatTabs tabs = ChatTabActions.tabs();
-        int slot = ChatTabs.slot(tab);
+        int slot = tabs.slotOf(tab);
         Channel channel = tab.channel();
         ChannelMenu.Spec channelSpec = channel != null ? ChannelMenu.spec(channel, inkDim) : null;
         int count = 0;
@@ -169,29 +262,45 @@ public final class TabMenu {
             case CHANNEL -> channelSpec != null && channelSpec.unread();
             case SYSTEM -> ChatActivity.unseenSystem();
             case ALL -> anyUnread();
+            case PM -> Conversations.unseen(tab.conversation()) > 0;
             default -> false;
         };
         Boolean systemInTabs = tab.kind() == ChatTabSpec.Kind.SYSTEM
                 && HubState.chatFlagKnown(HubPayloads.ChatFlags.SYSTEM_IN_TABS) ? HubState.chatSystemInTabs() : null;
         return new Spec(tab, channelSpec, channel == Channel.GLOBAL ? ChatTabActions.discordShown() : null,
                 slot >= 0 && tabs.hidden(slot), ChatTabActions.canHide(tab), systemInTabs, showable, unread, inkDim,
-                danger);
+                danger, tab.kind() == ChatTabSpec.Kind.PM ? pm(tab.conversation()) : null, Conversations.available());
     }
 
-    /** Anything for Mark all as read: a channel's dot or mentions, or System's dot. */
+    /** A conversation's rows as they are now: its members, and the online players who could be invited. */
+    private static Pm pm(@Nullable String id) {
+        boolean group = Conversations.group(id);
+        List<String> members = new ArrayList<>();
+        java.util.Set<java.util.UUID> in = new java.util.HashSet<>();
+        for (HubPayloads.ConvMember member : Conversations.members(id)) {
+            members.add(member.name());
+            in.add(member.uuid());
+        }
+        boolean full = members.size() >= GroupScreen.MAX_MEMBERS;
+        List<String> invitable = group && !full ? GroupScreen.onlineNames(in) : List.of();
+        return new Pm(group, Conversations.owns(id), members, invitable, full);
+    }
+
+    /** Anything for Mark all as read: a channel's dot or mentions, System's dot, or a conversation's. */
     private static boolean anyUnread() {
         for (Channel channel : Channel.values()) {
             if (ChatActivity.unseen(channel) || ChatActivity.mentions(channel) > 0) {
                 return true;
             }
         }
-        return ChatActivity.unseenSystem();
+        return ChatActivity.unseenSystem() || Conversations.anyUnseen();
     }
 
     /** The rows acting on {@code tab}. */
     public static Actions actions(ChatTabSpec tab) {
         Channel channel = tab.channel();
         ChannelMenu.Actions own = channel != null ? ChannelMenu.actions(channel) : null;
+        String conversation = tab.conversation();
         return new Actions() {
             @Override
             public void mute(int minutes) {
@@ -211,6 +320,47 @@ public final class TabMenu {
             public void markRead() {
                 if (own != null) {
                     own.markRead();
+                } else if (conversation != null) {
+                    Conversations.markRead(conversation);
+                }
+            }
+
+            @Override
+            public void newGroup() {
+                GroupScreen.create();
+            }
+
+            @Override
+            public void closeTab() {
+                ChatTabActions.hide(tab);
+            }
+
+            @Override
+            public void invite(String name) {
+                if (conversation != null) {
+                    Conversations.action(conversation, HubPayloads.ConvAction.INVITE, name);
+                }
+            }
+
+            @Override
+            public void rename() {
+                if (conversation != null) {
+                    GroupScreen.rename(conversation, tab.labelKey());
+                }
+            }
+
+            @Override
+            public void leave() {
+                if (conversation != null) {
+                    Conversations.action(conversation, HubPayloads.ConvAction.LEAVE, "");
+                }
+            }
+
+            @Override
+            public void profile() {
+                HubPayloads.ConvMember partner = Conversations.partner(conversation);
+                if (partner != null) {
+                    HubScreen.openProfileOf(partner.uuid());
                 }
             }
 

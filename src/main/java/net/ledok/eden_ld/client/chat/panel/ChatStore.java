@@ -154,6 +154,10 @@ public final class ChatStore {
         // Nothing to see in one's own lines, an ignored player's or system-only ones (no dot, no count).
         entry.seen(own || systemOnly || mark != null && mark.sender() != null && ignored.test(mark.sender()));
         ENTRIES.add(entry);
+        if (entry.dm()) {
+            // A private line: its conversation's tab has it too (the same entry: read in one, read in both).
+            net.ledok.eden_ld.client.chat.Conversations.file(entry);
+        }
         if (systemOnly) {
             systemOnlyCount++;
         }
@@ -199,7 +203,24 @@ public final class ChatStore {
         if (a == null || b == null) {
             return a == b;
         }
-        return a.kind() == b.kind() && java.util.Objects.equals(a.sender(), b.sender());
+        return a.kind() == b.kind() && java.util.Objects.equals(a.sender(), b.sender())
+                && java.util.Objects.equals(a.conversation(), b.conversation());
+    }
+
+    /**
+     * A stored line of a private conversation (sent on joining, 1.3.94): an entry of its conversation's tab alone —
+     * never in this list, so All and the closed chat don't replay old lines. Written at {@code time} (server clock);
+     * {@code read}: the player saw it already (their own lines always count as seen).
+     */
+    public static ChatEntry stored(Component content, long time, @Nullable UUID self, boolean read) {
+        ChatMarker.Mark mark = ChatMarker.find(content);
+        boolean own = mark != null && self != null && self.equals(mark.sender());
+        // Long faded: the closed chat never shows it as new.
+        ChatEntry entry = new ChatEntry(new GuiMessage(Integer.MIN_VALUE / 2, content, null, null), mark, null, own,
+                false, false);
+        entry.time = time;
+        entry.seen(own || read);
+        return entry;
     }
 
     /** Vanilla swapped a message for another (the server deleted it): the copy follows. */
