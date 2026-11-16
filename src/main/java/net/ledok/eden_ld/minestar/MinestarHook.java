@@ -130,7 +130,25 @@ public final class MinestarHook {
     public static void fetchPendingPurchases(ServerPlayer player,
                                              java.util.function.Consumer<java.util.List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase>> onPurchases) {
         if (LOADED) {
-            ShopClaim.pending(player, onPurchases);
+            // Answered once: by the platform, or (1.3.102) after 3 s without an answer with nothing waiting, so an
+            // unreachable website never keeps the hub's Home and Mail from coming (both wait on this).
+            net.minecraft.server.MinecraftServer server = player.getServer();
+            java.util.concurrent.atomic.AtomicBoolean answered = new java.util.concurrent.atomic.AtomicBoolean();
+            ShopClaim.pending(player, purchases -> {
+                if (answered.compareAndSet(false, true)) {
+                    onPurchases.accept(purchases);
+                }
+            });
+            if (server != null) {
+                java.util.concurrent.CompletableFuture.delayedExecutor(3, java.util.concurrent.TimeUnit.SECONDS)
+                        .execute(() -> server.execute(() -> {
+                            if (answered.compareAndSet(false, true)) {
+                                EdenLD.LOGGER.warn("[Shop] The platform gave no answer about {}'s website purchases "
+                                        + "in 3 s; going on without them.", player.getGameProfile().getName());
+                                onPurchases.accept(java.util.List.of());
+                            }
+                        }));
+            }
         } else {
             onPurchases.accept(java.util.List.of());
         }

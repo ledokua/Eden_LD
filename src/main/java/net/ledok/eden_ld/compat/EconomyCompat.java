@@ -19,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 public final class EconomyCompat {
 
     public static final boolean LOADED = FabricLoader.getInstance().isModLoaded("economy_ld");
+    /** How long a balance lookup may take before callers go on without it. */
+    public static final int ANSWER_TIMEOUT_SECONDS = 3;
 
     private static Method getInstance;
     private static Method getBalance;
@@ -46,7 +48,13 @@ public final class EconomyCompat {
             @SuppressWarnings("unchecked")
             CompletableFuture<Long> future = (CompletableFuture<Long>) getBalance
                     .invoke(manager, player.getUUID(), player.getGameProfile().getName());
+            // Answered once: by the lookup, or (1.3.102) after ANSWER_TIMEOUT_SECONDS without one, so a hanging
+            // database never keeps the hub's Home and Mail from coming (both wait on the balance).
+            java.util.concurrent.atomic.AtomicBoolean answered = new java.util.concurrent.atomic.AtomicBoolean();
             future.whenComplete((balance, cause) -> server.execute(() -> {
+                if (!answered.compareAndSet(false, true)) {
+                    return;
+                }
                 if (cause != null || balance == null) {
                     if (cause != null) {
                         EdenLD.LOGGER.warn("[Economy] Balance lookup failed for {}.",
@@ -57,6 +65,14 @@ public final class EconomyCompat {
                     onResult.onResult(true, balance);
                 }
             }));
+            CompletableFuture.delayedExecutor(ANSWER_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .execute(() -> server.execute(() -> {
+                        if (answered.compareAndSet(false, true)) {
+                            EdenLD.LOGGER.warn("[Economy] Balance lookup for {} gave no answer in {} s; going on without "
+                                    + "the balance.", player.getGameProfile().getName(), ANSWER_TIMEOUT_SECONDS);
+                            onResult.onResult(false, 0L);
+                        }
+                    }));
         } catch (Exception e) {
             EdenLD.LOGGER.warn("[Economy] Balance lookup threw; disabling economy compat.", e);
             available = false;

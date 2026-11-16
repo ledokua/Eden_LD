@@ -38,11 +38,20 @@ final class ShopClaim {
         }
         minestar.getUserPendingShopProductsByProfileUuidAndServerId(player.getUUID())
                 .onSuccess(products -> {
-                    List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> purchases = products.stream()
-                            .map(product -> new net.ledok.eden_ld.hub.HubPayloads.ShopPurchase(product.id(),
-                                    product.name() == null ? "" : product.name(), product.quantity()))
-                            .toList();
-                    server.execute(() -> onPurchases.accept(purchases));
+                    List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> purchases;
+                    try {
+                        purchases = products.stream()
+                                .map(product -> new net.ledok.eden_ld.hub.HubPayloads.ShopPurchase(product.id(),
+                                        product.name() == null ? "" : product.name(), product.quantity()))
+                                .toList();
+                    } catch (RuntimeException e) {
+                        // An odd answer must not swallow the callback (the hub's Home and Mail wait on it).
+                        EdenLD.LOGGER.warn("[Shop] Couldn't read the pending products of {}.",
+                                player.getGameProfile().getName(), e);
+                        purchases = List.of();
+                    }
+                    List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> answer = purchases;
+                    server.execute(() -> onPurchases.accept(answer));
                 })
                 .onFailure(cause -> {
                     EdenLD.LOGGER.warn("[Shop] Failed to count pending products for {}.",
