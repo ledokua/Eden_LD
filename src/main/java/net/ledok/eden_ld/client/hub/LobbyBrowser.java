@@ -604,6 +604,13 @@ final class LobbyBrowser {
         return panel;
     }
 
+    /** One line of text, cut with "…" to {@code width}, the whole text in its tooltip. */
+    private static CanvasNode line(Component text, int color, float width) {
+        var node = EdenParchment.text(text, color).maxWidth((int) width).ellipsis(true);
+        node.tooltip(text);
+        return node;
+    }
+
     /** A small dim caps heading, as in the concept ("DIFFICULTY", "POSSIBLE DROPS"). */
     private static CanvasNode section(Component label) {
         return EdenParchment.text(Component.literal(label.getString().toUpperCase(Locale.ROOT)), EdenParchment.INK_DIM)
@@ -647,12 +654,13 @@ final class LobbyBrowser {
             return body;
         }
         body.item(new Art(entry, width));
-        body.item(EdenParchment.text(entry.name(), EdenParchment.INK, (int) width));
-        MutableComponent line = tr("browser.type." + entry.type()).copy();
+        // One line each, cut with "…" (full in the tooltip): wrapped lines here were measured short and the next
+        // line drew over them (1.3.106).
+        body.item(line(entry.name(), EdenParchment.INK, width));
+        body.item(line(tr("browser.type." + entry.type()), EdenParchment.INK_MID, width));
         if (info != null && info.maxMembers() > 0) {
-            line.append(" · ").append(tr("browser.max_members", info.maxMembers()));
+            body.item(line(tr("browser.max_members", info.maxMembers()), EdenParchment.INK_MID, width));
         }
-        body.item(EdenParchment.text(line, EdenParchment.INK_MID, (int) width));
         int level = entry.unlockLevel();
         if (info != null && !difficulty.isEmpty()) {
             int index = info.difficulties().indexOf(difficulty);
@@ -662,9 +670,8 @@ final class LobbyBrowser {
         }
         if (data.gated()) {
             boolean meets = level <= 0 || data.level() >= level;
-            var levelLine = EdenParchment.text(level > 0 ? tr("browser.required_level_yours", level, data.level())
-                    : tr("your_level", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, (int) width);
-            body.item(levelLine);
+            body.item(line(level > 0 ? tr("browser.required_level_yours", level, data.level())
+                    : tr("your_level", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, width));
         }
         body.item(section(tr("browser.drops")));
         if (info == null) {
@@ -746,10 +753,22 @@ final class LobbyBrowser {
 
         if (!info.difficulties().isEmpty()) {
             body.item(section(tr("browser.difficulty")));
-            Flex seg = Flex.row().gap(2);
+            // One row when every name fits its share; else two per row (1.3.106: «Nightmare» ran over its button).
             int count = info.difficulties().size();
-            float each = (width - 2 * (count - 1)) / count;
+            var font = Minecraft.getInstance().font;
+            float needed = 0;
+            for (String id : info.difficulties()) {
+                needed += font.width(difficultyName(id)) + 10;
+            }
+            int perRow = needed + 2 * (count - 1) <= width ? count : 2;
+            float each = (width - 2 * (perRow - 1)) / perRow;
+            Flex grid = Flex.column().gap(2);
+            Flex seg = null;
             for (int i = 0; i < count; i++) {
+                if (i % perRow == 0) {
+                    seg = Flex.row().gap(2);
+                    grid.item(seg);
+                }
                 String id = info.difficulties().get(i);
                 int level = i < info.levels().size() ? info.levels().get(i) : 0;
                 boolean open = !data.gated() || level <= 0 || data.level() >= level;
@@ -774,7 +793,7 @@ final class LobbyBrowser {
                 }
                 seg.item(pill);
             }
-            body.item(seg);
+            body.item(grid);
         }
 
         boolean any = false;
