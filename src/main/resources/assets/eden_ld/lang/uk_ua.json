@@ -1686,6 +1686,7 @@
   "gui.eden_ld.hub.activities.browser.max_members": "До %s гравців",
   "gui.eden_ld.hub.activities.browser.drops": "Можлива здобич:",
   "gui.eden_ld.hub.activities.browser.no_drops": "Немає даних про здобич.",
+  "gui.eden_ld.hub.activities.browser.drops_more": "Ще %s (усього можливих: %s)",
   "gui.eden_ld.hub.activities.browser.leaderboard": "Таблиця лідерів",
   "gui.eden_ld.hub.activities.browser.leaderboard_hint": "Відкрити екран активності: таблиця лідерів, лобі й запрошення.",
   "gui.eden_ld.hub.activities.browser.not_creatable": "Лобі цієї активності створюються на місці.",

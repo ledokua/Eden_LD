@@ -122,6 +122,11 @@ public interface ActivitySource {
         return List.of();
     }
 
+    /** How many items a win can give at that difficulty, before any cap of {@link #possibleDrops}; -1 unknown. */
+    default int possibleDropsCount(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty) {
+        return -1;
+    }
+
     /** The settings of the forming lobby the player owns, for editing (empty when unknown). */
     default Optional<LobbySettings> ownLobbySettings(ServerPlayer owner) {
         return Optional.empty();

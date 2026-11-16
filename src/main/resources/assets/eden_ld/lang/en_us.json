@@ -1686,6 +1686,7 @@
   "gui.eden_ld.hub.activities.browser.max_members": "Up to %s players",
   "gui.eden_ld.hub.activities.browser.drops": "Possible drops:",
   "gui.eden_ld.hub.activities.browser.no_drops": "No drop data.",
+  "gui.eden_ld.hub.activities.browser.drops_more": "%s more (of %s possible drops)",
   "gui.eden_ld.hub.activities.browser.leaderboard": "Leaderboard",
   "gui.eden_ld.hub.activities.browser.leaderboard_hint": "Open the activity's screen: leaderboard, lobbies and invites.",
   "gui.eden_ld.hub.activities.browser.not_creatable": "This activity's lobbies are made where it is.",

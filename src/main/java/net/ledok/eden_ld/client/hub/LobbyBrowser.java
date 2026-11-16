@@ -679,16 +679,27 @@ final class LobbyBrowser {
         } else if (info.drops().isEmpty()) {
             body.item(EdenParchment.text(tr("browser.no_drops"), EdenParchment.INK_DIM, (int) width));
         } else {
+            // Two rows of icons; when there are more, the last cell is «+N» (LeDok, 1.3.107) naming the rest.
             int perRow = Math.max(1, (int) ((width + 2) / 18));
+            int capacity = perRow * DROP_ROWS;
+            int total = Math.max(info.dropsTotal(), info.drops().size());
+            int shown = Math.min(info.drops().size(), total > capacity ? capacity - 1 : total);
             Flex grid = Flex.column().gap(2);
             Flex row = null;
-            for (int i = 0; i < info.drops().size(); i++) {
+            for (int i = 0; i < shown; i++) {
                 if (i % perRow == 0) {
                     row = Flex.row().gap(2);
                     grid.item(row);
                 }
                 ItemStack stack = info.drops().get(i);
                 row.item(ItemStackNode.of(stack, 0, 0, 16).decorations(false));
+            }
+            if (total > shown) {
+                if (row == null || shown % perRow == 0) {
+                    row = Flex.row().gap(2);
+                    grid.item(row);
+                }
+                row.item(new More(total - shown, info.drops().subList(shown, info.drops().size()), total));
             }
             body.item(grid);
         }
@@ -703,6 +714,44 @@ final class LobbyBrowser {
         }
         body.item(leaderboard);
         return body;
+    }
+
+    /** Rows of drop icons before «+N». */
+    private static final int DROP_ROWS = 2;
+    /** Names listed in «+N»'s tooltip before "…and N more". */
+    private static final int MORE_NAMES = 15;
+
+    /** The «+N» cell after the drop icons: its tooltip names the rest (those the server sent; the count is the total). */
+    private static final class More extends Widget {
+        private final int count;
+
+        More(int count, List<ItemStack> rest, int total) {
+            super(16, 16);
+            this.count = count;
+            sizing(Sizing.fixed(16), Sizing.fixed(16));
+            tooltip(() -> {
+                List<Component> lines = new ArrayList<>();
+                lines.add(tr("browser.drops_more", count, total).copy().withStyle(ChatFormatting.BOLD));
+                int listed = Math.min(MORE_NAMES, rest.size());
+                for (int i = 0; i < listed; i++) {
+                    lines.add(rest.get(i).getHoverName().copy().withStyle(ChatFormatting.GRAY));
+                }
+                if (count > listed) {
+                    lines.add(tr("lobbies.more", count - listed).copy().withStyle(ChatFormatting.DARK_GRAY));
+                }
+                return lines;
+            });
+        }
+
+        @Override
+        protected void rebuild() {
+            add(Shapes.rect(0, 0, width, height).fill(EdenParchment.ROW_BG_ALT));
+            add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(EdenParchment.HAIRLINE, 1)));
+            Component text = Component.literal("+" + count);
+            float scale = Minecraft.getInstance().font.width(text) > 14 ? 0.7f : 0.9f;
+            add(TextNode.of(text).at(width / 2, 4).align(TextNode.Align.CENTER).scale(scale)
+                    .color(EdenParchment.INK)).pickable(false);
+        }
     }
 
     /** The card art; without one, the kind's color with the name over it. */

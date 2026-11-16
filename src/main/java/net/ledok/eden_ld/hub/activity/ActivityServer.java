@@ -295,11 +295,13 @@ public final class ActivityServer {
         String dropsFor = request.difficulty();
         List<net.minecraft.world.item.ItemStack> drops = source == null ? List.of()
                 : source.possibleDrops(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor);
+        int dropsTotal = Math.max(drops.size(), source == null ? -1
+                : source.possibleDropsCount(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor));
         ActivitySource.LobbySettings current = request.edit() && source != null
                 ? source.ownLobbySettings(player).orElse(null) : null;
         ServerPlayNetworking.send(player, new HubPayloads.ActivityInfoData(activity.id(), info != null, difficulties,
                 levels, modifiers, info == null ? 0 : info.maxMembers(), info != null && info.levelsActive(), dropsFor,
-                drops, current != null, current == null ? "" : current.difficulty(),
+                drops, dropsTotal, current != null, current == null ? "" : current.difficulty(),
                 current != null && current.hardcore(), current == null ? List.of() : current.modifiers(),
                 current == null ? 0 : current.visibility(), current == null ? 0 : current.minLevel()));
     }

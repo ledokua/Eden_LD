@@ -25,6 +25,9 @@ final class ArenasLobbyCreation {
     /** {@code ArenasApi.lobbySettings(ServerPlayer)} (asked for after 4.33.0), looked up once; null when missing. */
     @Nullable
     private static final Method LOBBY_SETTINGS = lobbySettingsMethod();
+    /** {@code ArenasApi.possibleDropsCount} (asked for after 4.34.3: the panel's "+N"), looked up once; null when missing. */
+    @Nullable
+    private static final Method DROPS_COUNT = dropsCountMethod();
 
     private ArenasLobbyCreation() {
     }
@@ -77,6 +80,28 @@ final class ArenasLobbyCreation {
 
     static List<ItemStack> drops(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty) {
         return ArenasApi.possibleDrops(server, activity, difficulty);
+    }
+
+    /** The total before possibleDrops' cap, or -1 when this Arenas_LD doesn't tell. */
+    static int dropsCount(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty) {
+        if (DROPS_COUNT == null) {
+            return -1;
+        }
+        try {
+            return DROPS_COUNT.invoke(null, server, activity, difficulty) instanceof Integer count ? count : -1;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
+        }
+    }
+
+    @Nullable
+    private static Method dropsCountMethod() {
+        try {
+            return ArenasApi.class.getMethod("possibleDropsCount", MinecraftServer.class, ResourceLocation.class,
+                    String.class);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return null;
+        }
     }
 
     @Nullable

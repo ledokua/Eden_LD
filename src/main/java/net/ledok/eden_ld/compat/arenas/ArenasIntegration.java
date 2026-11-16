@@ -267,6 +267,11 @@ final class ArenasIntegration implements ActivitySource {
     }
 
     @Override
+    public int possibleDropsCount(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty) {
+        return CREATE ? ArenasLobbyCreation.dropsCount(server, activity, difficulty) : -1;
+    }
+
+    @Override
     public Optional<LobbySettings> ownLobbySettings(ServerPlayer owner) {
         return CREATE ? ArenasLobbyCreation.ownSettings(owner) : Optional.empty();
     }

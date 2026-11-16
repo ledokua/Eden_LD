@@ -2336,13 +2336,14 @@ public final class HubPayloads {
     /**
      * S2C (1.3.103+): the panel's answer for an activity. {@code creatable} false: the hub can't make its lobbies (the
      * panel only opens it). The enabled difficulties with the level each needs (Eden's), the run modifiers, the most
-     * members, whether minimum levels are checked, the possible drops at {@code dropsFor}, and with {@code hasCurrent}
+     * members, whether minimum levels are checked, the possible drops at {@code dropsFor} (of {@code dropsTotal} in all:
+     * the list may be capped, 1.3.107), and with {@code hasCurrent}
      * the player's own lobby's settings ({@code visibility} 0 public, 1 friends, 2 private).
      */
     public record ActivityInfoData(net.minecraft.resources.ResourceLocation activity, boolean creatable,
                                    List<String> difficulties, List<Integer> levels, List<ModifierLine> modifiers,
                                    int maxMembers, boolean levelsActive, String dropsFor,
-                                   List<net.minecraft.world.item.ItemStack> drops, boolean hasCurrent,
+                                   List<net.minecraft.world.item.ItemStack> drops, int dropsTotal, boolean hasCurrent,
                                    String difficulty, boolean hardcore, List<String> chosen, int visibility, int minLevel)
             implements CustomPacketPayload {
         public static final Type<ActivityInfoData> TYPE = new Type<>(id("activity_info_data"));
@@ -2357,6 +2358,7 @@ public final class HubPayloads {
                     buf.writeBoolean(p.levelsActive);
                     buf.writeUtf(p.dropsFor, 32);
                     writeList(buf, p.drops, (b, stack) -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.encode(b, stack));
+                    buf.writeVarInt(p.dropsTotal);
                     buf.writeBoolean(p.hasCurrent);
                     buf.writeUtf(p.difficulty, 32);
                     buf.writeBoolean(p.hardcore);
@@ -2368,7 +2370,7 @@ public final class HubPayloads {
                         readList(buf, b -> b.readUtf(32)), readList(buf, b -> b.readVarInt()),
                         readList(buf, ModifierLine::read), buf.readVarInt(), buf.readBoolean(), buf.readUtf(32),
                         readList(buf, b -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.decode(b)),
-                        buf.readBoolean(), buf.readUtf(32), buf.readBoolean(), readList(buf, b -> b.readUtf(64)),
+                        buf.readVarInt(), buf.readBoolean(), buf.readUtf(32), buf.readBoolean(), readList(buf, b -> b.readUtf(64)),
                         buf.readVarInt(), buf.readVarInt()));
 
         @Override
