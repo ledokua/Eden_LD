@@ -131,6 +131,7 @@ public final class GuildQuests {
         if (changed) {
             GuildManager.get(server).markChanged();
             markDirty(guild);
+            net.ledok.eden_ld.hub.daily.ActiveStatQuests.invalidate();
         }
         return changed;
     }
@@ -173,6 +174,30 @@ public final class GuildQuests {
             board.put(listKey, slots);
         }
         return changed;
+    }
+
+    /** The targets of the open stat quests on the player's guild board (none without a guild). */
+    public static List<String> openStatTargets(MinecraftServer server, UUID player) {
+        Guild guild = GuildManager.get(server).guildOf(player);
+        if (guild == null) {
+            return List.of();
+        }
+        ensure(server, guild);
+        List<String> targets = new java.util.ArrayList<>();
+        for (String key : new String[]{DAILY, WEEKLY}) {
+            ListTag slots = guild.quests.getList(key, Tag.TAG_COMPOUND);
+            for (int i = 0; i < slots.size(); i++) {
+                CompoundTag slot = slots.getCompound(i);
+                GuildQuestDefinition quest = GuildQuestRegistry.get(ResourceLocation.tryParse(slot.getString("quest")));
+                if (quest != null && net.ledok.eden_ld.hub.daily.DailyQuests.STAT.equals(quest.objective())
+                        && !slot.getBoolean("done") && slot.getInt("progress") < slot.getInt("goal")
+                        ) {
+                    // No target: every stat counts.
+                    targets.add(quest.target().orElse(net.ledok.eden_ld.hub.daily.ActiveStatQuests.ANY));
+                }
+            }
+        }
+        return targets;
     }
 
     /** Each guild its own board, stable through the period. */
@@ -227,6 +252,7 @@ public final class GuildQuests {
     public static void reset(MinecraftServer server, Guild guild) {
         guild.quests = new CompoundTag();
         ensure(server, guild);
+        net.ledok.eden_ld.hub.daily.ActiveStatQuests.invalidate();
         GuildManager.get(server).markChanged();
         markDirty(guild);
     }

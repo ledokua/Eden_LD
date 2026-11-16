@@ -159,6 +159,7 @@ public final class DailyQuests {
         }
         fresh.put("slots", slots);
         HubData.get(server).player(player).put(TAG, fresh);
+        ActiveStatQuests.invalidate();
         return fresh;
     }
 
@@ -184,6 +185,7 @@ public final class DailyQuests {
         }
         if (changed) {
             HubData.get(server).player(player).put(TAG, tag);
+            ActiveStatQuests.invalidate();
         }
     }
 
@@ -253,8 +255,31 @@ public final class DailyQuests {
         return pool.get(pool.size() - 1);
     }
 
+    /** Claims, rerolls, admin changes: the open stat quests may differ ({@link ActiveStatQuests}). */
     private static void write(MinecraftServer server, UUID player, CompoundTag tag) {
+        writeProgress(server, player, tag);
+        ActiveStatQuests.invalidate();
+    }
+
+    /** Progress only: the open quests stay the same. */
+    private static void writeProgress(MinecraftServer server, UUID player, CompoundTag tag) {
         HubData.get(server).player(player).put(TAG, tag);
+    }
+
+    /** The targets of the player's open (unclaimed, unfinished) stat quests today. */
+    static List<String> openStatTargets(MinecraftServer server, UUID player) {
+        List<String> targets = new ArrayList<>();
+        ListTag slots = today(server, player).getList("slots", Tag.TAG_COMPOUND);
+        for (int i = 0; i < slots.size(); i++) {
+            CompoundTag slot = slots.getCompound(i);
+            DailyQuestDefinition quest = DailyQuestRegistry.get(ResourceLocation.tryParse(slot.getString("quest")));
+            if (quest != null && STAT.equals(quest.objective()) && !slot.getBoolean("claimed")
+                    && slot.getInt("progress") < quest.count()) {
+                // No target: every stat counts.
+                targets.add(quest.target().orElse(ActiveStatQuests.ANY));
+            }
+        }
+        return targets;
     }
 
     // ---------------------------------------------------------------- progress
@@ -293,7 +318,7 @@ public final class DailyQuests {
             }
         }
         if (changed) {
-            write(server, player.getUUID(), tag);
+            writeProgress(server, player.getUUID(), tag);
         }
         return changed;
     }

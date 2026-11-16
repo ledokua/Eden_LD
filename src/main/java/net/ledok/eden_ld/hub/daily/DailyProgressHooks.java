@@ -121,7 +121,10 @@ public final class DailyProgressHooks {
         }
         String name = stat.getName();
         // Most stats tick every tick (walking, play time): only those a stat quest names go to the quests.
-        if (DailyQuestRegistry.countsStat(name) || net.ledok.eden_ld.hub.guild.quest.GuildQuestRegistry.countsStat(name)) {
+        // …and of those, only stats one of the player's open quests counts right now (1.3.114: movement stats tick for
+        // every moving player; going through both full reports each time was ~0.15 ms per tick at 15 players).
+        if ((DailyQuestRegistry.countsStat(name) || net.ledok.eden_ld.hub.guild.quest.GuildQuestRegistry.countsStat(name))
+                && ActiveStatQuests.wants(player, name)) {
             changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
         }
         if (changed) {
