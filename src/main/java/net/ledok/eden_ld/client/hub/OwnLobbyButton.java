@@ -32,6 +32,9 @@ public final class OwnLobbyButton {
     }
 
     public static void initialize() {
+        // Arenas_LD's lobby view shows in the hub (1.3.110), and the hub notices when the server closed it.
+        ArenasLobbyHosting.initialize();
+        ClientTickEvents.END_CLIENT_TICK.register(client -> LobbyBrowser.tick());
         // The cards' lobby badges (1.3.98): with the tab's data, then when they change (answering this poll).
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLobbies.TYPE, (payload, context) -> {
             java.util.Map<String, java.util.List<HubPayloads.LobbyLine>> lobbies = new java.util.HashMap<>();

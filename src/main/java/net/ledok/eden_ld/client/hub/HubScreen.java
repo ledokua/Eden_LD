@@ -381,6 +381,8 @@ public class HubScreen extends CanvasScreen {
             WagersTab.left();
         }
         net.ledok.eden_ld.client.chat.GifViewer.close();
+        // The hub closing (or replaced): a hosted lobby's menu closes; a lobby opening again comes back through Arenas.
+        LobbyBrowser.closeHosted();
     }
 
     // A [GIF] or [Sticker] clicked in party or guild chat opens the chat's viewer over the hub.
@@ -430,7 +432,11 @@ public class HubScreen extends CanvasScreen {
         if (net.ledok.eden_ld.client.chat.GifViewer.click(this, mouseX, mouseY)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        boolean used = super.mouseClicked(mouseX, mouseY, button);
+        // A hosted lobby hears every click (its invite list closes on a click outside it).
+        float[] at = toCanvas(mouseX, mouseY);
+        LobbyBrowser.clicked(at[0], at[1]);
+        return used;
     }
 
     @Override
@@ -443,7 +449,16 @@ public class HubScreen extends CanvasScreen {
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB && ChatMentions.tab()) {
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (super.keyPressed(keyCode, scanCode, modifiers)) {
+            return true;
+        }
+        // Keys the canvas didn't take go to a hosted lobby (never Esc: that closed the hub above).
+        return keyCode != org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && LobbyBrowser.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char c, int modifiers) {
+        return super.charTyped(c, modifiers) || LobbyBrowser.charTyped(c, modifiers);
     }
 
     /** Tells the server the bank isn't on screen any more (it stops pushing bank updates). */
@@ -457,6 +472,10 @@ public class HubScreen extends CanvasScreen {
     private void select(HubTab tab) {
         if (tab != HubState.lastTab) {
             closeBankView();
+            if (HubState.lastTab == HubTab.ACTIVITIES) {
+                // A hosted lobby's menu closes when the player leaves the tab (the lobby keeps running).
+                LobbyBrowser.closeHosted();
+            }
             if (tab == HubTab.ACTIVITIES) {
                 ActivitiesTab.entered();
             }

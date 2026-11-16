@@ -111,11 +111,152 @@ final class LobbyBrowser {
 
     /** A new server: nothing chosen in the panel carries over. */
     static void reset() {
+        hosted = null;
         panelOpen = false;
         editing = false;
         awaitingLobby = false;
         panelActivity = null;
         info = null;
+    }
+
+    // ---------------------------------------------------------------- the hosted lobby (1.3.110)
+
+    /**
+     * A lobby view another mod hands the hub (Arenas_LD 4.35.0+, {@link ArenasLobbyHosting}): it fills the Activities tab
+     * under the title row («name» + ← Back), keeps its own tabs and action bar, and closes its server menu on close().
+     */
+    interface Hosted {
+        CanvasNode node();
+
+        void resize(float width, float height);
+
+        boolean keyPressed(int key, int scanCode, int modifiers);
+
+        boolean charTyped(char c, int modifiers);
+
+        void mouseClicked(float x, float y);
+
+        void close();
+
+        boolean closed();
+    }
+
+    @Nullable
+    private static Hosted hosted;
+    private static Component hostedName = Component.empty();
+
+    /**
+     * A lobby opens (controller block, invite, badge, join, create, «Моє лобі»): it shows in the hub, opened on
+     * Activities when it isn't up. False (Arenas shows its own screen) only on a server without Eden's hub.
+     */
+    static boolean host(ResourceLocation activity, Component name, Hosted view) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || !ClientPlayNetworking.canSend(HubPayloads.ActivitiesRequest.TYPE)) {
+            return false;
+        }
+        Hosted old = hosted;
+        if (old != null && old != view) {
+            // Never closes the newer lobby's menu (Arenas checks).
+            old.close();
+        }
+        hosted = view;
+        hostedName = name;
+        panelOpen = false;
+        editing = false;
+        awaitingLobby = false;
+        if (minecraft.screen instanceof HubScreen hub) {
+            hub.selectTab(HubTab.ACTIVITIES);
+        } else {
+            HubScreen.open("activities");
+        }
+        return true;
+    }
+
+    /** The Activities tab shows a hosted lobby. */
+    static boolean hostedOpen() {
+        return hosted != null;
+    }
+
+    /** ← Back, a tab switch or the hub closing: the view's menu closes (the lobby keeps running). */
+    static void closeHosted() {
+        Hosted view = hosted;
+        hosted = null;
+        if (view != null) {
+            view.close();
+        }
+    }
+
+    /** Every client tick: the server closed the view (run start, lobby gone, kick): the browser comes back. */
+    static void tick() {
+        Hosted view = hosted;
+        if (view != null && view.closed()) {
+            hosted = null;
+            if (Minecraft.getInstance().screen instanceof HubScreen hub && HubState.lastTab == HubTab.ACTIVITIES) {
+                hub.onActivitiesData();
+            }
+        }
+    }
+
+    static boolean keyPressed(int key, int scanCode, int modifiers) {
+        return hosted != null && hosted.keyPressed(key, scanCode, modifiers);
+    }
+
+    static boolean charTyped(char c, int modifiers) {
+        return hosted != null && hosted.charTyped(c, modifiers);
+    }
+
+    static void clicked(float x, float y) {
+        if (hosted != null) {
+            hosted.mouseClicked(x, y);
+        }
+    }
+
+    /** The tab's content while a lobby is hosted: the title row names it, with ← Back to the browser. */
+    static void buildHosted(HubScreen screen, Flex content) {
+        Hosted view = hosted;
+        if (view == null) {
+            return;
+        }
+        Component back = tr("browser.back");
+        Button button = EdenParchment.button(back, EdenParchment.fitWidth(back, 50), 14, () -> {
+            closeHosted();
+            screen.onActivitiesData();
+        });
+        button.tooltip(tr("browser.back_hint"));
+        screen.titleActions(EdenParchment.text(hostedName, EdenParchment.INK), button);
+        content.item(new HostPanel(view));
+    }
+
+    /** Fills the tab and passes its size on to the view (which lays itself out). */
+    private static final class HostPanel extends net.ledok.vectorlib.client.canvas.CanvasGroup
+            implements net.ledok.vectorlib.client.canvas.layout.Resizable {
+        private final Hosted view;
+        private float width = -1;
+        private float height = -1;
+
+        HostPanel(Hosted view) {
+            this.view = view;
+            sizing(Sizing.fill(), Sizing.expand());
+            CanvasNode node = view.node();
+            // The hub rebuilds its content often; the view's one node moves to the new panel.
+            node.removeFromParent();
+            add(node);
+        }
+
+        @Override
+        public void resize(float width, float height) {
+            if (width == this.width && height == this.height) {
+                return;
+            }
+            this.width = width;
+            this.height = height;
+            view.resize(width, height);
+        }
+
+        @Override
+        public net.ledok.vectorlib.client.canvas.Rect bounds() {
+            return new net.ledok.vectorlib.client.canvas.Rect(0, 0, Math.max(0, width), Math.max(0, height));
+        }
     }
 
     // ---------------------------------------------------------------- from the server

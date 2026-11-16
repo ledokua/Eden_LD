@@ -165,6 +165,11 @@ final class ActivitiesTab {
         // (1.3.105) takes the whole page, without the kind filters. Everything else has a plain title.
         boolean browser = LobbyBrowser.active() && !duels;
         screen.titleActions();
+        // A lobby hosted from Arenas_LD (1.3.110) takes the whole tab.
+        if (LobbyBrowser.hostedOpen()) {
+            LobbyBrowser.buildHosted(screen, content);
+            return;
+        }
         if (browser && LobbyBrowser.panelOpen() && data != null) {
             LobbyBrowser.build(screen, content, data, filter == Filter.ALL ? -1 : filter.ordinal() - 1);
             return;
