@@ -136,6 +136,11 @@ public class EdenConfig {
         public String level_category = "";
         /** How often online players are checked for activities their level just opened (seconds). */
         public int unlock_check_seconds = 30;
+        /**
+         * The hub's «Створити лобі» panel lists what a win can give (Arenas_LD's possibleDrops). Off by default
+         * (LeDok 2026-11-16): hidden until Arenas reads Fallen Eden's gear tables reliably.
+         */
+        public boolean show_possible_drops = false;
     }
 
     /**

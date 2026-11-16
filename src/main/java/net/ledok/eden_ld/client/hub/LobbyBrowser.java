@@ -685,38 +685,23 @@ final class LobbyBrowser {
             boolean meets = level <= 0 || data.level() >= level;
             body.item(line(level > 0 ? tr("browser.required_level_yours", level, data.level())
                     : tr("browser.level_none", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, width));
+            // Every difficulty's level, ✓ or ✗ against the player's (LeDok: the drops' space goes to this, 1.3.109).
+            if (info != null && !info.difficulties().isEmpty()) {
+                body.item(section(tr("browser.levels")));
+                for (int i = 0; i < info.difficulties().size(); i++) {
+                    int needed = i < info.levels().size() ? info.levels().get(i) : 0;
+                    boolean has = needed <= 0 || data.level() >= needed;
+                    Component tier = difficultyName(info.difficulties().get(i));
+                    body.item(line(tr(has ? "browser.level_row_ok" : "browser.level_row_no", tier,
+                                    needed > 0 ? tr("browser.level_badge", needed) : tr("browser.level_free")),
+                            has ? EdenParchment.GOOD : EdenParchment.DANGER, width));
+                }
+            }
         }
-        // The server falls back to every difficulty's drops when the picked one has none listed (1.3.108).
-        boolean allTiers = info != null && info.dropsFor().isEmpty() && !difficulty.isEmpty() && !info.drops().isEmpty();
-        body.item(section(tr(allTiers ? "browser.drops_all" : "browser.drops")));
-        if (info == null) {
-            body.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
-        } else if (info.drops().isEmpty()) {
-            body.item(EdenParchment.text(tr("browser.no_drops"), EdenParchment.INK_DIM, (int) width));
-        } else {
-            // Two rows of icons; when there are more, the last cell is «+N» (LeDok, 1.3.107) naming the rest.
-            int perRow = Math.max(1, (int) ((width + 2) / 18));
-            int capacity = perRow * DROP_ROWS;
-            int total = Math.max(info.dropsTotal(), info.drops().size());
-            int shown = Math.min(info.drops().size(), total > capacity ? capacity - 1 : total);
-            Flex grid = Flex.column().gap(2);
-            Flex row = null;
-            for (int i = 0; i < shown; i++) {
-                if (i % perRow == 0) {
-                    row = Flex.row().gap(2);
-                    grid.item(row);
-                }
-                ItemStack stack = info.drops().get(i);
-                row.item(ItemStackNode.of(stack, 0, 0, 16).decorations(false));
-            }
-            if (total > shown) {
-                if (row == null || shown % perRow == 0) {
-                    row = Flex.row().gap(2);
-                    grid.item(row);
-                }
-                row.item(new More(total - shown, info.drops().subList(shown, info.drops().size()), total));
-            }
-            body.item(grid);
+        // Possible drops are off unless the server turns them on (activities.show_possible_drops; LeDok 2026-11-16:
+        // hidden until Arenas reads the gear tables). Off, the server sends a total of -1 and nothing shows.
+        if (info != null && info.dropsTotal() >= 0) {
+            drops(body, width);
         }
         Component board = tr("browser.leaderboard");
         Button leaderboard = EdenParchment.button(board, Math.min(width, EdenParchment.fitWidth(board, 70)), 14, () -> {
@@ -729,6 +714,39 @@ final class LobbyBrowser {
         }
         body.item(leaderboard);
         return body;
+    }
+
+    /** The possible drops: two rows of icons, then «+N» naming the rest (LeDok, 1.3.107). */
+    private static void drops(Flex body, float width) {
+        // The server falls back to every difficulty's drops when the picked one has none listed (1.3.108).
+        boolean allTiers = info.dropsFor().isEmpty() && !difficulty.isEmpty() && !info.drops().isEmpty();
+        body.item(section(tr(allTiers ? "browser.drops_all" : "browser.drops")));
+        if (info.drops().isEmpty()) {
+            body.item(EdenParchment.text(tr("browser.no_drops"), EdenParchment.INK_DIM, (int) width));
+            return;
+        }
+        int perRow = Math.max(1, (int) ((width + 2) / 18));
+        int capacity = perRow * DROP_ROWS;
+        int total = Math.max(info.dropsTotal(), info.drops().size());
+        int shown = Math.min(info.drops().size(), total > capacity ? capacity - 1 : total);
+        Flex grid = Flex.column().gap(2);
+        Flex row = null;
+        for (int i = 0; i < shown; i++) {
+            if (i % perRow == 0) {
+                row = Flex.row().gap(2);
+                grid.item(row);
+            }
+            ItemStack stack = info.drops().get(i);
+            row.item(ItemStackNode.of(stack, 0, 0, 16).decorations(false));
+        }
+        if (total > shown) {
+            if (row == null || shown % perRow == 0) {
+                row = Flex.row().gap(2);
+                grid.item(row);
+            }
+            row.item(new More(total - shown, info.drops().subList(shown, info.drops().size()), total));
+        }
+        body.item(grid);
     }
 
     /** Rows of drop icons before «+N». */
