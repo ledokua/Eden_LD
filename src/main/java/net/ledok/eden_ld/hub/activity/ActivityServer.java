@@ -295,6 +295,11 @@ public final class ActivityServer {
         String dropsFor = request.difficulty();
         List<net.minecraft.world.item.ItemStack> drops = source == null ? List.of()
                 : source.possibleDrops(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor);
+        if (drops.isEmpty() && !dropsFor.isEmpty() && source != null) {
+            // Nothing listed for that difficulty: every difficulty's drops (the panel says so), not an empty box.
+            dropsFor = "";
+            drops = source.possibleDrops(server, activity.id(), null);
+        }
         int dropsTotal = Math.max(drops.size(), source == null ? -1
                 : source.possibleDropsCount(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor));
         ActivitySource.LobbySettings current = request.edit() && source != null

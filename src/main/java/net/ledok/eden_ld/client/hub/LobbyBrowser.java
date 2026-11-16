@@ -604,6 +604,12 @@ final class LobbyBrowser {
         return panel;
     }
 
+    /** «25+» for a level a player needs; null when nothing is locked by level or it needs none. */
+    @Nullable
+    private static Component levelBadge(HubPayloads.ActivitiesData data, int level) {
+        return data.gated() && level > 0 ? tr("browser.level_badge", level) : null;
+    }
+
     /** One line of text, cut with "…" to {@code width}, the whole text in its tooltip. */
     private static CanvasNode line(Component text, int color, float width) {
         var node = EdenParchment.text(text, color).maxWidth((int) width).ellipsis(true);
@@ -613,8 +619,8 @@ final class LobbyBrowser {
 
     /** A small dim caps heading, as in the concept ("DIFFICULTY", "POSSIBLE DROPS"). */
     private static CanvasNode section(Component label) {
-        return EdenParchment.text(Component.literal(label.getString().toUpperCase(Locale.ROOT)), EdenParchment.INK_DIM)
-                .scale(0.8f);
+        // Full size: a scaled label was laid out at its unscaled size and drawn half outside its row (1.3.108).
+        return EdenParchment.text(Component.literal(label.getString().toUpperCase(Locale.ROOT)), EdenParchment.INK_DIM);
     }
 
     /** Left: every activity (of the kind picked on the list), locked ones greyed with why; editing shows just its own. */
@@ -630,6 +636,13 @@ final class LobbyBrowser {
             Button button = EdenParchment.button(entry.name(), width, 16, () -> pick(screen, entry.id()));
             button.align(TextNode.Align.LEFT);
             button.tooltipWhenCut(true);
+            // The level it opens at on the right («25+»), red while the player is below it; the name is cut first.
+            Component badge = levelBadge(data, entry.unlockLevel());
+            if (badge != null) {
+                button.secondary(badge);
+                button.secondaryColor(data.level() >= entry.unlockLevel() ? EdenParchment.GOOD : EdenParchment.DANGER);
+                button.cutSecondaryFirst(false);
+            }
             List<Component> tip = new ArrayList<>();
             tip.add(entry.name());
             tip.add(tr("browser.type." + entry.type()));
@@ -671,9 +684,11 @@ final class LobbyBrowser {
         if (data.gated()) {
             boolean meets = level <= 0 || data.level() >= level;
             body.item(line(level > 0 ? tr("browser.required_level_yours", level, data.level())
-                    : tr("your_level", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, width));
+                    : tr("browser.level_none", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, width));
         }
-        body.item(section(tr("browser.drops")));
+        // The server falls back to every difficulty's drops when the picked one has none listed (1.3.108).
+        boolean allTiers = info != null && info.dropsFor().isEmpty() && !difficulty.isEmpty() && !info.drops().isEmpty();
+        body.item(section(tr(allTiers ? "browser.drops_all" : "browser.drops")));
         if (info == null) {
             body.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
         } else if (info.drops().isEmpty()) {
@@ -806,8 +821,11 @@ final class LobbyBrowser {
             int count = info.difficulties().size();
             var font = Minecraft.getInstance().font;
             float needed = 0;
-            for (String id : info.difficulties()) {
-                needed += font.width(difficultyName(id)) + 10;
+            for (int i = 0; i < count; i++) {
+                int level = i < info.levels().size() ? info.levels().get(i) : 0;
+                Component badge = levelBadge(data, level);
+                needed += font.width(difficultyName(info.difficulties().get(i))) + 12
+                        + (badge == null ? 0 : font.width(badge) + 6);
             }
             int perRow = needed + 2 * (count - 1) <= width ? count : 2;
             float each = (width - 2 * (perRow - 1)) / perRow;
@@ -827,6 +845,12 @@ final class LobbyBrowser {
                     screen.onActivitiesData();
                 });
                 pill.tooltipWhenCut(true);
+                Component badge = levelBadge(data, level);
+                if (badge != null) {
+                    pill.secondary(badge);
+                    pill.secondaryColor(open ? EdenParchment.GOOD : EdenParchment.DANGER);
+                    pill.cutSecondaryFirst(false);
+                }
                 List<Component> tip = new ArrayList<>();
                 tip.add(difficultyName(id));
                 if (level > 0) {
