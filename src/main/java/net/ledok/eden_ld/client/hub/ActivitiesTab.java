@@ -161,8 +161,14 @@ final class ActivitiesTab {
             }
         }
 
-        // The lobby browser (1.3.103) puts the own lobby on its own top row, with «Створити лобі».
+        // The lobby browser (1.3.103) puts the own lobby and «Створити лобі» in the title row; its create panel
+        // (1.3.105) takes the whole page, without the kind filters. Everything else has a plain title.
         boolean browser = LobbyBrowser.active() && !duels;
+        screen.titleActions();
+        if (browser && LobbyBrowser.panelOpen() && data != null) {
+            LobbyBrowser.build(screen, content, data, filter == Filter.ALL ? -1 : filter.ordinal() - 1);
+            return;
+        }
         if (!browser) {
             OwnLobbyButton.build(content);
         }

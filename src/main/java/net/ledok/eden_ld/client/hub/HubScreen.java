@@ -552,6 +552,20 @@ public class HubScreen extends CanvasScreen {
     }
 
     /** One of the thin lines either side of the page heading. */
+    /**
+     * Buttons at the right end of the page's title row (1.3.105: the Activities browser's «Створити лобі», as in the
+     * concept's title bar). Called by a tab as it builds; none restores the plain title.
+     */
+    void titleActions(net.ledok.vectorlib.client.canvas.CanvasNode... actions) {
+        pageTitle.clear();
+        pageTitle.item(titleLine());
+        pageTitle.item(EdenParchment.text(HubState.lastTab.displayName(), EdenParchment.INK_MID));
+        pageTitle.item(titleLine());
+        for (net.ledok.vectorlib.client.canvas.CanvasNode action : actions) {
+            pageTitle.item(action);
+        }
+    }
+
     private static Flex titleLine() {
         Flex line = Flex.column();
         line.sizing(Sizing.expand(), Sizing.fixed(1));

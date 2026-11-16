@@ -5,6 +5,7 @@ import net.ledok.eden_ld.client.EdenParchment;
 import net.ledok.eden_ld.client.profile.ProfileBackgrounds;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.ActivityEntry;
+import net.ledok.vectorlib.client.canvas.CanvasNode;
 import net.ledok.vectorlib.client.canvas.ItemStackNode;
 import net.ledok.vectorlib.client.canvas.Shapes;
 import net.ledok.vectorlib.client.canvas.Stroke;
@@ -18,8 +19,10 @@ import net.ledok.vectorlib.client.canvas.widget.Dropdown;
 import net.ledok.vectorlib.client.canvas.widget.NumberField;
 import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
 import net.ledok.vectorlib.client.canvas.widget.Toggle;
+import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -37,17 +40,18 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The Activities tab as a lobby browser (1.3.103, LeDok's plan {@code Issues/2026-11-16-activities-lobby-browser-PLAN.md},
- * with Arenas_LD 4.33.0+): every lobby forming now that the player may see, one row each (activity, difficulty, hardcore
- * and modifiers, owner, friends-only lock, minimum level, members and ready), filtered by kind (the tab's filter bar),
- * activity, difficulty, hardcore and "only ones I can join", sorted by newest / players / level, with Приєднатися /
- * Попроситися / Відкрити. On top: the player's own lobby, «Змінити лобі» for its owner and «Створити лобі».
- * <p>
- * «Створити лобі» opens the panel in place of the list: the activities on the left (locked ones greyed with why), the
- * picked one's art, level, size and possible drops in the middle, and its settings on the right (difficulty, hardcore,
- * run modifiers with their reward effect, visibility, minimum join level). The same panel edits the owner's lobby.
- * The old card grid is gone here (LeDok: the panel's activity list replaces it); it stays for servers whose Arenas_LD
- * can't create lobbies.
+ * The Activities tab as a lobby browser (1.3.103; laid out as the Arenas UI rework concept's section 4 in 1.3.105, after
+ * LeDok's TEST look): every lobby forming now that the player may see, with Arenas_LD 4.33.0+.
+ * <ul>
+ *   <li>The page's title row carries «Моє лобі» / «Змінити лобі» and «+ Створити лобі» (top right).</li>
+ *   <li>Under the kind tabs, one row of filters: activity, difficulty, hardcore, "only joinable", and the sort.</li>
+ *   <li>One 28-unit row per lobby: the activity's picture, «name · kind · owner» over pills (difficulty, hardcore,
+ *   modifiers, minimum level, friends-only), members, and Приєднатися / Попроситися / Відкрити (greyed with why).</li>
+ * </ul>
+ * «Створити лобі» opens the panel in place of the list: activities | picture, level, size, possible drops, leaderboard
+ * | difficulty and run modifiers (only this part scrolls), and a bar fixed at the bottom with visibility, minimum level
+ * and the primary button, so nothing has to be scrolled to. The same panel edits the owner's lobby. Every long name or
+ * effect is cut with "…" and given in full in its tooltip; nothing is wider than the smallest hub (416 units inside).
  */
 final class LobbyBrowser {
 
@@ -57,6 +61,11 @@ final class LobbyBrowser {
     /** Hardcore filter: any, only hardcore, only without. */
     private static final List<Integer> HARDCORE_FILTERS = List.of(0, 1, 2);
     private static final String HARDCORE = "hardcore_run";
+    private static final float ROW_H = 28;
+    private static final float THUMB = 18;
+    private static final float MOD_H = 16;
+    /** A scroll column's lane and padding: what its content can't use. */
+    private static final float COLUMN_INSET = 10;
 
     // The list's choices, kept while the game runs (like the other tabs' choices).
     private static String activityFilter = "";
@@ -93,6 +102,11 @@ final class LobbyBrowser {
     /** The server creates lobbies from the hub: the Activities tab is this browser instead of the card grid. */
     static boolean active() {
         return HubState.lobbiesCreate;
+    }
+
+    /** The create panel shows instead of the list (the tab then hides its kind filters). */
+    static boolean panelOpen() {
+        return panelOpen;
     }
 
     /** A new server: nothing chosen in the panel carries over. */
@@ -154,89 +168,16 @@ final class LobbyBrowser {
             buildPanel(screen, content, data);
             return;
         }
+        screen.titleActions(titleActions(screen, data, kind));
         Map<String, ActivityEntry> byId = byId(data);
         float width = HubScreen.innerWidth();
+        content.item(filters(screen, data, byId, kind, width));
 
-        // My lobby on the left, «Змінити лобі» and «Створити лобі» on the right.
-        Flex top = Flex.row().gap(4).alignItems(Align.CENTER);
-        top.sizing(Sizing.fill(), Sizing.content());
-        Flex own = OwnLobbyButton.row();
-        if (own != null) {
-            top.item(own);
-        }
-        top.spacer();
-        HubPayloads.OwnLobbyData lobby = OwnLobbyButton.data();
-        if (lobby.present() && lobby.owner() && !lobby.inRun() && !lobby.activity().isEmpty()) {
-            Component label = tr("browser.edit");
-            Button edit = EdenParchment.button(label, EdenParchment.fitWidth(label, 70), 14,
-                    () -> openPanel(screen, ResourceLocation.tryParse(lobby.activity()), true, kind));
-            edit.tooltip(tr("browser.edit_hint"));
-            top.item(edit);
-        }
-        Component createLabel = tr("browser.create");
-        Button create = EdenParchment.button(createLabel, EdenParchment.fitWidth(createLabel, 80), 14,
-                () -> openPanel(screen, null, false, kind));
-        create.tooltip(tr("browser.create_hint"));
-        top.item(create);
-        content.item(top);
-
-        // Activity, difficulty, hardcore, joinable.
-        Flex filters = Flex.row().gap(4).alignItems(Align.CENTER);
-        filters.sizing(Sizing.fill(), Sizing.content());
-        List<String> activityOptions = new ArrayList<>();
-        activityOptions.add("");
-        for (ActivityEntry entry : sortedEntries(data, kind)) {
-            activityOptions.add(entry.id().toString());
-        }
-        if (!activityOptions.contains(activityFilter)) {
-            activityFilter = "";
-        }
-        filters.item(new Dropdown<>(110, activityOptions, activityFilter, id -> id.isEmpty() ? tr("browser.any_activity")
-                : byId.containsKey(id) ? byId.get(id).name() : Component.literal(id), id -> {
-                    activityFilter = id;
-                    screen.onActivitiesData();
-                }));
-        List<String> difficultyOptions = new ArrayList<>();
-        difficultyOptions.add("");
-        difficultyOptions.addAll(DIFFICULTIES);
-        filters.item(new Dropdown<>(90, difficultyOptions, difficultyFilter,
-                id -> id.isEmpty() ? tr("browser.any_difficulty") : difficultyName(id), id -> {
-                    difficultyFilter = id;
-                    screen.onActivitiesData();
-                }));
-        filters.item(new Dropdown<>(90, HARDCORE_FILTERS, hardcoreFilter, value -> tr("browser.hardcore." + value), value -> {
-            hardcoreFilter = value;
-            screen.onActivitiesData();
-        }));
-        filters.item(new Toggle(100, tr("browser.joinable"), joinableOnly, value -> {
-            joinableOnly = value;
-            screen.onActivitiesData();
-        }));
-        content.item(filters);
-
-        // Sorting, and the player's level on the right.
-        Flex sorting = Flex.row().gap(3).alignItems(Align.CENTER);
-        sorting.id(HubSpotlights.ACTIVITIES_SORT);
-        sorting.sizing(Sizing.fill(), Sizing.content());
-        sorting.item(EdenParchment.text(tr("sort"), EdenParchment.INK_DIM));
-        sorting.item(EdenParchment.tabs(List.of(Sort.values()), candidate -> tr("browser.sort." + candidate.name()
-                .toLowerCase(Locale.ROOT)), sort, candidate -> {
-                    sort = candidate;
-                    screen.onActivitiesData();
-                }, 30, "activities/browser_sort").height(12));
-        if (data.gated()) {
-            sorting.spacer();
-            var level = EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_MID);
-            level.id(HubSpotlights.ACTIVITIES_LEVEL);
-            sorting.item(level);
-        }
-        content.item(sorting);
-
-        // The rows.
         List<Row> rows = rows(data, byId, kind);
         if (rows.isEmpty()) {
             Flex empty = HubScreen.emptyState(HubTab.ACTIVITIES, tr("lobbies.none_title"), tr("browser.none"));
             empty.id(HubSpotlights.ACTIVITIES_CARDS);
+            empty.item(createButton(screen, kind));
             content.item(empty);
             return;
         }
@@ -254,6 +195,107 @@ final class LobbyBrowser {
         ScrollPanel panel = HubScroll.panel("activities/browser", width, 100, list);
         panel.sizing(Sizing.fill(), Sizing.expand());
         content.item(panel);
+    }
+
+    /** The title row's right end: the own lobby (open, or edit for its owner) and «+ Створити лобі». */
+    private static CanvasNode[] titleActions(HubScreen screen, HubPayloads.ActivitiesData data, int kind) {
+        List<CanvasNode> actions = new ArrayList<>();
+        if (data.gated()) {
+            var level = EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_DIM);
+            level.id(HubSpotlights.ACTIVITIES_LEVEL);
+            actions.add(level);
+        }
+        HubPayloads.OwnLobbyData lobby = OwnLobbyButton.data();
+        if (lobby.present()) {
+            Component label = tr("browser.my_lobby");
+            Button mine = EdenParchment.button(label, EdenParchment.fitWidth(label, 50), 14,
+                    () -> ClientPlayNetworking.send(HubPayloads.OwnLobbyOpen.INSTANCE));
+            mine.tooltip(lobby.inRun() ? tr("own_lobby.in_run", lobby.name())
+                    : tr("own_lobby", lobby.name(), lobby.members(), lobby.maxMembers()));
+            actions.add(mine);
+            if (lobby.owner() && !lobby.inRun() && !lobby.activity().isEmpty()) {
+                Component edit = tr("browser.edit");
+                Button button = EdenParchment.button(edit, EdenParchment.fitWidth(edit, 50), 14,
+                        () -> openPanel(screen, ResourceLocation.tryParse(lobby.activity()), true, kind));
+                button.tooltip(tr("browser.edit_hint"));
+                actions.add(button);
+            }
+        }
+        actions.add(createButton(screen, kind));
+        return actions.toArray(CanvasNode[]::new);
+    }
+
+    private static Button createButton(HubScreen screen, int kind) {
+        Component label = tr("browser.create_plus");
+        Button create = EdenParchment.button(label, EdenParchment.fitWidth(label, 70), 14,
+                () -> openPanel(screen, null, false, kind));
+        create.style(EdenParchment.TAB_ACTIVE);
+        create.tooltip(tr("browser.create_hint"));
+        return create;
+    }
+
+    /** One row under the kind tabs: activity, difficulty, hardcore, joinable, and the sort; sized to fit 416 units. */
+    private static Flex filters(HubScreen screen, HubPayloads.ActivitiesData data, Map<String, ActivityEntry> byId,
+                                int kind, float width) {
+        Flex filters = Flex.row().gap(3).alignItems(Align.CENTER);
+        filters.sizing(Sizing.fill(), Sizing.content());
+        filters.id(HubSpotlights.ACTIVITIES_SORT);
+        Component joinableLabel = tr("browser.joinable");
+        float toggleWidth = Minecraft.getInstance().font.width(joinableLabel) + 16;
+        float sortWidth = clamp(width * 0.15f, 62, 90);
+        // What's left goes to the three dropdowns, the activity one a bit wider.
+        float left = width - toggleWidth - sortWidth - 3 * 5;
+        float activityWidth = clamp(left * 0.38f, 80, 150);
+        float dropdownWidth = clamp((left - activityWidth) / 2, 66, 110);
+
+        List<String> activityOptions = new ArrayList<>();
+        activityOptions.add("");
+        for (ActivityEntry entry : sortedEntries(data, kind)) {
+            activityOptions.add(entry.id().toString());
+        }
+        if (!activityOptions.contains(activityFilter)) {
+            activityFilter = "";
+        }
+        filters.item(dropdown(new Dropdown<>(activityWidth, activityOptions, activityFilter,
+                id -> id.isEmpty() ? tr("browser.any_activity") : byId.containsKey(id) ? byId.get(id).name()
+                        : Component.literal(id), id -> {
+                    activityFilter = id;
+                    screen.onActivitiesData();
+                }), activityWidth));
+        List<String> difficultyOptions = new ArrayList<>();
+        difficultyOptions.add("");
+        difficultyOptions.addAll(DIFFICULTIES);
+        filters.item(dropdown(new Dropdown<>(dropdownWidth, difficultyOptions, difficultyFilter,
+                id -> id.isEmpty() ? tr("browser.any_difficulty") : difficultyName(id), id -> {
+                    difficultyFilter = id;
+                    screen.onActivitiesData();
+                }), dropdownWidth));
+        filters.item(dropdown(new Dropdown<>(dropdownWidth, HARDCORE_FILTERS, hardcoreFilter,
+                value -> tr("browser.hardcore." + value), value -> {
+                    hardcoreFilter = value;
+                    screen.onActivitiesData();
+                }), dropdownWidth));
+        Toggle joinable = new Toggle(toggleWidth, joinableLabel, joinableOnly, value -> {
+            joinableOnly = value;
+            screen.onActivitiesData();
+        });
+        joinable.tooltip(tr("browser.joinable_hint"));
+        filters.item(joinable);
+        filters.spacer();
+        Dropdown<Sort> sorting = new Dropdown<>(sortWidth, List.of(Sort.values()), sort,
+                candidate -> tr("browser.sort." + candidate.name().toLowerCase(Locale.ROOT)), candidate -> {
+                    sort = candidate;
+                    screen.onActivitiesData();
+                });
+        sorting.tooltip(tr("sort"));
+        filters.item(dropdown(sorting, sortWidth));
+        return filters;
+    }
+
+    /** Dropdowns at the filter row's height. */
+    private static <T> Dropdown<T> dropdown(Dropdown<T> dropdown, float width) {
+        dropdown.sizing(Sizing.fixed(width), Sizing.fixed(16));
+        return dropdown;
     }
 
     /** One lobby in the list, with its activity. */
@@ -321,59 +363,80 @@ final class LobbyBrowser {
     }
 
     /**
-     * Two lines and a button: «Activity  [Важко]  Хардкор · modifiers» over «owner · 🔒 · Рів. 20+ · 3/4 (2 готові)».
+     * [picture] «Візер · рейд · LeDok» over [Важко] [Хардкор] [+2] «Рів. 25+ · для друзів», then «3/5» and the button.
      */
     private static Flex row(Row row, HubPayloads.ActivitiesData data, boolean alt, float width) {
         HubPayloads.LobbyLine lobby = row.lobby();
-        Flex box = Flex.row().gap(4).padding(Insets.of(2, 3, 2, 3)).alignItems(Align.CENTER);
-        box.sizing(Sizing.fixed(width), Sizing.content());
+        ActivityEntry entry = row.entry();
+        Flex box = Flex.row().gap(4).padding(Insets.of(2, 4, 2, 4)).alignItems(Align.CENTER);
+        box.sizing(Sizing.fixed(width), Sizing.fixed(ROW_H));
         box.background(EdenParchment.framed(alt ? EdenParchment.ROW_BG_ALT : EdenParchment.ROW_BG,
                 lobby.member() ? EdenParchment.ACCENT : EdenParchment.HAIRLINE));
 
         Component label = tr(lobby.member() ? "lobbies.open" : lobby.request() ? "lobbies.ask" : "lobbies.join");
-        float buttonWidth = EdenParchment.fitWidth(label, 64);
-        int textWidth = (int) (width - 6 - buttonWidth - 8);
+        float buttonWidth = EdenParchment.fitWidth(label, 56);
+        Component members = Component.literal(lobby.members() + "/" + lobby.maxMembers());
+        float membersWidth = Minecraft.getInstance().font.width(members) + 2;
+        int textWidth = (int) (width - 8 - THUMB - buttonWidth - membersWidth - 4 * 3);
 
-        Flex lines = Flex.column().gap(1);
-        Flex first = Flex.row().gap(4).alignItems(Align.CENTER);
-        Component name = row.entry() != null ? row.entry().name() : Component.literal(row.activity());
-        first.item(EdenParchment.text(name, EdenParchment.INK).maxWidth(textWidth / 2).ellipsis(true));
+        box.item(new Thumb(entry, row.activity()));
+        Flex lines = Flex.column().gap(2);
+        lines.sizing(Sizing.fixed(textWidth), Sizing.content());
+        Component name = entry != null ? entry.name() : Component.literal(row.activity());
+        MutableComponent first = Component.empty().append(name.copy().withStyle(ChatFormatting.BOLD));
+        if (entry != null) {
+            first.append(Component.literal(" · ").append(tr("browser.type." + entry.type())).withColor(EdenParchment.INK_DIM & 0xFFFFFF));
+        }
+        first.append(Component.literal(" · " + lobby.owner()).withColor(EdenParchment.INK_DIM & 0xFFFFFF));
+        lines.item(EdenParchment.text(first, EdenParchment.INK).maxWidth(textWidth).ellipsis(true));
+
+        Flex pills = Flex.row().gap(2).alignItems(Align.CENTER);
         if (!lobby.difficulty().isEmpty()) {
-            first.item(new Pill(difficultyName(lobby.difficulty()), difficultyColor(lobby.difficulty())));
+            pills.item(Pill.filled(difficultyName(lobby.difficulty()), difficultyColor(lobby.difficulty())));
         }
-        MutableComponent tags = Component.empty();
         if (lobby.hardcore()) {
-            tags.append(tr("lobbies.hardcore").copy().withStyle(ChatFormatting.DARK_RED));
+            pills.item(Pill.filled(tr("lobbies.hardcore"), EdenParchment.DANGER));
         }
-        for (Component modifier : lobby.modifiers()) {
-            if (!tags.getSiblings().isEmpty()) {
-                tags.append(" · ");
-            }
-            tags.append(modifier);
+        if (!lobby.modifiers().isEmpty()) {
+            Pill more = Pill.outline(Component.literal("+" + lobby.modifiers().size()), EdenParchment.INK_MID);
+            List<Component> names = new ArrayList<>();
+            names.add(tr("browser.modifiers"));
+            names.addAll(lobby.modifiers());
+            more.tooltip(names.toArray(Component[]::new));
+            pills.item(more);
         }
-        if (!tags.getSiblings().isEmpty()) {
-            first.item(EdenParchment.text(tags, EdenParchment.INK_MID).maxWidth(textWidth / 2).ellipsis(true));
-        }
-        lines.item(first);
-
-        MutableComponent second = Component.literal(lobby.owner());
-        if (lobby.request()) {
-            second.append(" · ").append(tr("browser.friends_only"));
-        }
+        MutableComponent rest = Component.empty();
         if (lobby.minLevel() > 0) {
-            second.append(" · ").append(tr("browser.min_level", lobby.minLevel()));
+            boolean low = data.gated() && data.level() < lobby.minLevel();
+            rest.append(tr("browser.min_level", lobby.minLevel()).copy()
+                    .withColor((low ? EdenParchment.DANGER : EdenParchment.INK_DIM) & 0xFFFFFF));
         }
-        second.append(" · ").append(tr("browser.members", lobby.members(), lobby.maxMembers(), lobby.ready()));
+        if (lobby.request()) {
+            if (!rest.getSiblings().isEmpty()) {
+                rest.append(" · ");
+            }
+            rest.append(tr("browser.friends_only"));
+        }
         if (lobby.member()) {
-            second.append(" · ").append(tr("lobbies.yours"));
+            if (!rest.getSiblings().isEmpty()) {
+                rest.append(" · ");
+            }
+            rest.append(tr("lobbies.yours").copy().withColor(EdenParchment.GOOD & 0xFFFFFF));
         }
-        lines.item(EdenParchment.text(second, EdenParchment.INK_DIM).maxWidth(textWidth).ellipsis(true));
+        if (!rest.getSiblings().isEmpty()) {
+            pills.item(EdenParchment.text(rest, EdenParchment.INK_DIM).maxWidth(Math.max(20, textWidth - 90)).ellipsis(true));
+        }
+        lines.item(pills);
         box.item(lines);
         box.spacer();
 
-        Component why = blocked(data, row.entry(), row.activity(), lobby);
+        var count = EdenParchment.text(members, lobby.full() ? EdenParchment.INK_DIM : EdenParchment.INK);
+        count.tooltip(tr("browser.members", lobby.members(), lobby.maxMembers(), lobby.ready()));
+        box.item(count);
+
+        Component why = blocked(data, entry, row.activity(), lobby);
         ResourceLocation activity = ResourceLocation.tryParse(row.activity());
-        Button button = EdenParchment.button(label, buttonWidth, 14, () -> {
+        Button button = EdenParchment.button(label, buttonWidth, 16, () -> {
             if (activity == null) {
                 return;
             }
@@ -393,23 +456,63 @@ final class LobbyBrowser {
         return box;
     }
 
-    /** A small colored label (the difficulty). */
-    private static final class Pill extends Widget {
-        private final Component text;
-        private final int color;
+    /** The activity's picture, small: its card art, else its kind's color with the name's first letter. */
+    private static final class Thumb extends Widget {
+        private final @Nullable ActivityEntry entry;
+        private final String id;
 
-        Pill(Component text, int color) {
-            super(net.minecraft.client.Minecraft.getInstance().font.width(text) * 0.8f + 8, 10);
-            this.text = text;
-            this.color = color;
-            sizing(Sizing.fixed(width), Sizing.fixed(10));
+        Thumb(@Nullable ActivityEntry entry, String id) {
+            super(THUMB, THUMB);
+            this.entry = entry;
+            this.id = id;
+            sizing(Sizing.fixed(THUMB), Sizing.fixed(THUMB));
         }
 
         @Override
         protected void rebuild() {
-            add(Shapes.rect(0, 0, width, height).fill(0x33000000 | (color & 0xFFFFFF)));
-            add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(color, 1)));
-            add(TextNode.of(text).at(4, 2).color(color).scale(0.8f));
+            if (entry != null && !entry.cardArt().isEmpty() && ProfileBackgrounds.get(entry.cardArt()) != null) {
+                add(ProfileBackgrounds.card(entry.cardArt(), width, height));
+            } else {
+                add(Shapes.rect(0, 0, width, height).fill(typeColor(entry == null ? -1 : entry.type())));
+                String name = entry != null ? entry.name().getString() : id;
+                String letter = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(Locale.ROOT);
+                add(TextNode.of(Component.literal(letter)).at(width / 2, 5).align(TextNode.Align.CENTER)
+                        .color(0xFFF6EAD0).shadow(true)).pickable(false);
+            }
+            add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(EdenParchment.HAIRLINE, 1)));
+        }
+    }
+
+    /** A small rounded label: filled (difficulty, hardcore) or outlined (counts). */
+    private static final class Pill extends Widget {
+        private final Component text;
+        private final int color;
+        private final boolean filled;
+
+        private Pill(Component text, int color, boolean filled) {
+            super(Minecraft.getInstance().font.width(text) * 0.8f + 8, 10);
+            this.text = text;
+            this.color = color;
+            this.filled = filled;
+            sizing(Sizing.fixed(width), Sizing.fixed(10));
+        }
+
+        static Pill filled(Component text, int color) {
+            return new Pill(text, color, true);
+        }
+
+        static Pill outline(Component text, int color) {
+            return new Pill(text, color, false);
+        }
+
+        @Override
+        protected void rebuild() {
+            if (filled) {
+                add(Shapes.rect(0, 0, width, height).fill(color | 0xFF000000));
+            }
+            add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(filled ? EdenParchment.HAIRLINE_HI
+                    : color, 1)));
+            add(TextNode.of(text).at(4, 2).color(filled ? 0xFFF6EAD0 : color).scale(0.8f)).pickable(false);
         }
     }
 
@@ -444,6 +547,12 @@ final class LobbyBrowser {
         screen.onActivitiesData();
     }
 
+    private static void closePanel(HubScreen screen) {
+        panelOpen = false;
+        editing = false;
+        screen.onActivitiesData();
+    }
+
     private static void pick(HubScreen screen, ResourceLocation activity) {
         if (activity.equals(panelActivity)) {
             return;
@@ -462,56 +571,66 @@ final class LobbyBrowser {
         }
     }
 
+    /** Activities | details | settings, and the action bar fixed under them. */
     private static void buildPanel(HubScreen screen, Flex content, HubPayloads.ActivitiesData data) {
+        Component back = tr("browser.back");
+        Button close = EdenParchment.button(back, EdenParchment.fitWidth(back, 50), 14, () -> closePanel(screen));
+        close.tooltip(tr("browser.back_hint"));
+        screen.titleActions(EdenParchment.text(tr(editing ? "browser.edit" : "browser.create"), EdenParchment.INK),
+                close);
         Map<String, ActivityEntry> byId = byId(data);
         ActivityEntry entry = panelActivity == null ? null : byId.get(panelActivity.toString());
 
-        Flex head = Flex.row().gap(4).alignItems(Align.CENTER);
-        head.sizing(Sizing.fill(), Sizing.content());
-        Component back = tr("browser.back");
-        head.item(EdenParchment.button(back, EdenParchment.fitWidth(back, 50), 14, () -> {
-            panelOpen = false;
-            editing = false;
-            screen.onActivitiesData();
-        }));
-        head.item(EdenParchment.text(tr(editing ? "browser.edit" : "browser.create"), EdenParchment.INK));
-        content.item(head);
-
         float width = HubScreen.innerWidth();
-        float gap = 6;
-        float left = Math.max(110, (width - 2 * gap) * 0.28f);
-        float right = Math.max(150, (width - 2 * gap) * 0.36f);
-        float middle = width - left - right - 2 * gap;
+        float gap = 5;
+        float left = clamp(width * 0.24f, 96, 150);
+        float middle = clamp(width * 0.30f, 116, 190);
+        float right = width - left - middle - 2 * gap;
         Flex columns = Flex.row().gap(gap);
         columns.sizing(Sizing.fill(), Sizing.expand());
-        columns.item(column("activities/panel_left", left, activityList(screen, data, left - 6)));
-        columns.item(column("activities/panel_middle", middle, details(screen, data, entry, middle - 6)));
-        columns.item(column("activities/panel_right", right, settings(screen, data, entry, right - 6)));
+        columns.item(column("activities/panel_left", left, activityList(screen, data, left - COLUMN_INSET)));
+        columns.item(column("activities/panel_middle", middle, details(data, entry, middle - COLUMN_INSET)));
+        columns.item(column("activities/panel_right", right, settings(screen, data, right - COLUMN_INSET)));
         content.item(columns);
+        content.item(actionBar(screen, data, entry, width));
     }
 
     private static ScrollPanel column(String key, float width, Flex body) {
         body.sizing(Sizing.fill(), Sizing.content());
+        // Room on every side, so frames and checkboxes at the edges aren't clipped.
+        body.padding(Insets.of(2, 2, 2, 2));
         ScrollPanel panel = HubScroll.panel(key, width, 100, body);
         panel.sizing(Sizing.fixed(width), Sizing.fill());
         return panel;
     }
 
+    /** A small dim caps heading, as in the concept ("DIFFICULTY", "POSSIBLE DROPS"). */
+    private static CanvasNode section(Component label) {
+        return EdenParchment.text(Component.literal(label.getString().toUpperCase(Locale.ROOT)), EdenParchment.INK_DIM)
+                .scale(0.8f);
+    }
+
     /** Left: every activity (of the kind picked on the list), locked ones greyed with why; editing shows just its own. */
     private static Flex activityList(HubScreen screen, HubPayloads.ActivitiesData data, float width) {
         Flex list = Flex.column().gap(2);
-        list.item(EdenParchment.text(tr("browser.activities"), EdenParchment.INK_MID));
+        list.item(section(tr("browser.activities")));
         for (ActivityEntry entry : sortedEntries(data, panelKind)) {
             if (editing && !entry.id().equals(panelActivity)) {
                 continue;
             }
             boolean closed = HubState.closedActivities.contains(entry.id().toString()) && !HubState.closedBypass;
             Component why = closed ? tr("closed") : !entry.unlocked() ? tr("min_level", entry.unlockLevel()) : null;
-            Button button = EdenParchment.button(entry.name(), width, 14, () -> pick(screen, entry.id()));
+            Button button = EdenParchment.button(entry.name(), width, 16, () -> pick(screen, entry.id()));
+            button.align(TextNode.Align.LEFT);
+            button.tooltipWhenCut(true);
+            List<Component> tip = new ArrayList<>();
+            tip.add(entry.name());
+            tip.add(tr("browser.type." + entry.type()));
             if (why != null) {
-                button.secondary(why);
+                tip.add(why.copy().withStyle(ChatFormatting.RED));
                 button.enabled(false);
             }
+            button.tooltip(tip.toArray(Component[]::new));
             if (entry.id().equals(panelActivity)) {
                 button.style(EdenParchment.TAB_ACTIVE);
             }
@@ -520,16 +639,20 @@ final class LobbyBrowser {
         return list;
     }
 
-    /** Middle: the art, name, level, size, possible drops, and the leaderboard. */
-    private static Flex details(HubScreen screen, HubPayloads.ActivitiesData data, @Nullable ActivityEntry entry,
-                                float width) {
+    /** Middle: the picture, name, kind and size, the level, possible drops, and the leaderboard. */
+    private static Flex details(HubPayloads.ActivitiesData data, @Nullable ActivityEntry entry, float width) {
         Flex body = Flex.column().gap(3);
         if (entry == null) {
             body.item(EdenParchment.text(tr("browser.pick"), EdenParchment.INK_DIM, (int) width));
             return body;
         }
         body.item(new Art(entry, width));
-        body.item(EdenParchment.text(entry.name(), EdenParchment.INK));
+        body.item(EdenParchment.text(entry.name(), EdenParchment.INK, (int) width));
+        MutableComponent line = tr("browser.type." + entry.type()).copy();
+        if (info != null && info.maxMembers() > 0) {
+            line.append(" · ").append(tr("browser.max_members", info.maxMembers()));
+        }
+        body.item(EdenParchment.text(line, EdenParchment.INK_MID, (int) width));
         int level = entry.unlockLevel();
         if (info != null && !difficulty.isEmpty()) {
             int index = info.difficulties().indexOf(difficulty);
@@ -537,15 +660,13 @@ final class LobbyBrowser {
                 level = info.levels().get(index);
             }
         }
-        if (data.gated() && level > 0) {
-            boolean meets = data.level() >= level;
-            body.item(EdenParchment.text(tr("browser.required_level", level),
-                    meets ? EdenParchment.GOOD : EdenParchment.DANGER));
+        if (data.gated()) {
+            boolean meets = level <= 0 || data.level() >= level;
+            var levelLine = EdenParchment.text(level > 0 ? tr("browser.required_level_yours", level, data.level())
+                    : tr("your_level", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, (int) width);
+            body.item(levelLine);
         }
-        if (info != null && info.maxMembers() > 0) {
-            body.item(EdenParchment.text(tr("browser.max_members", info.maxMembers()), EdenParchment.INK_MID));
-        }
-        body.item(EdenParchment.text(tr("browser.drops"), EdenParchment.INK_MID));
+        body.item(section(tr("browser.drops")));
         if (info == null) {
             body.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
         } else if (info.drops().isEmpty()) {
@@ -553,19 +674,19 @@ final class LobbyBrowser {
         } else {
             int perRow = Math.max(1, (int) ((width + 2) / 18));
             Flex grid = Flex.column().gap(2);
-            Flex line = null;
+            Flex row = null;
             for (int i = 0; i < info.drops().size(); i++) {
                 if (i % perRow == 0) {
-                    line = Flex.row().gap(2);
-                    grid.item(line);
+                    row = Flex.row().gap(2);
+                    grid.item(row);
                 }
                 ItemStack stack = info.drops().get(i);
-                line.item(ItemStackNode.of(stack, 0, 0, 16).decorations(false));
+                row.item(ItemStackNode.of(stack, 0, 0, 16).decorations(false));
             }
             body.item(grid);
         }
         Component board = tr("browser.leaderboard");
-        Button leaderboard = EdenParchment.button(board, EdenParchment.fitWidth(board, 70), 14, () -> {
+        Button leaderboard = EdenParchment.button(board, Math.min(width, EdenParchment.fitWidth(board, 70)), 14, () -> {
             ActivityReturn.arm();
             ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
         });
@@ -577,14 +698,14 @@ final class LobbyBrowser {
         return body;
     }
 
-    /** The card art, or the plain card look without one. */
+    /** The card art; without one, the kind's color with the name over it. */
     private static final class Art extends Widget {
         private final ActivityEntry entry;
 
         Art(ActivityEntry entry, float width) {
-            super(width, Math.round(width * 0.45f));
+            super(width, Math.round(width * 0.4f));
             this.entry = entry;
-            sizing(Sizing.fixed(width), Sizing.fixed(Math.round(width * 0.45f)));
+            sizing(Sizing.fixed(width), Sizing.fixed(Math.round(width * 0.4f)));
         }
 
         @Override
@@ -592,17 +713,20 @@ final class LobbyBrowser {
             if (!entry.cardArt().isEmpty() && ProfileBackgrounds.get(entry.cardArt()) != null) {
                 add(ProfileBackgrounds.card(entry.cardArt(), width, height));
             } else {
-                add(Shapes.rect(0, 0, width, height).fill(EdenParchment.ROW_BG_ALT));
+                int color = typeColor(entry.type());
+                add(Shapes.rect(0, 0, width, height).fill(color));
+                add(Shapes.rect(0, height * 0.55f, width, height * 0.45f).fill(0x33000000));
+                add(TextNode.of(entry.name()).at(width / 2, height / 2 - 4).align(TextNode.Align.CENTER)
+                        .maxWidth((int) width - 8).ellipsis(true).color(0xFFF6EAD0).shadow(true)).pickable(false);
             }
             add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(EdenParchment.HAIRLINE, 1)));
         }
     }
 
-    /** Right: difficulty, hardcore, modifiers, visibility, minimum level, and Create / Save. */
-    private static Flex settings(HubScreen screen, HubPayloads.ActivitiesData data, @Nullable ActivityEntry entry,
-                                 float width) {
-        Flex body = Flex.column().gap(4);
-        if (entry == null) {
+    /** Right: difficulty and the run modifiers (the part that scrolls). */
+    private static Flex settings(HubScreen screen, HubPayloads.ActivitiesData data, float width) {
+        Flex body = Flex.column().gap(3);
+        if (panelActivity == null) {
             return body;
         }
         if (info == null) {
@@ -610,15 +734,8 @@ final class LobbyBrowser {
             return body;
         }
         if (!info.creatable()) {
-            // Not a lobby activity here (a datapack one): it opens where it lives.
+            // Not a lobby activity here (a datapack one): it opens where it lives (the bar's button).
             body.item(EdenParchment.text(tr("browser.not_creatable"), EdenParchment.INK_DIM, (int) width));
-            Component open = tr("browser.open");
-            Button button = EdenParchment.button(open, EdenParchment.fitWidth(open, 70), 14, () -> {
-                ActivityReturn.arm();
-                ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
-            });
-            button.enabled(entry.unlocked());
-            body.item(button);
             return body;
         }
         if (editing && !info.hasCurrent() && !prefilled) {
@@ -628,101 +745,217 @@ final class LobbyBrowser {
         }
 
         if (!info.difficulties().isEmpty()) {
-            body.item(EdenParchment.text(tr("browser.difficulty"), EdenParchment.INK_MID));
-            Flex pills = Flex.row().gap(2);
-            for (int i = 0; i < info.difficulties().size(); i++) {
+            body.item(section(tr("browser.difficulty")));
+            Flex seg = Flex.row().gap(2);
+            int count = info.difficulties().size();
+            float each = (width - 2 * (count - 1)) / count;
+            for (int i = 0; i < count; i++) {
                 String id = info.difficulties().get(i);
                 int level = i < info.levels().size() ? info.levels().get(i) : 0;
                 boolean open = !data.gated() || level <= 0 || data.level() >= level;
-                Component label = difficultyName(id);
-                Button pill = EdenParchment.button(label, EdenParchment.fitWidth(label, 30), 14, () -> {
+                Button pill = EdenParchment.button(difficultyName(id), each, 14, () -> {
                     difficulty = id;
                     request();
                     screen.onActivitiesData();
                 });
+                pill.tooltipWhenCut(true);
+                List<Component> tip = new ArrayList<>();
+                tip.add(difficultyName(id));
+                if (level > 0) {
+                    tip.add(tr("browser.required_level", level).copy()
+                            .withStyle(open ? ChatFormatting.GREEN : ChatFormatting.RED));
+                }
+                pill.tooltip(tip.toArray(Component[]::new));
                 if (id.equals(difficulty)) {
                     pill.style(EdenParchment.TAB_ACTIVE);
-                }
-                if (level > 0) {
-                    pill.tooltip(tr("browser.required_level", level));
                 }
                 if (!open) {
                     pill.enabled(false);
                 }
-                pills.item(pill);
+                seg.item(pill);
             }
-            body.item(pills);
+            body.item(seg);
         }
 
-        HubPayloads.ModifierLine hardcoreLine = null;
-        List<HubPayloads.ModifierLine> others = new ArrayList<>();
+        boolean any = false;
         for (HubPayloads.ModifierLine modifier : info.modifiers()) {
-            if (HARDCORE.equals(modifier.id())) {
-                hardcoreLine = modifier;
-            } else {
-                others.add(modifier);
+            if (!any) {
+                body.item(section(tr("browser.modifiers")));
+                any = true;
             }
-        }
-        if (hardcoreLine != null) {
-            HubPayloads.ModifierLine hardcoreInfo = hardcoreLine;
-            Toggle toggle = new Toggle(width, tr("lobbies.hardcore"), hardcore, value -> {
-                hardcore = value;
-                if (value) {
-                    // Hardcore turns off what it rules out, as the other modifiers do.
-                    modifiers.removeIf(id -> hardcoreInfo.conflicts().contains(id) || info.modifiers().stream()
-                            .anyMatch(m -> m.id().equals(id) && m.conflicts().contains(HARDCORE)));
-                }
+            boolean isHardcore = HARDCORE.equals(modifier.id());
+            boolean on = isHardcore ? hardcore : modifiers.contains(modifier.id());
+            body.item(new ModifierRow(modifier, isHardcore, on, width, value -> {
+                toggle(modifier, isHardcore, value);
                 screen.onActivitiesData();
-            });
-            toggle.secondary(hardcoreLine.rewards());
-            toggle.tooltip(hardcoreLine.description());
-            body.item(toggle);
+            }));
         }
-        if (!others.isEmpty()) {
-            body.item(EdenParchment.text(tr("browser.modifiers"), EdenParchment.INK_MID));
-            for (HubPayloads.ModifierLine modifier : others) {
-                Toggle toggle = new Toggle(width, modifier.name(), modifiers.contains(modifier.id()), value -> {
-                    if (value) {
-                        modifiers.add(modifier.id());
-                        // Turning one on turns off what it rules out (either way round).
-                        for (HubPayloads.ModifierLine other : info.modifiers()) {
-                            if (!other.id().equals(modifier.id()) && (modifier.conflicts().contains(other.id())
-                                    || other.conflicts().contains(modifier.id()))) {
-                                modifiers.remove(other.id());
-                                if (HARDCORE.equals(other.id())) {
-                                    hardcore = false;
-                                }
-                            }
+        return body;
+    }
+
+    /** A modifier on or off; on turns off what it rules out (either way round), hardcore included. */
+    private static void toggle(HubPayloads.ModifierLine modifier, boolean isHardcore, boolean value) {
+        if (isHardcore) {
+            hardcore = value;
+        } else if (value) {
+            modifiers.add(modifier.id());
+        } else {
+            modifiers.remove(modifier.id());
+        }
+        if (!value || info == null) {
+            return;
+        }
+        for (HubPayloads.ModifierLine other : info.modifiers()) {
+            if (!other.id().equals(modifier.id()) && (modifier.conflicts().contains(other.id())
+                    || other.conflicts().contains(modifier.id()))) {
+                if (HARDCORE.equals(other.id())) {
+                    hardcore = false;
+                } else {
+                    modifiers.remove(other.id());
+                }
+            }
+        }
+    }
+
+    /**
+     * A 16-unit modifier row (the concept's): a checkbox, the name, the reward effect on the right in green. Both are cut
+     * with "…" when long; the tooltip has the full name, effect, description and what it rules out.
+     */
+    private static final class ModifierRow extends Widget {
+        private final HubPayloads.ModifierLine modifier;
+        private final boolean hardcoreRow;
+        private final boolean on;
+        private final java.util.function.Consumer<Boolean> onChange;
+
+        ModifierRow(HubPayloads.ModifierLine modifier, boolean hardcoreRow, boolean on, float width,
+                    java.util.function.Consumer<Boolean> onChange) {
+            super(width, MOD_H);
+            this.modifier = modifier;
+            this.hardcoreRow = hardcoreRow;
+            this.on = on;
+            this.onChange = onChange;
+            sizing(Sizing.fixed(width), Sizing.fixed(MOD_H));
+            tooltip(() -> {
+                List<Component> lines = new ArrayList<>();
+                lines.add(modifier.name().copy().withStyle(ChatFormatting.BOLD));
+                if (!modifier.rewards().getString().isEmpty()) {
+                    lines.add(modifier.rewards().copy().withStyle(ChatFormatting.GREEN));
+                }
+                if (!modifier.description().getString().isEmpty()) {
+                    lines.add(modifier.description().copy().withStyle(ChatFormatting.GRAY));
+                }
+                if (!modifier.conflicts().isEmpty() && info != null) {
+                    List<String> names = new ArrayList<>();
+                    for (HubPayloads.ModifierLine other : info.modifiers()) {
+                        if (modifier.conflicts().contains(other.id()) || other.conflicts().contains(modifier.id())) {
+                            names.add(other.name().getString());
                         }
-                    } else {
-                        modifiers.remove(modifier.id());
                     }
-                    screen.onActivitiesData();
-                });
-                toggle.secondary(modifier.rewards());
-                toggle.tooltip(modifier.description());
-                body.item(toggle);
+                    if (!names.isEmpty()) {
+                        lines.add(tr("browser.conflicts", String.join(", ", names)).copy()
+                                .withStyle(ChatFormatting.DARK_GRAY));
+                    }
+                }
+                return lines;
+            });
+        }
+
+        @Override
+        protected void rebuild() {
+            int accent = hardcoreRow ? EdenParchment.DANGER : EdenParchment.ACCENT;
+            add(Shapes.rect(0, 0, width, height).fill(on ? (0x55000000 | (accent & 0xFFFFFF))
+                    : hovered ? 0x22000000 | (EdenParchment.INK & 0xFFFFFF) : EdenParchment.ROW_BG_ALT));
+            if (on) {
+                add(Shapes.rect(0, 0, 2, height).fill(accent | 0xFF000000));
+            }
+            // The checkbox.
+            float box = 9;
+            float bx = 4;
+            float by = (height - box) / 2;
+            add(Shapes.rect(bx, by, box, box).fill(EdenParchment.PANEL));
+            add(Shapes.rect(bx + 0.5f, by + 0.5f, box - 1, box - 1).stroke(Stroke.of(EdenParchment.HAIRLINE_HI, 1)));
+            if (on) {
+                add(Shapes.rect(bx + 2, by + 2, box - 4, box - 4).fill(accent | 0xFF000000));
+            }
+            var font = Minecraft.getInstance().font;
+            float textX = bx + box + 4;
+            float available = width - textX - 4;
+            // The effect keeps up to 45% of the room; the name takes the rest.
+            float effectWidth = Math.min(font.width(modifier.rewards()), available * 0.45f);
+            float nameWidth = Math.max(10, available - effectWidth - (effectWidth > 0 ? 6 : 0));
+            add(TextNode.of(modifier.name()).at(textX, textY(height)).maxWidth((int) nameWidth).ellipsis(true)
+                    .color(EdenParchment.INK)).pickable(false);
+            if (effectWidth > 0) {
+                add(TextNode.of(modifier.rewards()).at(width - 4, textY(height)).align(TextNode.Align.RIGHT)
+                        .maxWidth((int) effectWidth).ellipsis(true).color(EdenParchment.GOOD)).pickable(false);
             }
         }
 
-        body.item(EdenParchment.text(tr("browser.visibility"), EdenParchment.INK_MID));
-        body.item(EdenParchment.tabs(List.of(0, 1, 2), value -> tr("browser.visibility." + value), visibility, value -> {
-            visibility = value;
-            screen.onActivitiesData();
-        }, 40, "activities/panel_visibility").height(14));
-
-        if (info.levelsActive() && data.gated()) {
-            Flex levelRow = Flex.row().gap(4).alignItems(Align.CENTER);
-            levelRow.item(EdenParchment.text(tr("browser.min_level_field"), EdenParchment.INK_MID));
-            NumberField field = new NumberField(50, minLevel, null).range(0, 1000).step(1);
-            field.onCommit(value -> minLevel = (int) value);
-            field.tooltip(tr("browser.min_level_field_hint"));
-            levelRow.item(field);
-            body.item(levelRow);
+        @Override
+        public boolean onMouseDown(float x, float y, int button) {
+            if (button != 0) {
+                return false;
+            }
+            UiSounds.click();
+            onChange.accept(!on);
+            return true;
         }
 
+        @Override
+        public Cursor cursor() {
+            return Cursor.HAND;
+        }
+    }
+
+    /**
+     * The bar fixed under the columns: visibility, minimum level, and the primary button (Створити лобі / Зберегти
+     * зміни, or Відкрити for an activity the hub can't make lobbies of).
+     */
+    private static Flex actionBar(HubScreen screen, HubPayloads.ActivitiesData data, @Nullable ActivityEntry entry,
+                                  float width) {
+        Flex bar = Flex.row().gap(4).padding(Insets.of(3, 4, 3, 4)).alignItems(Align.CENTER);
+        bar.sizing(Sizing.fill(), Sizing.content());
+        bar.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
+        if (entry == null || info == null) {
+            bar.item(EdenParchment.text(Component.literal(" "), EdenParchment.INK_DIM));
+            return bar;
+        }
+        boolean closed = HubState.closedActivities.contains(entry.id().toString()) && !HubState.closedBypass;
+        if (!info.creatable()) {
+            bar.spacer();
+            Component open = tr("browser.open");
+            Button button = EdenParchment.button(open, EdenParchment.fitWidth(open, 80), 16, () -> {
+                ActivityReturn.arm();
+                ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
+            });
+            button.style(EdenParchment.TAB_ACTIVE);
+            button.enabled(entry.unlocked() && !closed);
+            bar.item(button);
+            return bar;
+        }
+        boolean editable = !editing || info.hasCurrent() || prefilled;
+        if (editable) {
+            var tabs = EdenParchment.tabs(List.of(0, 1, 2), value -> tr("browser.visibility." + value), visibility,
+                    value -> {
+                        visibility = value;
+                        screen.onActivitiesData();
+                    }, 36, "activities/panel_visibility").height(14);
+            tabs.tabTooltip(0, tr("browser.visibility_hint.0"));
+            tabs.tabTooltip(1, tr("browser.visibility_hint.1"));
+            tabs.tabTooltip(2, tr("browser.visibility_hint.2"));
+            bar.item(tabs);
+            if (info.levelsActive() && data.gated()) {
+                bar.item(EdenParchment.text(tr("browser.min_level_field"), EdenParchment.INK_MID));
+                NumberField field = new NumberField(34, minLevel, value -> minLevel = (int) value).range(0, 1000).step(1);
+                field.onCommit(value -> minLevel = (int) value);
+                field.sizing(Sizing.fixed(34), Sizing.fixed(14));
+                field.tooltip(tr("browser.min_level_field_hint"));
+                bar.item(field);
+            }
+        }
+        bar.spacer();
         Component action = tr(editing ? "browser.save" : "browser.create");
-        Button submit = EdenParchment.button(action, Math.min(width, EdenParchment.fitWidth(action, 100)), 16, () -> {
+        Button submit = EdenParchment.button(action, EdenParchment.fitWidth(action, 80), 16, () -> {
             if (panelActivity == null) {
                 return;
             }
@@ -730,17 +963,17 @@ final class LobbyBrowser {
                 awaitingLobby = true;
                 ActivityReturn.arm();
             }
-            List<String> chosen = new ArrayList<>(modifiers);
-            ClientPlayNetworking.send(new HubPayloads.LobbyCreate(panelActivity, difficulty, hardcore, chosen,
-                    visibility, minLevel, editing));
+            ClientPlayNetworking.send(new HubPayloads.LobbyCreate(panelActivity, difficulty, hardcore,
+                    new ArrayList<>(modifiers), visibility, minLevel, editing));
         });
-        boolean closed = HubState.closedActivities.contains(entry.id().toString()) && !HubState.closedBypass;
-        if (!entry.unlocked() || closed) {
+        submit.style(EdenParchment.TAB_ACTIVE);
+        if (!editable || !entry.unlocked() || closed) {
             submit.enabled(false);
-            submit.tooltip(closed ? tr("closed") : tr("min_level", entry.unlockLevel()));
+            submit.tooltip(closed ? tr("closed") : !entry.unlocked() ? tr("min_level", entry.unlockLevel())
+                    : tr("browser.edit_unknown"));
         }
-        body.item(submit);
-        return body;
+        bar.item(submit);
+        return bar;
     }
 
     // ---------------------------------------------------------------- helpers
@@ -792,5 +1025,19 @@ final class LobbyBrowser {
             case "nightmare" -> EdenParchment.DANGER;
             default -> EdenParchment.INK_MID;
         };
+    }
+
+    /** A dungeon's, raid's or arena's color for pictures without art (the concept's). */
+    private static int typeColor(int type) {
+        return switch (type) {
+            case 0 -> 0xFF5C7A4A;
+            case 1 -> 0xFF6B5A8A;
+            case 2 -> 0xFF3A6A8A;
+            default -> 0xFF8A6A3A;
+        };
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
