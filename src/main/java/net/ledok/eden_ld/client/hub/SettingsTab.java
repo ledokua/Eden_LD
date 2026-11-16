@@ -61,6 +61,11 @@ final class SettingsTab {
         chat(settings.section("chat", tr("tab.chat")), data);
         notifications(settings.section("notifications", tr("tab.notifications")));
         visual(screen, settings.section("visual", tr("tab.visual")), data);
+        // Arenas_LD's own client settings (4.36.1+: run HUD, loot reveal, ally sidebar, lobby badge), when it has them.
+        List<ArenasClientSettings.Row> arenas = ArenasClientSettings.rows();
+        if (!arenas.isEmpty()) {
+            arenas(settings.section("arenas", tr("tab.arenas")), arenas);
+        }
 
         SettingsView view = new SettingsView(settings, HubScreen.innerWidth())
                 .tabs(bar -> {
@@ -305,6 +310,24 @@ final class SettingsTab {
                                 tr("unmute"), () -> send(key, 0))
                         .hint(muted).keywords("mute", "unmute"));
             }
+        }
+    }
+
+    /** One choice row per Arenas setting; a pick saves Arenas' client config and its HUDs follow at once. */
+    private static void arenas(Settings settings, List<ArenasClientSettings.Row> rows) {
+        for (ArenasClientSettings.Row row : rows) {
+            String current = row.value().get();
+            if (!row.values().contains(current) && !row.values().isEmpty()) {
+                current = row.values().get(0);
+            }
+            var option = Option.choice(row.name(), row.values(), current, value -> {
+                int index = row.values().indexOf(value);
+                return index >= 0 ? row.labels().get(index) : Component.literal(value);
+            }, row.set()).keywords("arenas", "dungeon", "raid", "hud", row.id());
+            if (!row.description().getString().isEmpty()) {
+                option.hint(row.description());
+            }
+            settings.add(option);
         }
     }
 

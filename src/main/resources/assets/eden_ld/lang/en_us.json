@@ -253,6 +253,7 @@
   "gui.eden_ld.hub.settings.tab.privacy": "Privacy",
   "gui.eden_ld.hub.settings.tab.chat": "Chat",
   "gui.eden_ld.hub.settings.tab.visual": "Visual",
+  "gui.eden_ld.hub.settings.tab.arenas": "Activities",
   "gui.eden_ld.hub.settings.section.messages": "Messages",
   "gui.eden_ld.hub.settings.section.channels": "Channels",
   "gui.eden_ld.hub.settings.deaths": "Death messages",
