@@ -369,11 +369,15 @@ boolean stashItem(ServerPlayer player, ItemStack stack) // a reward kept for the
 boolean isRentalItem(ItemStack stack)             // custom_data {eden_rental: <session>}
 ```
 
-- `begin` puts aside the inventory, armor, offhand, Trinkets, cursor and 2x2 crafting grid, resets and locks every
-  Pufferfish Skills tree (experience, level and points are untouched), then gives the loadout and marks every item it
-  gave. It returns false, with nothing changed, if the player already rents, is dead, or the kit is missing.
-- `end` removes every rental item (also inside shulker boxes and bundles), gives their items back to the same slots and
-  unlocks their skills again. Anything else they got meanwhile is kept (overflow is dropped at their feet).
+- `begin` puts aside the inventory, armor, offhand, Trinkets, cursor and 2x2 crafting grid, then gives the loadout and
+  marks every item it gave. It returns false, with nothing changed, if the player already rents, is dead, or the kit is
+  missing.
+- **Skill tree:** kept by default (1.3.97+, `rental.json` `keep_skill_tree: true`): the tree gives max health and class
+  stats, and spending or resetting points works as usual while renting. With `keep_skill_tree: false`, `begin` also
+  resets and locks every Pufferfish Skills tree (experience, level and points are untouched) and `end` unlocks it again.
+- `end` removes every rental item (also inside shulker boxes and bundles) and gives their items back to the same slots.
+  A tree that was put aside is given back even if the option changed meanwhile. Anything else they got meanwhile is kept
+  (overflow is dropped at their feet).
 - While renting:
   - Rental items can't be dropped (they go back to the hand) or put in any container slot: chests, ender chest,
     crafting, anvils, trades, shops, modded storage screens.

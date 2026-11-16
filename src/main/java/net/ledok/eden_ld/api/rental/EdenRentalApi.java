@@ -15,8 +15,8 @@ import java.util.function.Consumer;
 /**
  * Rental builds for other mods (Duels_LD ranked, Arenas_LD runs; source-stable). Server thread.
  *
- * <p>{@link #begin} puts the player's own items (inventory, armor, offhand, Trinkets, cursor, crafting grid) and their
- * Pufferfish skill tree aside, hands out a loadout and marks every loadout item {@code custom_data {eden_rental:
+ * <p>{@link #begin} puts the player's own items (inventory, armor, offhand, Trinkets, cursor, crafting grid) aside
+ * (their Pufferfish skill tree too, only when Eden's {@code rental.keep_skill_tree} is off; kept by default since 1.3.97), hands out a loadout and marks every loadout item {@code custom_data {eden_rental:
  * <session>}}. {@link #end} removes every rental item and gives everything back exactly. Between the two, rental items
  * can't leave the player (no dropping, containers, item frames, trades, graves), the player picks nothing up from the
  * ground, and a death drops nothing. A crash or restart during a session is undone at the player's next login.
@@ -44,7 +44,7 @@ public final class EdenRentalApi {
     }
 
     /**
-     * Ends the player's session: rental items removed, their own items and skill tree back; anything else they got
+     * Ends the player's session: rental items removed, their own items (and a skill tree put aside) back; anything else they got
      * meanwhile is kept. False when they weren't renting.
      */
     public static boolean end(ServerPlayer player) {

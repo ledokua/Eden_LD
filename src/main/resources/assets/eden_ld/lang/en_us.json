@@ -2089,7 +2089,7 @@
   "gui.eden_ld.moderation.reports.reopen": "Reopen",
   "message.eden_ld.rental.none": "%s isn't renting a build.",
   "message.eden_ld.rental.status": "%s rents a build: session %s, kit %s, for %s min, %s own stacks put aside%s",
-  "message.eden_ld.rental.ended": "%s's rental ended: own items and skill tree back.",
+  "message.eden_ld.rental.ended": "%s's rental ended: own items back.",
   "message.eden_ld.rental.begun": "%s now rents kit %s (end it with /eden rental end).",
   "message.eden_ld.rental.not_begun": "Couldn't give %s kit %s: already renting, dead, or the kit is missing (see the log).",
   "chat.eden_ld.action.write": "Write privately",

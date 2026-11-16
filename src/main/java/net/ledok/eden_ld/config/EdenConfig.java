@@ -30,6 +30,7 @@ public class EdenConfig {
     public Villagers villagers = new Villagers();
     public Saving saving = new Saving();
     public Hoppers hoppers = new Hoppers();
+    public Rental rental = new Rental();
 
     public static class Minestar {
         public boolean prime_role_sync_enabled = true;
@@ -382,6 +383,16 @@ public class EdenConfig {
     }
 
     /** Hopper costs (Observable: a hopper feeding an Extended Drawers access point took 328 µs every tick). */
+    /** Rental builds (Arenas_LD runs with a rented kit, {@code rental/RentalStash}). */
+    public static class Rental {
+        /**
+         * Players keep their own Pufferfish skill tree while renting a kit (it gives max health and class stats since
+         * the 2026-11-15 damage split). False = the tree is put aside with their items and every skill is locked until
+         * the rental ends. A stash that already holds a tree (put aside before this was turned on) still gives it back.
+         */
+        public boolean keep_skill_tree = true;
+    }
+
     public static class Hoppers {
         /**
          * When a hopper can't push into (or pull from) another mod's storage with 128+ slots (storage networks such as

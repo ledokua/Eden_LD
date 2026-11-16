@@ -43,7 +43,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Rental builds ({@code Balance/RENTAL-BUILDS.md}): a player's own items and skill tree put aside for a duel or a run,
+ * Rental builds ({@code Balance/RENTAL-BUILDS.md}): a player's own items (and skill tree, only when
+ * {@code rental.keep_skill_tree} is off) put aside for a duel or a run,
  * a loadout handed out instead, and everything back after. Server thread. Other mods use
  * {@link net.ledok.eden_ld.api.rental.EdenRentalApi}.
  *
@@ -143,7 +144,8 @@ public final class RentalStash {
     }
 
     /**
-     * Puts the player's items (inventory, armor, offhand, Trinkets, cursor, crafting grid) and skill tree aside, then
+     * Puts the player's items (inventory, armor, offhand, Trinkets, cursor, crafting grid) and, with
+     * {@code rental.keep_skill_tree} off, their skill tree aside, then
      * {@code giveLoadout} hands out the loadout; every item they hold afterwards is marked as the session's. False
      * (and nothing changed) when they already rent, or when the loadout fails (then everything is back already).
      */
@@ -168,7 +170,9 @@ public final class RentalStash {
         if (TRINKETS) {
             record.put("trinkets", RentalTrinkets.save(player));
         }
-        if (SKILLS) {
+        // The tree is kept unless the config says otherwise (rental.keep_skill_tree, 1.3.97).
+        boolean asideSkills = SKILLS && !EdenLD.CONFIG.rental.keep_skill_tree;
+        if (asideSkills) {
             record.put("skills", RentalSkills.save(player));
         }
         ListTag extra = new ListTag();
@@ -183,7 +187,7 @@ public final class RentalStash {
         if (TRINKETS) {
             RentalTrinkets.removeIf(player, stack -> true);
         }
-        if (SKILLS) {
+        if (asideSkills) {
             RentalSkills.clearAll(player);
         }
         try {
@@ -200,7 +204,7 @@ public final class RentalStash {
         healLater(player, 1.0f);
         EdenLD.LOGGER.info("[Rental] {} began rental session {} ({}): {} own stacks put aside{}, {} loadout stacks given.",
                 player.getGameProfile().getName(), session, kit == null ? "custom loadout" : kit, own,
-                SKILLS ? " with the skill tree" : "", given);
+                asideSkills ? " with the skill tree" : "", given);
         return true;
     }
 

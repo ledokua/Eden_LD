@@ -2089,7 +2089,7 @@
   "gui.eden_ld.moderation.reports.reopen": "Відкрити знову",
   "message.eden_ld.rental.none": "%s не орендує збірку.",
   "message.eden_ld.rental.status": "%s орендує збірку: сесія %s, набір %s, %s хв, відкладено власних стаків: %s%s",
-  "message.eden_ld.rental.ended": "Оренду %s завершено: власні речі й дерево навичок повернуто.",
+  "message.eden_ld.rental.ended": "Оренду %s завершено: власні речі повернуто.",
   "message.eden_ld.rental.begun": "%s тепер орендує набір %s (завершити: /eden rental end).",
   "message.eden_ld.rental.not_begun": "Не вдалося видати %s набір %s: уже орендує, мертвий або набору немає (див. лог).",
   "chat.eden_ld.action.write": "Написати",
