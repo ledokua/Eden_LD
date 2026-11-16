@@ -182,12 +182,7 @@ final class ActivitiesTab {
             filterTabs.tabTooltip(Filter.LOBBIES, tr("filter.lobbies.hint"));
         }
         filters.item(filterTabs);
-        filters.spacer();
-        if (data != null && data.gated() && !duels) {
-            var level = EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_MID);
-            level.id(HubSpotlights.ACTIVITIES_LEVEL);
-            filters.item(level);
-        }
+        // The level sits on the row below (sorting, or the «Лобі» list's head): the filters fill this one (1.3.100).
         content.item(filters);
 
         if (showingDuels()) {
@@ -203,6 +198,13 @@ final class ActivitiesTab {
             return;
         }
         if (filter == Filter.LOBBIES) {
+            if (data.gated()) {
+                Flex head = Flex.row().alignItems(Align.CENTER);
+                head.sizing(Sizing.fill(), Sizing.content());
+                head.spacer();
+                head.item(levelLabel(data));
+                content.item(head);
+            }
             buildLobbies(data, content);
             return;
         }
@@ -226,6 +228,10 @@ final class ActivitiesTab {
         });
         order.tooltip(tr(descending ? "descending" : "ascending"));
         sorting.item(order);
+        if (data.gated()) {
+            sorting.spacer();
+            sorting.item(levelLabel(data));
+        }
         content.item(sorting);
 
         List<ActivityEntry> shown = new ArrayList<>();
@@ -422,6 +428,13 @@ final class ActivitiesTab {
         private boolean clickable() {
             return entry.unlocked() && (!closed || HubState.closedBypass);
         }
+    }
+
+    /** «Your level: 64», named for the tutorial's spotlight. */
+    private static net.ledok.vectorlib.client.canvas.TextNode levelLabel(HubPayloads.ActivitiesData data) {
+        var level = EdenParchment.text(tr("your_level", data.level()), EdenParchment.INK_MID);
+        level.id(HubSpotlights.ACTIVITIES_LEVEL);
+        return level;
     }
 
     // ---------------------------------------------------------------- the «Лобі» list (1.3.99)
