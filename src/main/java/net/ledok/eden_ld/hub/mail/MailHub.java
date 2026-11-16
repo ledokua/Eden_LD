@@ -281,6 +281,8 @@ public final class MailHub {
                     .getBalance(player.getUUID(), player.getGameProfile().getName())
                     .exceptionally(error -> -1L);
             net.ledok.economy_ld.mail.EconomyMail.list(player.getUUID()).thenCombine(balanceFuture, MailAndBalance::new)
+                    // 1.3.102: a hanging database gives a warning (below) instead of a hub without its Mail tab.
+                    .orTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                     .whenComplete((both, error) ->
                     player.server.execute(() -> {
                         if (error != null) {
