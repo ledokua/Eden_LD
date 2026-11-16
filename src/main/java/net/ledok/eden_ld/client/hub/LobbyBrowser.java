@@ -186,13 +186,15 @@ final class LobbyBrowser {
         }
     }
 
-    /** Every client tick: the server closed the view (run start, lobby gone, kick): the browser comes back. */
+    /** Every client tick: the server closed the view (run start, lobby gone, kick): the hub closes. */
     static void tick() {
         Hosted view = hosted;
         if (view != null && view.closed()) {
             hosted = null;
-            if (Minecraft.getInstance().screen instanceof HubScreen hub && HubState.lastTab == HubTab.ACTIVITIES) {
-                hub.onActivitiesData();
+            // The server closed it (the run starting, the lobby gone, a kick): the hub goes too, so nothing covers the
+            // run's countdown (LeDok, 1.3.111), as vanilla does when a server closes a menu.
+            if (Minecraft.getInstance().screen instanceof HubScreen) {
+                Minecraft.getInstance().setScreen(null);
             }
         }
     }
@@ -1029,17 +1031,23 @@ final class LobbyBrowser {
         }
 
         boolean any = false;
+        MOD_ROWS.clear();
         for (HubPayloads.ModifierLine modifier : info.modifiers()) {
             if (!any) {
                 body.item(section(tr("browser.modifiers")));
                 any = true;
             }
             boolean isHardcore = HARDCORE.equals(modifier.id());
-            boolean on = isHardcore ? hardcore : modifiers.contains(modifier.id());
-            body.item(new ModifierRow(modifier, isHardcore, on, width, value -> {
+            // A click redraws the rows in place, not the page (1.3.111: a rebuilt page put the hover glow on the row
+            // where the click would have been before its scroll position came back).
+            ModifierRow row = new ModifierRow(modifier, isHardcore, width, value -> {
                 toggle(modifier, isHardcore, value);
-                screen.onActivitiesData();
-            }));
+                for (ModifierRow shown : MOD_ROWS) {
+                    shown.refresh();
+                }
+            });
+            MOD_ROWS.add(row);
+            body.item(row);
         }
         return body;
     }
@@ -1072,18 +1080,19 @@ final class LobbyBrowser {
      * A 16-unit modifier row (the concept's): a checkbox, the name, the reward effect on the right in green. Both are cut
      * with "…" when long; the tooltip has the full name, effect, description and what it rules out.
      */
+    /** The modifier rows on screen: a click refreshes them all (one may switch others off). */
+    private static final List<ModifierRow> MOD_ROWS = new ArrayList<>();
+
     private static final class ModifierRow extends Widget {
         private final HubPayloads.ModifierLine modifier;
         private final boolean hardcoreRow;
-        private final boolean on;
         private final java.util.function.Consumer<Boolean> onChange;
 
-        ModifierRow(HubPayloads.ModifierLine modifier, boolean hardcoreRow, boolean on, float width,
+        ModifierRow(HubPayloads.ModifierLine modifier, boolean hardcoreRow, float width,
                     java.util.function.Consumer<Boolean> onChange) {
             super(width, MOD_H);
             this.modifier = modifier;
             this.hardcoreRow = hardcoreRow;
-            this.on = on;
             this.onChange = onChange;
             sizing(Sizing.fixed(width), Sizing.fixed(MOD_H));
             tooltip(() -> {
@@ -1111,8 +1120,14 @@ final class LobbyBrowser {
             });
         }
 
+        /** Read live: another row's click may have switched this one off. */
+        private boolean on() {
+            return hardcoreRow ? hardcore : modifiers.contains(modifier.id());
+        }
+
         @Override
         protected void rebuild() {
+            boolean on = on();
             int accent = hardcoreRow ? EdenParchment.DANGER : EdenParchment.ACCENT;
             add(Shapes.rect(0, 0, width, height).fill(on ? (0x55000000 | (accent & 0xFFFFFF))
                     : hovered ? 0x22000000 | (EdenParchment.INK & 0xFFFFFF) : EdenParchment.ROW_BG_ALT));
@@ -1148,7 +1163,7 @@ final class LobbyBrowser {
                 return false;
             }
             UiSounds.click();
-            onChange.accept(!on);
+            onChange.accept(!on());
             return true;
         }
 

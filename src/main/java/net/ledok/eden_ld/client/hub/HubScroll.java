@@ -41,6 +41,19 @@ final class HubScroll {
             return restore > 0 ? restore : scrollY();
         }
 
+        /**
+         * As soon as it's laid out at its real size (1.3.111): restoring only at the first draw left the pointer's
+         * hover picked against the unscrolled content until the mouse moved.
+         */
+        @Override
+        public void resize(float w, float h) {
+            super.resize(w, h);
+            if (restore > 0 && h > 0) {
+                scrollTo(restore);
+                restore = 0;
+            }
+        }
+
         @Override
         protected void draw(CanvasRenderContext ctx) {
             if (restore > 0) {
