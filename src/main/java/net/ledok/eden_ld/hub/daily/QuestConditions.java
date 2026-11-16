@@ -85,11 +85,17 @@ public final class QuestConditions {
 
     /** Counts what {@code make} awards as made at {@code station}, whatever menu is open. */
     public static void madeAt(ResourceLocation station, Runnable make) {
+        // Nested (a pot's use inside a station action, Eden's own count inside the pot's use): the outer station comes back after.
+        ResourceLocation outer = MADE_AT.get();
         MADE_AT.set(station);
         try {
             make.run();
         } finally {
-            MADE_AT.remove();
+            if (outer == null) {
+                MADE_AT.remove();
+            } else {
+                MADE_AT.set(outer);
+            }
         }
     }
 

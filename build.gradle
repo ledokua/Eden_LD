@@ -117,6 +117,9 @@ dependencies {
     // Farmer's Delight (Refabricated) — optional: its cooking pot's meals count for craft quests (CookingPot*Mixin).
     // A copy of the pack's jar.
     modCompileOnly files("libs/FarmersDelight-1.21.1-3.3.6+refabricated.jar")
+    // Diegesis (Hands-On Delight's library) — optional: what a station action makes counts at its block (StationActionMixin).
+    // A copy of the pack's jar.
+    modCompileOnly files("libs/diegesis-fabric-1.21.1-1.0.0-beta.11+falleneden.2.jar")
 
     modCompileOnly files("libs/Economy_LD-1.0.2.jar")
     // Codex_LD: chat hints hear every channel (compat/CodexCompat).

@@ -10,6 +10,7 @@
     "AttributesRegisterMixin",
     "BorderPacketMixin",
     "CookingPotBlockMixin",
+    "StationActionMixin",
     "DimensionDataStorageAsyncMixin",
     "EntityHazardMixin",
     "GameProfileCacheAccessor",
