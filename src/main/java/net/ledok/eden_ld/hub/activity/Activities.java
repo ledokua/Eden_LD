@@ -39,6 +39,17 @@ public final class Activities {
         return Optional.empty();
     }
 
+    /** The lobbies forming now that the viewer may see, by activity id, from every source. */
+    public static java.util.Map<net.minecraft.resources.ResourceLocation, List<ActivitySource.OpenLobby>> openLobbies(
+            ServerPlayer viewer) {
+        java.util.Map<net.minecraft.resources.ResourceLocation, List<ActivitySource.OpenLobby>> all =
+                new java.util.LinkedHashMap<>();
+        for (ActivitySource source : SOURCES) {
+            source.openLobbies(viewer).forEach(all::putIfAbsent);
+        }
+        return all;
+    }
+
     /** Opens the player's own lobby screen; false when no source has one for them. */
     public static boolean openOwnLobby(ServerPlayer player) {
         for (ActivitySource source : SOURCES) {

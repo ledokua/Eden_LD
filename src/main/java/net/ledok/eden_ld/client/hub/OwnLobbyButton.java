@@ -32,6 +32,20 @@ public final class OwnLobbyButton {
     }
 
     public static void initialize() {
+        // The cards' lobby badges (1.3.98): with the tab's data, then when they change (answering this poll).
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLobbies.TYPE, (payload, context) -> {
+            java.util.Map<String, java.util.List<HubPayloads.LobbyLine>> lobbies = new java.util.HashMap<>();
+            for (HubPayloads.LobbyBadge badge : payload.badges()) {
+                lobbies.put(badge.activity().toString(), java.util.List.copyOf(badge.lobbies()));
+            }
+            if (lobbies.equals(HubState.activityLobbies)) {
+                return;
+            }
+            HubState.activityLobbies = lobbies;
+            if (context.client().screen instanceof HubScreen screen && HubState.lastTab == HubTab.ACTIVITIES) {
+                screen.onActivitiesData();
+            }
+        });
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyData.TYPE, (payload, context) -> {
             if (payload.equals(data)) {
                 return;

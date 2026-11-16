@@ -44,6 +44,26 @@ public interface ActivitySource {
         return false;
     }
 
+    /**
+     * A lobby forming now that the viewer may see on an activity card (1.3.98): its owner's name, members of the most
+     * it takes, the picked difficulty's id ("easy", "hard"…), hardcore, whether it's joined by request (friends-only)
+     * and whether the viewer is in it.
+     */
+    record OpenLobby(String owner, int members, int maxMembers, String difficulty, boolean hardcore, boolean request,
+                     boolean member) {
+        public boolean full() {
+            return members >= maxMembers;
+        }
+    }
+
+    /**
+     * The lobbies forming now that {@code viewer} may see, by activity (cheap: asked every 2 s while the Activities tab
+     * shows). Friends-only lobbies only for the owner's friends and the lobby's members.
+     */
+    default java.util.Map<ResourceLocation, List<OpenLobby>> openLobbies(ServerPlayer viewer) {
+        return java.util.Map.of();
+    }
+
     // ---------------------------------------------------------------- admin (Moderation → Activities)
 
     /** What the Moderation window may do with this source's activities. */

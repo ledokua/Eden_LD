@@ -46,6 +46,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean RENTAL = rentalApi();
     /** The running Arenas_LD asks before each invite (4.28.0+). */
     private static final boolean INVITE_FILTER = inviteFilterApi();
+    /** The running Arenas_LD lists every open lobby on the server (4.31.0+). */
+    private static final boolean OPEN_LOBBIES = openLobbiesApi();
 
     private ArenasIntegration() {
     }
@@ -73,8 +75,8 @@ final class ArenasIntegration implements ActivitySource {
             ArenasInvites.register();
         }
         EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}, "
-                + "rental builds {}, invite filter {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY, RENTAL,
-                INVITE_FILTER);
+                + "rental builds {}, invite filter {}, open lobbies {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY,
+                RENTAL, INVITE_FILTER, OPEN_LOBBIES);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -127,6 +129,15 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("setInviteFilter",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$InviteFilter"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean openLobbiesApi() {
+        try {
+            ArenasApi.class.getMethod("listOpenLobbies", MinecraftServer.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -192,6 +203,11 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public boolean openOwnLobby(ServerPlayer player) {
         return OWN_LOBBY && ArenasOwnLobby.open(player);
+    }
+
+    @Override
+    public java.util.Map<ResourceLocation, List<OpenLobby>> openLobbies(ServerPlayer viewer) {
+        return OPEN_LOBBIES ? ArenasOpenLobbies.of(viewer) : java.util.Map.of();
     }
 
     // ---------------------------------------------------------------- admin (4.9.0+)

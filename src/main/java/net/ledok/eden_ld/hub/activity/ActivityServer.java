@@ -37,6 +37,8 @@ public final class ActivityServer {
 
     /** What each online player was last told is new (so the chat line comes once per unlock). */
     private static final Map<UUID, Set<String>> TOLD = new HashMap<>();
+    /** The open lobbies each online player last got (the 2 s poll answers only when they changed). */
+    private static final Map<UUID, HubPayloads.ActivityLobbies> LOBBIES_SENT = new HashMap<>();
 
     private ActivityServer() {
     }
@@ -46,12 +48,16 @@ public final class ActivityServer {
         ArenasHook.initialize();
         DatapackActivities.initialize();
         Activities.register(DatapackActivities.INSTANCE);
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesRequest.TYPE,
-                (payload, context) -> send(context.player()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesRequest.TYPE, (payload, context) -> {
+            send(context.player());
+            sendLobbies(context.player(), true);
+        });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityOpen.TYPE,
                 (payload, context) -> open(context.player(), payload.id()));
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyRequest.TYPE,
-                (payload, context) -> sendOwnLobby(context.player()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyRequest.TYPE, (payload, context) -> {
+            sendOwnLobby(context.player());
+            sendLobbies(context.player(), false);
+        });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyOpen.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             if (!Activities.openOwnLobby(player)) {
@@ -69,7 +75,10 @@ public final class ActivityServer {
             pushUnlocks(server, player);
         }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                net.ledok.eden_ld.util.OnServerThread.run(server, () -> TOLD.remove(handler.getPlayer().getUUID())));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+                    TOLD.remove(handler.getPlayer().getUUID());
+                    LOBBIES_SENT.remove(handler.getPlayer().getUUID());
+                }));
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             int every = Math.max(5, EdenLD.CONFIG.activities.unlock_check_seconds) * 20;
             if (Activities.takeChanged() || server.getTickCount() % every == 0) {
@@ -83,6 +92,31 @@ public final class ActivityServer {
         HubPayloads.OwnLobbyData data = Activities.ownLobby(player)
                 .map(lobby -> new HubPayloads.OwnLobbyData(true, lobby.name(), lobby.members(), lobby.maxMembers(), lobby.inRun()))
                 .orElse(HubPayloads.OwnLobbyData.NONE);
+        ServerPlayNetworking.send(player, data);
+    }
+
+    /**
+     * The cards' lobby badges (1.3.98): the lobbies forming now that the player may see. With {@code force} always
+     * (the tab's data was asked for), otherwise only when they changed since the last send.
+     */
+    private static void sendLobbies(ServerPlayer player, boolean force) {
+        if (player.hasDisconnected() || !ServerPlayNetworking.canSend(player, HubPayloads.ActivityLobbies.TYPE)) {
+            return;
+        }
+        List<HubPayloads.LobbyBadge> badges = new ArrayList<>();
+        Activities.openLobbies(player).forEach((activity, lobbies) -> {
+            List<HubPayloads.LobbyLine> lines = new ArrayList<>();
+            for (ActivitySource.OpenLobby lobby : lobbies) {
+                lines.add(new HubPayloads.LobbyLine(lobby.owner(), lobby.members(), lobby.maxMembers(),
+                        lobby.difficulty(), lobby.hardcore(), lobby.request(), lobby.member()));
+            }
+            badges.add(new HubPayloads.LobbyBadge(activity, lines));
+        });
+        HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(badges);
+        if (!force && data.equals(LOBBIES_SENT.get(player.getUUID()))) {
+            return;
+        }
+        LOBBIES_SENT.put(player.getUUID(), data);
         ServerPlayNetworking.send(player, data);
     }
 

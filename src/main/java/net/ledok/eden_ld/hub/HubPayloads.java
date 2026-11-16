@@ -2228,6 +2228,53 @@ public final class HubPayloads {
         }
     }
 
+    /** One open lobby on an activity card's badge (1.3.98): see {@code ActivitySource.OpenLobby}. */
+    public record LobbyLine(String owner, int members, int maxMembers, String difficulty, boolean hardcore,
+                            boolean request, boolean member) {
+        public boolean full() {
+            return members >= maxMembers;
+        }
+
+        static void write(RegistryFriendlyByteBuf buf, LobbyLine l) {
+            buf.writeUtf(l.owner, 64);
+            buf.writeVarInt(l.members);
+            buf.writeVarInt(l.maxMembers);
+            buf.writeUtf(l.difficulty, 32);
+            buf.writeBoolean(l.hardcore);
+            buf.writeBoolean(l.request);
+            buf.writeBoolean(l.member);
+        }
+
+        static LobbyLine read(RegistryFriendlyByteBuf buf) {
+            return new LobbyLine(buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32), buf.readBoolean(),
+                    buf.readBoolean(), buf.readBoolean());
+        }
+    }
+
+    /** An activity's open lobbies, as its card's badge shows them. */
+    public record LobbyBadge(net.minecraft.resources.ResourceLocation activity, List<LobbyLine> lobbies) {
+    }
+
+    /**
+     * S2C (1.3.98+): the lobbies forming now that the player may see, per activity (only activities that have any).
+     * Sent with the Activities tab's data and, while the tab shows, when they change (answering its 2 s poll).
+     */
+    public record ActivityLobbies(List<LobbyBadge> badges) implements CustomPacketPayload {
+        public static final Type<ActivityLobbies> TYPE = new Type<>(id("activity_lobbies"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLobbies> CODEC = StreamCodec.of(
+                (buf, p) -> writeList(buf, p.badges, (b, badge) -> {
+                    b.writeResourceLocation(badge.activity());
+                    writeList(b, badge.lobbies(), LobbyLine::write);
+                }),
+                buf -> new ActivityLobbies(readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
+                        readList(b, LobbyLine::read)))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: what lobby is the player in (asked every 2 s while the Activities tab shows). */
     public record OwnLobbyRequest() implements CustomPacketPayload {
         public static final OwnLobbyRequest INSTANCE = new OwnLobbyRequest();
@@ -4073,6 +4120,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(OwnLobbyRequest.TYPE, OwnLobbyRequest.CODEC);
         PayloadTypeRegistry.playC2S().register(OwnLobbyOpen.TYPE, OwnLobbyOpen.CODEC);
         PayloadTypeRegistry.playS2C().register(OwnLobbyData.TYPE, OwnLobbyData.CODEC);
+        PayloadTypeRegistry.playS2C().register(ActivityLobbies.TYPE, ActivityLobbies.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivitiesSeen.TYPE, ActivitiesSeen.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsView.TYPE, DuelsView.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsQueue.TYPE, DuelsQueue.CODEC);

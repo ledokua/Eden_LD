@@ -272,6 +272,8 @@ final class ActivitiesTab {
         private final boolean closed;
         /** Partymates below its level: a ⚠ in the corner, the names in the tooltip. */
         private final List<String> below;
+        /** The lobbies forming now that the player may see (the badge, and the tooltip's list), best first. */
+        private final List<HubPayloads.LobbyLine> lobbies;
 
         Card(ActivityEntry entry, boolean glow, List<String> below) {
             super(cardWidth, CARD_H);
@@ -279,6 +281,7 @@ final class ActivitiesTab {
             this.glow = glow;
             this.below = below;
             this.closed = HubState.closedActivities.contains(entry.id().toString());
+            this.lobbies = sorted(HubState.activityLobbies.getOrDefault(entry.id().toString(), List.of()));
             sizing(Sizing.fixed(cardWidth), Sizing.fixed(CARD_H));
             tooltip(() -> {
                 List<Component> lines = new ArrayList<>();
@@ -294,6 +297,16 @@ final class ActivitiesTab {
                 if (!below.isEmpty()) {
                     lines.add(tr("party_below", entry.unlockLevel(), String.join(", ", below))
                             .copy().withStyle(net.minecraft.ChatFormatting.GOLD));
+                }
+                if (entry.unlocked() && !lobbies.isEmpty()) {
+                    lines.add(tr("lobbies.title").copy().withStyle(net.minecraft.ChatFormatting.GRAY));
+                    for (int i = 0; i < Math.min(LOBBY_LINES, lobbies.size()); i++) {
+                        lines.add(lobbyLine(lobbies.get(i)));
+                    }
+                    if (lobbies.size() > LOBBY_LINES) {
+                        lines.add(tr("lobbies.more", lobbies.size() - LOBBY_LINES)
+                                .copy().withStyle(net.minecraft.ChatFormatting.GRAY));
+                    }
                 }
                 return lines;
             });
@@ -327,6 +340,9 @@ final class ActivitiesTab {
                             .color(0xFFF2C94C).shadow(true));
                 }
             }
+            if (entry.unlocked() && !closed && !lobbies.isEmpty()) {
+                badge();
+            }
             if (closed) {
                 add(TextNode.of(tr("closed")).at(width / 2, height / 2 - 6)
                         .align(TextNode.Align.CENTER).maxWidth((int) width - 8).ellipsis(true)
@@ -343,6 +359,29 @@ final class ActivitiesTab {
                         .align(TextNode.Align.CENTER).maxWidth((int) width - 8).ellipsis(true)
                         .color(0xFFE6DCC8).shadow(true));
             }
+        }
+
+        /**
+         * Bottom-right (Tend1tnuy's mock-up, 1.3.98): how many lobbies are forming and the best one to join, e.g.
+         * «2 лобі · 3/4 · Важко». Clicking the card opens them, as before.
+         */
+        private void badge() {
+            HubPayloads.LobbyLine best = lobbies.get(0);
+            Component text = Component.empty()
+                    .append(tr(lobbies.size() == 1 ? "lobbies.count_one" : "lobbies.count", lobbies.size()))
+                    .append(" · " + best.members() + "/" + best.maxMembers() + " · ")
+                    .append(difficulty(best.difficulty()));
+            float scale = 0.8f;
+            float max = width - 10;
+            float textWidth = Math.min(max - 6, net.minecraft.client.Minecraft.getInstance().font.width(text) * scale);
+            float w = textWidth + 6;
+            float h = 10;
+            float x = width - 4 - w;
+            float y = height - 4 - h;
+            add(Shapes.rect(x, y, w, h).fill(0xC0101010));
+            add(Shapes.rect(x + 0.5f, y + 0.5f, w - 1, h - 1).stroke(Stroke.of(best.hardcore() ? 0xFFD05050 : 0x80E6DCC8, 1)));
+            add(TextNode.of(text).at(x + 3, y + 2).maxWidth((int) (textWidth / scale)).ellipsis(true)
+                    .color(0xFFF2E6C8).shadow(true).scale(scale));
         }
 
         @Override
@@ -365,6 +404,52 @@ final class ActivitiesTab {
         private boolean clickable() {
             return entry.unlocked() && (!closed || HubState.closedBypass);
         }
+    }
+
+    /** Lobbies listed in a card's tooltip (more are counted). */
+    private static final int LOBBY_LINES = 6;
+
+    /**
+     * Best first: ones the player can join now (not full, not theirs, public before on request), then the fullest
+     * (closest to starting), then by owner.
+     */
+    private static List<HubPayloads.LobbyLine> sorted(List<HubPayloads.LobbyLine> lobbies) {
+        if (lobbies.size() < 2) {
+            return lobbies;
+        }
+        List<HubPayloads.LobbyLine> out = new ArrayList<>(lobbies);
+        out.sort(Comparator.comparingInt((HubPayloads.LobbyLine l) -> l.full() || l.member() ? 2 : l.request() ? 1 : 0)
+                .thenComparingInt(l -> -l.members())
+                .thenComparing(l -> l.owner().toLowerCase(Locale.ROOT)));
+        return out;
+    }
+
+    /** «Owner · 3/4 · Важко · Хардкор · за запитом» (gray when full, green when the player is in it). */
+    private static Component lobbyLine(HubPayloads.LobbyLine lobby) {
+        net.minecraft.network.chat.MutableComponent line = Component.literal(lobby.owner() + " · " + lobby.members()
+                + "/" + lobby.maxMembers() + " · ").append(difficulty(lobby.difficulty()));
+        if (lobby.hardcore()) {
+            line.append(" · ").append(tr("lobbies.hardcore").copy().withStyle(net.minecraft.ChatFormatting.RED));
+        }
+        if (lobby.member()) {
+            line.append(" · ").append(tr("lobbies.yours"));
+            return line.withStyle(net.minecraft.ChatFormatting.GREEN);
+        }
+        if (lobby.full()) {
+            line.append(" · ").append(tr("lobbies.full"));
+            return line.withStyle(net.minecraft.ChatFormatting.DARK_GRAY);
+        }
+        if (lobby.request()) {
+            line.append(" · ").append(tr("lobbies.request"));
+        }
+        return line.withStyle(net.minecraft.ChatFormatting.WHITE);
+    }
+
+    /** A difficulty id's name ("hard" → «Важко»); an unknown id as it is. */
+    private static Component difficulty(String id) {
+        String key = "gui.eden_ld.moderation.activities.difficulty." + id;
+        return net.minecraft.client.resources.language.I18n.exists(key) ? Component.translatable(key)
+                : Component.literal(id);
     }
 
     /** A short line for the Home card: one name, or how many. */
