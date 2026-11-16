@@ -406,6 +406,9 @@ look like the hub in whatever theme the player picked:
 Theme theme = EdenHubThemeApi.theme();                    // VectorLib palette tokens + widget skins
 Function<Rect, CanvasNode> shell = EdenHubThemeApi.panel(); // the themed panel background (~8 px border art)
 ResourceLocation id = EdenHubThemeApi.id();                // rebuild your screen when this changes
+int hairlineHi = EdenHubThemeApi.hairlineHi();             // 1.3.101+: the stronger hairline
+int track = EdenHubThemeApi.barTrack();                    // 1.3.101+: progress/HP bar track
+int fill = EdenHubThemeApi.barFill();                      // 1.3.101+: progress/HP bar fill
 ```
 
 Duels_LD's stake screens use it in their "Hub theme" mode (looked up by reflection, so Duels runs without it).

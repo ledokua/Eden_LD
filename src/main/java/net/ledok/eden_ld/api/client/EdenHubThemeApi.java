@@ -32,6 +32,21 @@ public final class EdenHubThemeApi {
         return EdenParchment.panel();
     }
 
+    /** The stronger hairline (headings' rules, a selected row's frame) (1.3.101+). */
+    public static int hairlineHi() {
+        return EdenParchment.HAIRLINE_HI;
+    }
+
+    /** A progress or HP bar's track: it reads against the theme's rows (1.3.101+). */
+    public static int barTrack() {
+        return EdenParchment.BAR_TRACK;
+    }
+
+    /** A progress or HP bar's fill (1.3.101+). */
+    public static int barFill() {
+        return EdenParchment.BAR_FILL;
+    }
+
     /** The selected theme's id; it changes when the player picks another theme. */
     public static ResourceLocation id() {
         return HubThemes.selected();
