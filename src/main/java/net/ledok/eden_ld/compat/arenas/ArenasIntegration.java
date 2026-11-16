@@ -138,6 +138,7 @@ final class ArenasIntegration implements ActivitySource {
     private static boolean openLobbiesApi() {
         try {
             ArenasApi.class.getMethod("listOpenLobbies", MinecraftServer.class);
+            ArenasApi.class.getMethod("joinOpenLobby", ServerPlayer.class, ResourceLocation.class, java.util.UUID.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -208,6 +209,17 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public java.util.Map<ResourceLocation, List<OpenLobby>> openLobbies(ServerPlayer viewer) {
         return OPEN_LOBBIES ? ArenasOpenLobbies.of(viewer) : java.util.Map.of();
+    }
+
+    @Override
+    public boolean listsLobbies() {
+        return OPEN_LOBBIES;
+    }
+
+    @Override
+    public @Nullable Component joinLobby(ServerPlayer player, ResourceLocation activity, java.util.UUID lobby) {
+        return OPEN_LOBBIES ? ArenasOpenLobbies.join(player, activity, lobby)
+                : Component.translatable("message.eden_ld.activities.unknown");
     }
 
     // ---------------------------------------------------------------- admin (4.9.0+)

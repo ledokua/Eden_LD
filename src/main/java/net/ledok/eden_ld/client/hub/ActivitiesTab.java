@@ -48,7 +48,11 @@ final class ActivitiesTab {
     private static float cardWidth = CARD_MIN;
 
     /** {@code DUELS} is Ranked PvP (the name stays: it was the tab's only kind of duel), {@code WAGERS} the wager Duels. */
-    enum Filter { ALL, DUNGEON, RAID, ARENA, DUELS, WAGERS }
+    enum Filter { ALL, DUNGEON, RAID, ARENA, DUELS, WAGERS, LOBBIES }
+
+    /** The filters in the bar's order: «Лобі» (1.3.99) right after the activity kinds. */
+    private static final List<Filter> FILTER_ORDER = List.of(Filter.ALL, Filter.DUNGEON, Filter.RAID, Filter.ARENA,
+            Filter.LOBBIES, Filter.DUELS, Filter.WAGERS);
 
     enum Sort { NAME, LEVEL, TYPE }
 
@@ -118,7 +122,8 @@ final class ActivitiesTab {
         float width = HubScreen.innerWidth();
         columns = Math.max(3, (int) ((width - LANE + GAP) / (CARD_MIN + GAP)));
         cardWidth = (width - LANE - GAP * (columns - 1)) / columns;
-        if (filter == Filter.DUELS && !duelsAvailable() || filter == Filter.WAGERS && !wagersAvailable()) {
+        if (filter == Filter.DUELS && !duelsAvailable() || filter == Filter.WAGERS && !wagersAvailable()
+                || filter == Filter.LOBBIES && !HubState.lobbiesAvailable) {
             filter = Filter.ALL;
         }
         boolean duels = showingDuels() || showingWagers();
@@ -152,8 +157,14 @@ final class ActivitiesTab {
         Flex filters = Flex.row().gap(3).alignItems(Align.CENTER);
         filters.sizing(Sizing.fill(), Sizing.content());
         List<Filter> shownFilters = new ArrayList<>();
-        for (Filter candidate : Filter.values()) {
-            if (candidate == Filter.DUELS ? duelsAvailable() : candidate != Filter.WAGERS || wagersAvailable()) {
+        for (Filter candidate : FILTER_ORDER) {
+            boolean available = switch (candidate) {
+                case DUELS -> duelsAvailable();
+                case WAGERS -> wagersAvailable();
+                case LOBBIES -> HubState.lobbiesAvailable;
+                default -> true;
+            };
+            if (available) {
                 shownFilters.add(candidate);
             }
         }
@@ -166,6 +177,9 @@ final class ActivitiesTab {
         }
         if (shownFilters.contains(Filter.WAGERS)) {
             filterTabs.tabTooltip(Filter.WAGERS, tr("filter.wagers.hint"));
+        }
+        if (shownFilters.contains(Filter.LOBBIES)) {
+            filterTabs.tabTooltip(Filter.LOBBIES, tr("filter.lobbies.hint"));
         }
         filters.item(filterTabs);
         filters.spacer();
@@ -186,6 +200,10 @@ final class ActivitiesTab {
         }
         if (data == null) {
             content.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
+            return;
+        }
+        if (filter == Filter.LOBBIES) {
+            buildLobbies(data, content);
             return;
         }
         if (data.activities().isEmpty()) {
@@ -404,6 +422,95 @@ final class ActivitiesTab {
         private boolean clickable() {
             return entry.unlocked() && (!closed || HubState.closedBypass);
         }
+    }
+
+    // ---------------------------------------------------------------- the «Лобі» list (1.3.99)
+
+    /**
+     * Every open lobby the player may see, grouped by activity (in the cards' order: by name), each row with Join (public),
+     * Request (friends-only) or Open (theirs). Rows of an activity the player can't enter yet (level, closed) or of a
+     * full lobby have the button greyed, with why in its tooltip.
+     */
+    private static void buildLobbies(HubPayloads.ActivitiesData data, Flex content) {
+        float width = HubScreen.innerWidth() - LANE;
+        Flex list = Flex.column().gap(2);
+        list.sizing(Sizing.fill(), Sizing.content());
+        java.util.Map<String, ActivityEntry> byId = new java.util.HashMap<>();
+        for (ActivityEntry entry : data.activities()) {
+            byId.put(entry.id().toString(), entry);
+        }
+        List<String> ids = new ArrayList<>(HubState.activityLobbies.keySet());
+        ids.sort(Comparator.comparing(id -> byId.containsKey(id)
+                ? byId.get(id).name().getString().toLowerCase(Locale.ROOT) : id));
+        boolean any = false;
+        for (String id : ids) {
+            List<HubPayloads.LobbyLine> lobbies = sorted(HubState.activityLobbies.get(id));
+            if (lobbies.isEmpty()) {
+                continue;
+            }
+            ActivityEntry entry = byId.get(id);
+            if (any) {
+                list.item(EdenParchment.spacer(4));
+            }
+            any = true;
+            Component name = entry != null ? entry.name() : Component.literal(id);
+            list.item(EdenParchment.text(Component.empty().append(name).append(" (" + lobbies.size() + ")"),
+                    EdenParchment.INK_MID));
+            Component blocked = entry == null ? tr("lobbies.unknown")
+                    : HubState.closedActivities.contains(id) && !HubState.closedBypass ? tr("closed")
+                    : !entry.unlocked() ? tr("min_level", entry.unlockLevel()) : null;
+            for (int i = 0; i < lobbies.size(); i++) {
+                list.item(lobbyRow(entry == null ? null : entry.id(), lobbies.get(i), blocked, i % 2 == 1, width));
+            }
+        }
+        if (!any) {
+            content.item(HubScreen.emptyState(HubTab.ACTIVITIES, tr("lobbies.none_title"), tr("lobbies.none")));
+            return;
+        }
+        ScrollPanel panel = HubScroll.panel("activities/lobbies", HubScreen.innerWidth(), 100, list);
+        panel.sizing(Sizing.fill(), Sizing.expand());
+        content.item(panel);
+    }
+
+    /** «Owner · 3/4 · Важко · Хардкор» and the row's button. */
+    private static Flex lobbyRow(net.minecraft.resources.@org.jetbrains.annotations.Nullable ResourceLocation activity,
+                                 HubPayloads.LobbyLine lobby, @org.jetbrains.annotations.Nullable Component blocked,
+                                 boolean alt, float width) {
+        Flex row = Flex.row().gap(4).padding(net.ledok.vectorlib.client.canvas.layout.Insets.of(2, 3, 2, 3))
+                .alignItems(Align.CENTER);
+        row.sizing(Sizing.fixed(width), Sizing.content());
+        row.background(EdenParchment.framed(alt ? EdenParchment.ROW_BG_ALT : EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
+        Component label = tr(lobby.member() ? "lobbies.open" : lobby.request() ? "lobbies.ask" : "lobbies.join");
+        float buttonWidth = EdenParchment.fitWidth(label, 60);
+        net.minecraft.network.chat.MutableComponent text = Component.literal(lobby.owner() + " · " + lobby.members()
+                + "/" + lobby.maxMembers() + " · ").append(difficulty(lobby.difficulty()));
+        if (lobby.hardcore()) {
+            text.append(" · ").append(tr("lobbies.hardcore").copy().withStyle(net.minecraft.ChatFormatting.DARK_RED));
+        }
+        if (lobby.member()) {
+            text.append(" · ").append(tr("lobbies.yours"));
+        } else if (lobby.full()) {
+            text.append(" · ").append(tr("lobbies.full"));
+        } else if (lobby.request()) {
+            text.append(" · ").append(tr("lobbies.request"));
+        }
+        row.item(EdenParchment.text(text, lobby.full() && !lobby.member() ? EdenParchment.INK_DIM : EdenParchment.INK)
+                .maxWidth((int) (width - 6 - buttonWidth - 8)).ellipsis(true));
+        row.spacer();
+        Button button = EdenParchment.button(label, buttonWidth, 14, () -> {
+            if (activity != null) {
+                ActivityReturn.arm();
+                ClientPlayNetworking.send(new HubPayloads.LobbyJoin(activity, lobby.lobby()));
+            }
+        });
+        Component why = lobby.member() ? null : blocked != null ? blocked : lobby.full() ? tr("lobbies.full_hint") : null;
+        if (activity == null || why != null) {
+            button.enabled(false);
+        }
+        button.tooltip(why != null ? why : tr(lobby.member() ? "lobbies.open_hint"
+                : lobby.request() ? "lobbies.ask_hint" : "lobbies.join_hint"));
+        row.item(button);
+        return row;
     }
 
     /** Lobbies listed in a card's tooltip (more are counted). */

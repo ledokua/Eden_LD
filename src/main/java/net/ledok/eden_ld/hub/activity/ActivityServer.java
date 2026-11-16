@@ -66,6 +66,8 @@ public final class ActivityServer {
                 sendOwnLobby(player);
             }
         });
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.LobbyJoin.TYPE,
+                (payload, context) -> joinLobby(context.player(), payload.activity(), payload.lobby()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesSeen.TYPE,
                 (payload, context) -> seen(context.player()));
         // After the join sync settles (see HubServer): the badge and Home card for unseen unlocks.
@@ -107,12 +109,12 @@ public final class ActivityServer {
         Activities.openLobbies(player).forEach((activity, lobbies) -> {
             List<HubPayloads.LobbyLine> lines = new ArrayList<>();
             for (ActivitySource.OpenLobby lobby : lobbies) {
-                lines.add(new HubPayloads.LobbyLine(lobby.owner(), lobby.members(), lobby.maxMembers(),
+                lines.add(new HubPayloads.LobbyLine(lobby.lobbyId(), lobby.owner(), lobby.members(), lobby.maxMembers(),
                         lobby.difficulty(), lobby.hardcore(), lobby.request(), lobby.member()));
             }
             badges.add(new HubPayloads.LobbyBadge(activity, lines));
         });
-        HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(badges);
+        HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(Activities.listsLobbies(), badges);
         if (!force && data.equals(LOBBIES_SENT.get(player.getUUID()))) {
             return;
         }
@@ -239,6 +241,21 @@ public final class ActivityServer {
         if (!Activities.open(player, id)) {
             ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
                     Component.translatable("message.eden_ld.activities.unknown")));
+        }
+    }
+
+    /**
+     * The «Лобі» list's Join / Request (1.3.99): the level and closed checks as opening the activity, then the source's
+     * own flow, which opens the lobby screen. Refused: the hub shows why (the source may tell the chat too).
+     */
+    private static void joinLobby(ServerPlayer player, ResourceLocation id, UUID lobby) {
+        Component refused = ActivityGate.check(player, id, null);
+        if (refused == null) {
+            refused = Activities.joinLobby(player, id, lobby);
+        }
+        if (refused != null) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(refused, false));
+            sendLobbies(player, true);
         }
     }
 

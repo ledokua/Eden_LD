@@ -30,6 +30,8 @@ public final class HubState {
     public static java.util.Set<String> closedActivities = java.util.Set.of();
     /** The lobbies forming now that the player may see, by activity id (the cards' badges, 1.3.98). */
     public static java.util.Map<String, java.util.List<HubPayloads.LobbyLine>> activityLobbies = java.util.Map.of();
+    /** The server lists open lobbies (Arenas_LD 4.31.0+): the Activities tab shows its «Лобі» list (1.3.99). */
+    public static boolean lobbiesAvailable;
     public static boolean closedBypass;
     public static HubPayloads.DuelsData duelsData;
     public static HubPayloads.WardrobeData wardrobeData;
@@ -106,6 +108,7 @@ public final class HubState {
         activitiesData = null;
         closedActivities = java.util.Set.of();
         activityLobbies = java.util.Map.of();
+        lobbiesAvailable = false;
         closedBypass = false;
         duelsData = null;
         wardrobeData = null;

@@ -38,10 +38,11 @@ public final class OwnLobbyButton {
             for (HubPayloads.LobbyBadge badge : payload.badges()) {
                 lobbies.put(badge.activity().toString(), java.util.List.copyOf(badge.lobbies()));
             }
-            if (lobbies.equals(HubState.activityLobbies)) {
+            if (lobbies.equals(HubState.activityLobbies) && payload.available() == HubState.lobbiesAvailable) {
                 return;
             }
             HubState.activityLobbies = lobbies;
+            HubState.lobbiesAvailable = payload.available();
             if (context.client().screen instanceof HubScreen screen && HubState.lastTab == HubTab.ACTIVITIES) {
                 screen.onActivitiesData();
             }

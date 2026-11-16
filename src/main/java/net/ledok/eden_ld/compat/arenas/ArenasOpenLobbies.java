@@ -14,7 +14,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * The only class using ArenasApi 4.31.0's open-lobby list (the Activities cards' lobby badges, 1.3.98).
+ * The only class using ArenasApi 4.31.0's open lobbies (the Activities cards' badges, 1.3.98; the «Лобі» list's
+ * Join and Request, 1.3.99).
  * {@link ArenasIntegration} calls in here only after checking the running Arenas_LD has it.
  */
 final class ArenasOpenLobbies {
@@ -42,9 +43,15 @@ final class ArenasOpenLobbies {
                 }
             }
             out.computeIfAbsent(lobby.activity(), id -> new ArrayList<>()).add(new ActivitySource.OpenLobby(
-                    lobby.ownerName(), lobby.members().size(), lobby.maxMembers(), lobby.difficulty(),
+                    lobby.lobbyId(), lobby.ownerName(), lobby.members().size(), lobby.maxMembers(), lobby.difficulty(),
                     lobby.hardcore(), request, member));
         }
         return out;
+    }
+
+    /** Arenas_LD's own join/request flow (busy, entry gate, one lobby at a time, full); its lobby screen opens. */
+    @org.jetbrains.annotations.Nullable
+    static net.minecraft.network.chat.Component join(ServerPlayer player, ResourceLocation activity, UUID lobby) {
+        return ArenasApi.joinOpenLobby(player, activity, lobby);
     }
 }

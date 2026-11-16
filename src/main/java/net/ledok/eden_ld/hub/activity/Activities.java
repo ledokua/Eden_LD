@@ -50,6 +50,25 @@ public final class Activities {
         return all;
     }
 
+    /** Whether any source lists its open lobbies (Arenas_LD 4.31.0+). */
+    public static boolean listsLobbies() {
+        for (ActivitySource source : SOURCES) {
+            if (source.listsLobbies()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Joins (or asks to join) a lobby of the activity; null when it went through, otherwise why not. */
+    @Nullable
+    public static net.minecraft.network.chat.Component joinLobby(ServerPlayer player, ResourceLocation id,
+                                                                 java.util.UUID lobby) {
+        ActivitySource source = player.getServer() == null ? null : sourceFor(player.getServer(), id);
+        return source == null ? net.minecraft.network.chat.Component.translatable("message.eden_ld.activities.unknown")
+                : source.joinLobby(player, id, lobby);
+    }
+
     /** Opens the player's own lobby screen; false when no source has one for them. */
     public static boolean openOwnLobby(ServerPlayer player) {
         for (ActivitySource source : SOURCES) {

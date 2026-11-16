@@ -2229,13 +2229,14 @@ public final class HubPayloads {
     }
 
     /** One open lobby on an activity card's badge (1.3.98): see {@code ActivitySource.OpenLobby}. */
-    public record LobbyLine(String owner, int members, int maxMembers, String difficulty, boolean hardcore,
+    public record LobbyLine(java.util.UUID lobby, String owner, int members, int maxMembers, String difficulty, boolean hardcore,
                             boolean request, boolean member) {
         public boolean full() {
             return members >= maxMembers;
         }
 
         static void write(RegistryFriendlyByteBuf buf, LobbyLine l) {
+            buf.writeUUID(l.lobby);
             buf.writeUtf(l.owner, 64);
             buf.writeVarInt(l.members);
             buf.writeVarInt(l.maxMembers);
@@ -2246,7 +2247,7 @@ public final class HubPayloads {
         }
 
         static LobbyLine read(RegistryFriendlyByteBuf buf) {
-            return new LobbyLine(buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32), buf.readBoolean(),
+            return new LobbyLine(buf.readUUID(), buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32), buf.readBoolean(),
                     buf.readBoolean(), buf.readBoolean());
         }
     }
@@ -2256,18 +2257,39 @@ public final class HubPayloads {
     }
 
     /**
-     * S2C (1.3.98+): the lobbies forming now that the player may see, per activity (only activities that have any).
+     * S2C (1.3.98+): the lobbies forming now that the player may see, per activity (only activities that have any);
+     * {@code available}: the server lists lobbies at all (the «Лобі» list shows only then).
      * Sent with the Activities tab's data and, while the tab shows, when they change (answering its 2 s poll).
      */
-    public record ActivityLobbies(List<LobbyBadge> badges) implements CustomPacketPayload {
+    public record ActivityLobbies(boolean available, List<LobbyBadge> badges) implements CustomPacketPayload {
         public static final Type<ActivityLobbies> TYPE = new Type<>(id("activity_lobbies"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLobbies> CODEC = StreamCodec.of(
-                (buf, p) -> writeList(buf, p.badges, (b, badge) -> {
-                    b.writeResourceLocation(badge.activity());
-                    writeList(b, badge.lobbies(), LobbyLine::write);
-                }),
-                buf -> new ActivityLobbies(readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
+                (buf, p) -> {
+                    buf.writeBoolean(p.available);
+                    writeList(buf, p.badges, (b, badge) -> {
+                        b.writeResourceLocation(badge.activity());
+                        writeList(b, badge.lobbies(), LobbyLine::write);
+                    });
+                },
+                buf -> new ActivityLobbies(buf.readBoolean(), readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
                         readList(b, LobbyLine::read)))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** C2S (1.3.99+): join a public lobby, or ask to join a friends-only one, from the «Лобі» list. */
+    public record LobbyJoin(net.minecraft.resources.ResourceLocation activity, java.util.UUID lobby)
+            implements CustomPacketPayload {
+        public static final Type<LobbyJoin> TYPE = new Type<>(id("lobby_join"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, LobbyJoin> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeResourceLocation(p.activity);
+                    buf.writeUUID(p.lobby);
+                },
+                buf -> new LobbyJoin(buf.readResourceLocation(), buf.readUUID()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -4121,6 +4143,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playC2S().register(OwnLobbyOpen.TYPE, OwnLobbyOpen.CODEC);
         PayloadTypeRegistry.playS2C().register(OwnLobbyData.TYPE, OwnLobbyData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityLobbies.TYPE, ActivityLobbies.CODEC);
+        PayloadTypeRegistry.playC2S().register(LobbyJoin.TYPE, LobbyJoin.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivitiesSeen.TYPE, ActivitiesSeen.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsView.TYPE, DuelsView.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsQueue.TYPE, DuelsQueue.CODEC);

@@ -45,11 +45,11 @@ public interface ActivitySource {
     }
 
     /**
-     * A lobby forming now that the viewer may see on an activity card (1.3.98): its owner's name, members of the most
-     * it takes, the picked difficulty's id ("easy", "hard"…), hardcore, whether it's joined by request (friends-only)
-     * and whether the viewer is in it.
+     * A lobby forming now that the viewer may see on an activity card and in the «Лобі» list (1.3.98): its id, its
+     * owner's name, members of the most it takes, the picked difficulty's id ("easy", "hard"…), hardcore, whether it's
+     * joined by request (friends-only) and whether the viewer is in it.
      */
-    record OpenLobby(String owner, int members, int maxMembers, String difficulty, boolean hardcore, boolean request,
+    record OpenLobby(java.util.UUID lobbyId, String owner, int members, int maxMembers, String difficulty, boolean hardcore, boolean request,
                      boolean member) {
         public boolean full() {
             return members >= maxMembers;
@@ -62,6 +62,20 @@ public interface ActivitySource {
      */
     default java.util.Map<ResourceLocation, List<OpenLobby>> openLobbies(ServerPlayer viewer) {
         return java.util.Map.of();
+    }
+
+    /** Whether this source lists its open lobbies at all (the hub shows the «Лобі» list only then). */
+    default boolean listsLobbies() {
+        return false;
+    }
+
+    /**
+     * Joins a public lobby or asks to join a friends-only one from the hub's «Лобі» list (1.3.99), through the
+     * source's usual checks; its lobby screen opens. Null when it went through, otherwise why not.
+     */
+    @Nullable
+    default Component joinLobby(ServerPlayer player, ResourceLocation activity, java.util.UUID lobby) {
+        return Component.translatable("message.eden_ld.activities.unknown");
     }
 
     // ---------------------------------------------------------------- admin (Moderation → Activities)
