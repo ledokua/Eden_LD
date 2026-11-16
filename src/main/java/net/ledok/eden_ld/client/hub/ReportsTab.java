@@ -260,11 +260,14 @@ public final class ReportsTab {
 
     /** A submission in the list: #, kind, status, the start of its text, a new-reply mark, and Open. */
     private static Flex card(HubScreen screen, ReportEntry entry, float width) {
-        Flex card = Flex.column().gap(2).padding(Insets.of(4, 6, 4, 6));
+        // Room on the right past the theme's row border, and a gap before the scrollbar (1.3.113: «Відкрити» sat
+        // against the edge).
+        width -= 3;
+        Flex card = Flex.column().gap(2).padding(Insets.of(4, 12, 4, 8));
         card.sizing(Sizing.fixed(width), Sizing.content());
         card.background(EdenParchment.framed(entry.status() >= 2 ? EdenParchment.ROW_BG_ALT : EdenParchment.ROW_BG,
                 EdenParchment.HAIRLINE));
-        float inner = width - 12;
+        float inner = width - 20;
         card.item(head(entry, inner));
 
         Flex line = Flex.row().gap(6).alignItems(Align.CENTER);
