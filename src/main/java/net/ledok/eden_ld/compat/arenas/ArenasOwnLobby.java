@@ -18,7 +18,8 @@ final class ArenasOwnLobby {
     /** An in-memory read in Arenas_LD. */
     static Optional<ActivitySource.OwnLobby> of(ServerPlayer player) {
         return ArenasApi.ownLobby(player).map(lobby ->
-                new ActivitySource.OwnLobby(lobby.name(), lobby.members(), lobby.maxMembers(), lobby.inRun()));
+                new ActivitySource.OwnLobby(lobby.name(), lobby.members(), lobby.maxMembers(), lobby.inRun(),
+                        lobby.activity(), lobby.owner()));
     }
 
     /** The lobby's own screen, from anywhere (ready, leave, invite and run modifiers all work there). */

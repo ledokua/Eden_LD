@@ -48,6 +48,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean INVITE_FILTER = inviteFilterApi();
     /** The running Arenas_LD lists every open lobby on the server (4.31.0+). */
     private static final boolean OPEN_LOBBIES = openLobbiesApi();
+    /** The running Arenas_LD creates and changes lobbies for a hub, with minimum levels (4.33.0+). */
+    private static final boolean CREATE = createApi();
 
     private ArenasIntegration() {
     }
@@ -74,9 +76,12 @@ final class ArenasIntegration implements ActivitySource {
         if (INVITE_FILTER) {
             ArenasInvites.register();
         }
+        if (CREATE) {
+            ArenasLobbyCreation.register();
+        }
         EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}, "
-                + "rental builds {}, invite filter {}, open lobbies {}.", ADMIN, RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY,
-                RENTAL, INVITE_FILTER, OPEN_LOBBIES);
+                + "rental builds {}, invite filter {}, open lobbies {}, lobby creation {}.", ADMIN, RESET_COOLDOWNS,
+                RUN_DETAILS, OWN_LOBBY, RENTAL, INVITE_FILTER, OPEN_LOBBIES, CREATE);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -130,6 +135,21 @@ final class ArenasIntegration implements ActivitySource {
             ArenasApi.class.getMethod("setInviteFilter",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$InviteFilter"));
             return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    /** 4.33.0's createLobby, updateLobby, activityInfo, possibleDrops and setLevelProvider (with the open lobbies). */
+    static boolean createApi() {
+        try {
+            Class<?> settings = Class.forName("net.ledok.arenas_ld.api.ArenasApi$LobbySettings");
+            ArenasApi.class.getMethod("createLobby", ServerPlayer.class, ResourceLocation.class, settings, boolean.class);
+            ArenasApi.class.getMethod("updateLobby", ServerPlayer.class, settings);
+            ArenasApi.class.getMethod("activityInfo", MinecraftServer.class, ResourceLocation.class);
+            ArenasApi.class.getMethod("possibleDrops", MinecraftServer.class, ResourceLocation.class, String.class);
+            ArenasApi.class.getMethod("setLevelProvider", java.util.function.ToIntFunction.class);
+            return openLobbiesApi();
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
         }
@@ -214,6 +234,34 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public boolean listsLobbies() {
         return OPEN_LOBBIES;
+    }
+
+    @Override
+    public boolean createsLobbies() {
+        return CREATE;
+    }
+
+    @Override
+    public Optional<CreateInfo> createInfo(MinecraftServer server, ResourceLocation activity) {
+        return CREATE ? ArenasLobbyCreation.info(server, activity) : Optional.empty();
+    }
+
+    @Override
+    public List<net.minecraft.world.item.ItemStack> possibleDrops(MinecraftServer server, ResourceLocation activity,
+                                                                   @Nullable String difficulty) {
+        return CREATE ? ArenasLobbyCreation.drops(server, activity, difficulty) : List.of();
+    }
+
+    @Override
+    public Optional<LobbySettings> ownLobbySettings(ServerPlayer owner) {
+        return CREATE ? ArenasLobbyCreation.ownSettings(owner) : Optional.empty();
+    }
+
+    @Override
+    public @Nullable Component createLobby(ServerPlayer owner, ResourceLocation activity, LobbySettings settings,
+                                           boolean edit) {
+        return CREATE ? ArenasLobbyCreation.create(owner, activity, settings, edit)
+                : Component.translatable("message.eden_ld.activities.unknown");
     }
 
     @Override

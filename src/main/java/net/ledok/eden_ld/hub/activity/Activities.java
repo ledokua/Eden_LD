@@ -69,6 +69,27 @@ public final class Activities {
                 : source.joinLobby(player, id, lobby);
     }
 
+    /** Whether any source creates lobbies from the hub (Arenas_LD 4.33.0+): the Activities tab is then a browser. */
+    public static boolean createsLobbies() {
+        for (ActivitySource source : SOURCES) {
+            if (source.createsLobbies()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The settings of the forming lobby the player owns, from the first source that knows them. */
+    public static Optional<ActivitySource.LobbySettings> ownLobbySettings(ServerPlayer owner) {
+        for (ActivitySource source : SOURCES) {
+            Optional<ActivitySource.LobbySettings> settings = source.ownLobbySettings(owner);
+            if (settings.isPresent()) {
+                return settings;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** Opens the player's own lobby screen; false when no source has one for them. */
     public static boolean openOwnLobby(ServerPlayer player) {
         for (ActivitySource source : SOURCES) {

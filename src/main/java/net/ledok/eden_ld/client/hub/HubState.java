@@ -32,6 +32,8 @@ public final class HubState {
     public static java.util.Map<String, java.util.List<HubPayloads.LobbyLine>> activityLobbies = java.util.Map.of();
     /** The server lists open lobbies (Arenas_LD 4.31.0+): the Activities tab shows its «Лобі» list (1.3.99). */
     public static boolean lobbiesAvailable;
+    /** The server creates lobbies from the hub (Arenas_LD 4.33.0+): Activities is the lobby browser (1.3.103). */
+    public static boolean lobbiesCreate;
     public static boolean closedBypass;
     public static HubPayloads.DuelsData duelsData;
     public static HubPayloads.WardrobeData wardrobeData;
@@ -109,6 +111,7 @@ public final class HubState {
         closedActivities = java.util.Set.of();
         activityLobbies = java.util.Map.of();
         lobbiesAvailable = false;
+        lobbiesCreate = false;
         closedBypass = false;
         duelsData = null;
         wardrobeData = null;

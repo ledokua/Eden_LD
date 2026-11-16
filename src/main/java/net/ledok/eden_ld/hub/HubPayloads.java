@@ -2229,8 +2229,9 @@ public final class HubPayloads {
     }
 
     /** One open lobby on an activity card's badge (1.3.98): see {@code ActivitySource.OpenLobby}. */
-    public record LobbyLine(java.util.UUID lobby, String owner, int members, int maxMembers, String difficulty, boolean hardcore,
-                            boolean request, boolean member) {
+    public record LobbyLine(java.util.UUID lobby, String owner, int members, int maxMembers, String difficulty,
+                            boolean hardcore, boolean request, boolean member, int ready, int minLevel,
+                            List<net.minecraft.network.chat.Component> modifiers, long createdAt) {
         public boolean full() {
             return members >= maxMembers;
         }
@@ -2244,11 +2245,18 @@ public final class HubPayloads {
             buf.writeBoolean(l.hardcore);
             buf.writeBoolean(l.request);
             buf.writeBoolean(l.member);
+            buf.writeVarInt(l.ready);
+            buf.writeVarInt(l.minLevel);
+            writeList(buf, l.modifiers, (b, c) ->
+                    net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(b, c));
+            buf.writeVarLong(l.createdAt);
         }
 
         static LobbyLine read(RegistryFriendlyByteBuf buf) {
-            return new LobbyLine(buf.readUUID(), buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32), buf.readBoolean(),
-                    buf.readBoolean(), buf.readBoolean());
+            return new LobbyLine(buf.readUUID(), buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32),
+                    buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
+                    readList(buf, b -> net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(b)),
+                    buf.readVarLong());
         }
     }
 
@@ -2258,21 +2266,137 @@ public final class HubPayloads {
 
     /**
      * S2C (1.3.98+): the lobbies forming now that the player may see, per activity (only activities that have any);
-     * {@code available}: the server lists lobbies at all (the «Лобі» list shows only then).
+     * {@code available}: the server lists lobbies at all; {@code creates}: it creates them from the hub too (1.3.103: the
+     * Activities tab is then the lobby browser with «Створити лобі»).
      * Sent with the Activities tab's data and, while the tab shows, when they change (answering its 2 s poll).
      */
-    public record ActivityLobbies(boolean available, List<LobbyBadge> badges) implements CustomPacketPayload {
+    public record ActivityLobbies(boolean available, boolean creates, List<LobbyBadge> badges)
+            implements CustomPacketPayload {
         public static final Type<ActivityLobbies> TYPE = new Type<>(id("activity_lobbies"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLobbies> CODEC = StreamCodec.of(
                 (buf, p) -> {
                     buf.writeBoolean(p.available);
+                    buf.writeBoolean(p.creates);
                     writeList(buf, p.badges, (b, badge) -> {
                         b.writeResourceLocation(badge.activity());
                         writeList(b, badge.lobbies(), LobbyLine::write);
                     });
                 },
-                buf -> new ActivityLobbies(buf.readBoolean(), readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
+                buf -> new ActivityLobbies(buf.readBoolean(), buf.readBoolean(), readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
                         readList(b, LobbyLine::read)))));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * C2S (1.3.103+): what the «Створити лобі» panel offers for an activity, its possible drops at {@code difficulty}
+     * ("" = any), and with {@code edit} the settings of the player's own lobby there.
+     */
+    public record ActivityInfoRequest(net.minecraft.resources.ResourceLocation activity, String difficulty, boolean edit)
+            implements CustomPacketPayload {
+        public static final Type<ActivityInfoRequest> TYPE = new Type<>(id("activity_info_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityInfoRequest> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeResourceLocation(p.activity);
+                    buf.writeUtf(p.difficulty, 32);
+                    buf.writeBoolean(p.edit);
+                },
+                buf -> new ActivityInfoRequest(buf.readResourceLocation(), buf.readUtf(32), buf.readBoolean()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** A run modifier the panel offers (see {@code ActivitySource.ModifierView}). */
+    public record ModifierLine(String id, net.minecraft.network.chat.Component name,
+                               net.minecraft.network.chat.Component description,
+                               net.minecraft.network.chat.Component rewards, List<String> conflicts) {
+        static void write(RegistryFriendlyByteBuf buf, ModifierLine m) {
+            buf.writeUtf(m.id, 64);
+            net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(buf, m.name);
+            net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(buf, m.description);
+            net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(buf, m.rewards);
+            writeList(buf, m.conflicts, (b, c) -> b.writeUtf(c, 64));
+        }
+
+        static ModifierLine read(RegistryFriendlyByteBuf buf) {
+            return new ModifierLine(buf.readUtf(64),
+                    net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
+                    net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
+                    net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
+                    readList(buf, b -> b.readUtf(64)));
+        }
+    }
+
+    /**
+     * S2C (1.3.103+): the panel's answer for an activity. {@code creatable} false: the hub can't make its lobbies (the
+     * panel only opens it). The enabled difficulties with the level each needs (Eden's), the run modifiers, the most
+     * members, whether minimum levels are checked, the possible drops at {@code dropsFor}, and with {@code hasCurrent}
+     * the player's own lobby's settings ({@code visibility} 0 public, 1 friends, 2 private).
+     */
+    public record ActivityInfoData(net.minecraft.resources.ResourceLocation activity, boolean creatable,
+                                   List<String> difficulties, List<Integer> levels, List<ModifierLine> modifiers,
+                                   int maxMembers, boolean levelsActive, String dropsFor,
+                                   List<net.minecraft.world.item.ItemStack> drops, boolean hasCurrent,
+                                   String difficulty, boolean hardcore, List<String> chosen, int visibility, int minLevel)
+            implements CustomPacketPayload {
+        public static final Type<ActivityInfoData> TYPE = new Type<>(id("activity_info_data"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityInfoData> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeResourceLocation(p.activity);
+                    buf.writeBoolean(p.creatable);
+                    writeList(buf, p.difficulties, (b, d) -> b.writeUtf(d, 32));
+                    writeList(buf, p.levels, (b, l) -> b.writeVarInt(l));
+                    writeList(buf, p.modifiers, ModifierLine::write);
+                    buf.writeVarInt(p.maxMembers);
+                    buf.writeBoolean(p.levelsActive);
+                    buf.writeUtf(p.dropsFor, 32);
+                    writeList(buf, p.drops, (b, stack) -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.encode(b, stack));
+                    buf.writeBoolean(p.hasCurrent);
+                    buf.writeUtf(p.difficulty, 32);
+                    buf.writeBoolean(p.hardcore);
+                    writeList(buf, p.chosen, (b, c) -> b.writeUtf(c, 64));
+                    buf.writeVarInt(p.visibility);
+                    buf.writeVarInt(p.minLevel);
+                },
+                buf -> new ActivityInfoData(buf.readResourceLocation(), buf.readBoolean(),
+                        readList(buf, b -> b.readUtf(32)), readList(buf, b -> b.readVarInt()),
+                        readList(buf, ModifierLine::read), buf.readVarInt(), buf.readBoolean(), buf.readUtf(32),
+                        readList(buf, b -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.decode(b)),
+                        buf.readBoolean(), buf.readUtf(32), buf.readBoolean(), readList(buf, b -> b.readUtf(64)),
+                        buf.readVarInt(), buf.readVarInt()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * C2S (1.3.103+): «Створити лобі» with these settings ({@code visibility} 0 public, 1 friends, 2 private), or with
+     * {@code edit} «Зберегти» on the player's own lobby.
+     */
+    public record LobbyCreate(net.minecraft.resources.ResourceLocation activity, String difficulty, boolean hardcore,
+                              List<String> modifiers, int visibility, int minLevel, boolean edit)
+            implements CustomPacketPayload {
+        public static final Type<LobbyCreate> TYPE = new Type<>(id("lobby_create"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, LobbyCreate> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    buf.writeResourceLocation(p.activity);
+                    buf.writeUtf(p.difficulty, 32);
+                    buf.writeBoolean(p.hardcore);
+                    writeList(buf, p.modifiers, (b, m) -> b.writeUtf(m, 64));
+                    buf.writeVarInt(p.visibility);
+                    buf.writeVarInt(p.minLevel);
+                    buf.writeBoolean(p.edit);
+                },
+                buf -> new LobbyCreate(buf.readResourceLocation(), buf.readUtf(32), buf.readBoolean(),
+                        readList(buf, b -> b.readUtf(64)), buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -2326,8 +2450,9 @@ public final class HubPayloads {
      * activity's name, members of the most it takes, and whether its run started.
      */
     public record OwnLobbyData(boolean present, net.minecraft.network.chat.Component name, int members, int maxMembers,
-                               boolean inRun) implements CustomPacketPayload {
-        public static final OwnLobbyData NONE = new OwnLobbyData(false, net.minecraft.network.chat.Component.empty(), 0, 0, false);
+                               boolean inRun, String activity, boolean owner) implements CustomPacketPayload {
+        public static final OwnLobbyData NONE = new OwnLobbyData(false, net.minecraft.network.chat.Component.empty(), 0, 0,
+                false, "", false);
         public static final Type<OwnLobbyData> TYPE = new Type<>(id("own_lobby_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, OwnLobbyData> CODEC = StreamCodec.of(
                 (buf, p) -> {
@@ -2336,9 +2461,11 @@ public final class HubPayloads {
                     buf.writeVarInt(p.members);
                     buf.writeVarInt(p.maxMembers);
                     buf.writeBoolean(p.inRun);
+                    buf.writeUtf(p.activity, 256);
+                    buf.writeBoolean(p.owner);
                 },
                 buf -> new OwnLobbyData(buf.readBoolean(), net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(buf),
-                        buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
+                        buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readUtf(256), buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -4144,6 +4271,9 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(OwnLobbyData.TYPE, OwnLobbyData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityLobbies.TYPE, ActivityLobbies.CODEC);
         PayloadTypeRegistry.playC2S().register(LobbyJoin.TYPE, LobbyJoin.CODEC);
+        PayloadTypeRegistry.playC2S().register(ActivityInfoRequest.TYPE, ActivityInfoRequest.CODEC);
+        PayloadTypeRegistry.playS2C().register(ActivityInfoData.TYPE, ActivityInfoData.CODEC);
+        PayloadTypeRegistry.playC2S().register(LobbyCreate.TYPE, LobbyCreate.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivitiesSeen.TYPE, ActivitiesSeen.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsView.TYPE, DuelsView.CODEC);
         PayloadTypeRegistry.playC2S().register(DuelsQueue.TYPE, DuelsQueue.CODEC);

@@ -66,6 +66,10 @@ public final class ActivityServer {
                 sendOwnLobby(player);
             }
         });
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityInfoRequest.TYPE,
+                (payload, context) -> sendInfo(context.player(), payload));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.LobbyCreate.TYPE,
+                (payload, context) -> createLobby(context.player(), payload));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.LobbyJoin.TYPE,
                 (payload, context) -> joinLobby(context.player(), payload.activity(), payload.lobby()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivitiesSeen.TYPE,
@@ -92,7 +96,8 @@ public final class ActivityServer {
     /** The Activities tab's "My lobby" button: the lobby the player is in, or none. */
     private static void sendOwnLobby(ServerPlayer player) {
         HubPayloads.OwnLobbyData data = Activities.ownLobby(player)
-                .map(lobby -> new HubPayloads.OwnLobbyData(true, lobby.name(), lobby.members(), lobby.maxMembers(), lobby.inRun()))
+                .map(lobby -> new HubPayloads.OwnLobbyData(true, lobby.name(), lobby.members(), lobby.maxMembers(),
+                        lobby.inRun(), lobby.activity() == null ? "" : lobby.activity().toString(), lobby.owner()))
                 .orElse(HubPayloads.OwnLobbyData.NONE);
         ServerPlayNetworking.send(player, data);
     }
@@ -110,11 +115,14 @@ public final class ActivityServer {
             List<HubPayloads.LobbyLine> lines = new ArrayList<>();
             for (ActivitySource.OpenLobby lobby : lobbies) {
                 lines.add(new HubPayloads.LobbyLine(lobby.lobbyId(), lobby.owner(), lobby.members(), lobby.maxMembers(),
-                        lobby.difficulty(), lobby.hardcore(), lobby.request(), lobby.member()));
+                        lobby.difficulty(), lobby.hardcore(), lobby.request(), lobby.member(), lobby.ready(),
+                        lobby.minLevel(), lobby.modifiers().stream().map(name -> ServerLang.localize(player, name)).toList(),
+                        lobby.createdAt()));
             }
             badges.add(new HubPayloads.LobbyBadge(activity, lines));
         });
-        HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(Activities.listsLobbies(), badges);
+        HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(Activities.listsLobbies(),
+                Activities.createsLobbies(), badges);
         if (!force && data.equals(LOBBIES_SENT.get(player.getUUID()))) {
             return;
         }
@@ -257,6 +265,69 @@ public final class ActivityServer {
             ServerPlayNetworking.send(player, new HubPayloads.HubNotice(refused, false));
             sendLobbies(player, true);
         }
+    }
+
+    // ---------------------------------------------------------------- «Створити лобі» (1.3.103)
+
+    /** The panel's data for an activity: what it offers, the possible drops, and with edit the own lobby's settings. */
+    private static void sendInfo(ServerPlayer player, HubPayloads.ActivityInfoRequest request) {
+        MinecraftServer server = player.getServer();
+        Activity activity = server == null ? null : Activities.get(server, request.activity());
+        if (activity == null || !ServerPlayNetworking.canSend(player, HubPayloads.ActivityInfoData.TYPE)) {
+            return;
+        }
+        ActivitySource source = Activities.sourceFor(server, activity.id());
+        ActivitySource.CreateInfo info = source == null || !source.createsLobbies() ? null
+                : source.createInfo(server, activity.id()).orElse(null);
+        List<String> difficulties = info == null ? List.of() : info.difficulties();
+        List<Integer> levels = new ArrayList<>();
+        for (String difficulty : difficulties) {
+            levels.add(Math.max(0, activity.levelFor(difficulty)));
+        }
+        List<HubPayloads.ModifierLine> modifiers = new ArrayList<>();
+        if (info != null) {
+            for (ActivitySource.ModifierView modifier : info.modifiers()) {
+                modifiers.add(new HubPayloads.ModifierLine(modifier.id(), ServerLang.localize(player, modifier.name()),
+                        ServerLang.localize(player, modifier.description()), ServerLang.localize(player, modifier.rewards()),
+                        modifier.conflicts()));
+            }
+        }
+        String dropsFor = request.difficulty();
+        List<net.minecraft.world.item.ItemStack> drops = source == null ? List.of()
+                : source.possibleDrops(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor);
+        ActivitySource.LobbySettings current = request.edit() && source != null
+                ? source.ownLobbySettings(player).orElse(null) : null;
+        ServerPlayNetworking.send(player, new HubPayloads.ActivityInfoData(activity.id(), info != null, difficulties,
+                levels, modifiers, info == null ? 0 : info.maxMembers(), info != null && info.levelsActive(), dropsFor,
+                drops, current != null, current == null ? "" : current.difficulty(),
+                current != null && current.hardcore(), current == null ? List.of() : current.modifiers(),
+                current == null ? 0 : current.visibility(), current == null ? 0 : current.minLevel()));
+    }
+
+    /**
+     * «Створити лобі» / «Зберегти»: the level and closed checks for the picked difficulty, then the source's own flow
+     * (a new lobby's screen opens). Refused: the hub shows why.
+     */
+    private static void createLobby(ServerPlayer player, HubPayloads.LobbyCreate create) {
+        MinecraftServer server = player.getServer();
+        ActivitySource source = server == null ? null : Activities.sourceFor(server, create.activity());
+        Component refused = ActivityGate.check(player, create.activity(),
+                create.difficulty().isEmpty() ? null : create.difficulty());
+        if (refused == null) {
+            refused = source == null || !source.createsLobbies()
+                    ? Component.translatable("message.eden_ld.activities.unknown")
+                    : source.createLobby(player, create.activity(), new ActivitySource.LobbySettings(create.difficulty(),
+                            create.hardcore(), List.copyOf(create.modifiers()), Math.max(0, Math.min(2, create.visibility())),
+                            Math.max(0, Math.min(1000, create.minLevel()))), create.edit());
+        }
+        if (refused != null) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(ServerLang.localize(player, refused), false));
+        } else if (create.edit()) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
+                    Component.translatable("message.eden_ld.activities.lobby_saved"), true));
+        }
+        sendOwnLobby(player);
+        sendLobbies(player, true);
     }
 
     // ---------------------------------------------------------------- runs

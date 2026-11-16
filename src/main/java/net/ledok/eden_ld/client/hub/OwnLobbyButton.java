@@ -38,12 +38,21 @@ public final class OwnLobbyButton {
             for (HubPayloads.LobbyBadge badge : payload.badges()) {
                 lobbies.put(badge.activity().toString(), java.util.List.copyOf(badge.lobbies()));
             }
-            if (lobbies.equals(HubState.activityLobbies) && payload.available() == HubState.lobbiesAvailable) {
+            if (lobbies.equals(HubState.activityLobbies) && payload.available() == HubState.lobbiesAvailable
+                    && payload.creates() == HubState.lobbiesCreate) {
                 return;
             }
             HubState.activityLobbies = lobbies;
             HubState.lobbiesAvailable = payload.available();
+            HubState.lobbiesCreate = payload.creates();
             if (context.client().screen instanceof HubScreen screen && HubState.lastTab == HubTab.ACTIVITIES) {
+                screen.onActivitiesData();
+            }
+        });
+        // The «Створити лобі» panel's options for an activity (1.3.103).
+        ClientPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityInfoData.TYPE, (payload, context) -> {
+            if (LobbyBrowser.onInfo(payload) && context.client().screen instanceof HubScreen screen
+                    && HubState.lastTab == HubTab.ACTIVITIES) {
                 screen.onActivitiesData();
             }
         });
@@ -52,6 +61,7 @@ public final class OwnLobbyButton {
                 return;
             }
             data = payload;
+            LobbyBrowser.onOwnLobby(payload);
             if (context.client().screen instanceof HubScreen screen) {
                 screen.onActivitiesData();
             }
@@ -70,17 +80,34 @@ public final class OwnLobbyButton {
                 ClientPlayNetworking.send(HubPayloads.OwnLobbyRequest.INSTANCE);
             }
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> data = HubPayloads.OwnLobbyData.NONE);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            data = HubPayloads.OwnLobbyData.NONE;
+            LobbyBrowser.reset();
+        });
+    }
+
+    /** The lobby the player is in, as the server last said. */
+    static HubPayloads.OwnLobbyData data() {
+        return data;
     }
 
     /** The row at the top of the Activities tab; nothing when the player isn't in a lobby. */
     static void build(Flex content) {
+        Flex row = row();
+        if (row != null) {
+            row.sizing(Sizing.fill(), Sizing.content());
+            content.item(row);
+        }
+    }
+
+    /** The own lobby's button (or "in a run" line), content-wide; null when the player isn't in a lobby. */
+    @org.jetbrains.annotations.Nullable
+    static Flex row() {
         HubPayloads.OwnLobbyData lobby = data;
         if (!lobby.present()) {
-            return;
+            return null;
         }
         Flex row = Flex.row().gap(4).alignItems(Align.CENTER);
-        row.sizing(Sizing.fill(), Sizing.content());
         if (lobby.inRun()) {
             row.item(EdenParchment.text(tr("own_lobby.in_run", lobby.name()), EdenParchment.INK_MID));
         } else {
@@ -90,6 +117,6 @@ public final class OwnLobbyButton {
             button.tooltip(tr("own_lobby.hint"));
             row.item(button);
         }
-        content.item(row);
+        return row;
     }
 }

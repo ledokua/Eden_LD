@@ -75,6 +75,14 @@ final class ActivitiesTab {
         GLOWING.clear();
     }
 
+    /**
+     * The «Лобі» list (1.3.99): only while the server lists lobbies but can't create them (an Arenas_LD 4.31–4.32);
+     * with 4.33.0+ the whole tab is the lobby browser.
+     */
+    private static boolean lobbiesFilter() {
+        return HubState.lobbiesAvailable && !HubState.lobbiesCreate;
+    }
+
     /** Duels_LD is on the server, so the Ranked PvP filter exists. */
     private static boolean duelsAvailable() {
         return HubState.homeData != null && HubState.homeData.duelsAvailable();
@@ -123,7 +131,7 @@ final class ActivitiesTab {
         columns = Math.max(3, (int) ((width - LANE + GAP) / (CARD_MIN + GAP)));
         cardWidth = (width - LANE - GAP * (columns - 1)) / columns;
         if (filter == Filter.DUELS && !duelsAvailable() || filter == Filter.WAGERS && !wagersAvailable()
-                || filter == Filter.LOBBIES && !HubState.lobbiesAvailable) {
+                || filter == Filter.LOBBIES && !lobbiesFilter()) {
             filter = Filter.ALL;
         }
         boolean duels = showingDuels() || showingWagers();
@@ -153,7 +161,11 @@ final class ActivitiesTab {
             }
         }
 
-        OwnLobbyButton.build(content);
+        // The lobby browser (1.3.103) puts the own lobby on its own top row, with «Створити лобі».
+        boolean browser = LobbyBrowser.active() && !duels;
+        if (!browser) {
+            OwnLobbyButton.build(content);
+        }
         Flex filters = Flex.row().gap(3).alignItems(Align.CENTER);
         filters.sizing(Sizing.fill(), Sizing.content());
         List<Filter> shownFilters = new ArrayList<>();
@@ -161,7 +173,7 @@ final class ActivitiesTab {
             boolean available = switch (candidate) {
                 case DUELS -> duelsAvailable();
                 case WAGERS -> wagersAvailable();
-                case LOBBIES -> HubState.lobbiesAvailable;
+                case LOBBIES -> lobbiesFilter();
                 default -> true;
             };
             if (available) {
@@ -195,6 +207,10 @@ final class ActivitiesTab {
         }
         if (data == null) {
             content.item(EdenParchment.text(Component.translatable("gui.eden_ld.hub.home.loading"), EdenParchment.INK_DIM));
+            return;
+        }
+        if (browser) {
+            LobbyBrowser.build(screen, content, data, filter == Filter.ALL ? -1 : filter.ordinal() - 1);
             return;
         }
         if (filter == Filter.LOBBIES) {

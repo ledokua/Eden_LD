@@ -20,6 +20,9 @@ import java.util.UUID;
  */
 final class ArenasOpenLobbies {
 
+    /** The running Arenas_LD has 4.33.0's lobby creation (min levels, modifier names), checked once. */
+    static final boolean MIN_LEVEL = ArenasIntegration.createApi();
+
     private ArenasOpenLobbies() {
     }
 
@@ -44,7 +47,9 @@ final class ArenasOpenLobbies {
             }
             out.computeIfAbsent(lobby.activity(), id -> new ArrayList<>()).add(new ActivitySource.OpenLobby(
                     lobby.lobbyId(), lobby.ownerName(), lobby.members().size(), lobby.maxMembers(), lobby.difficulty(),
-                    lobby.hardcore(), request, member));
+                    lobby.hardcore(), request, member, lobby.ready(), MIN_LEVEL ? ArenasLobbyCreation.minLevel(lobby) : 0,
+                    MIN_LEVEL ? ArenasLobbyCreation.modifierNames(viewer.server, lobby) : List.of(),
+                    lobby.createdAtTick()));
         }
         return out;
     }

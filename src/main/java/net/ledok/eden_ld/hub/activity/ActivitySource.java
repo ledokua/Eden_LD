@@ -30,8 +30,15 @@ public interface ActivitySource {
     /** Opens the activity's lobby screen (or whatever "go there" means) for the player; false if unknown. */
     boolean open(ServerPlayer player, ResourceLocation activity);
 
-    /** The lobby the player is in: its activity's name, members of the most it takes, and whether its run started. */
-    record OwnLobby(Component name, int members, int maxMembers, boolean inRun) {
+    /**
+     * The lobby the player is in: its activity's name, members of the most it takes, and whether its run started; its
+     * activity's id and whether the player owns it (1.3.103: the browser's «Змінити лобі»).
+     */
+    record OwnLobby(Component name, int members, int maxMembers, boolean inRun, @Nullable ResourceLocation activity,
+                    boolean owner) {
+        public OwnLobby(Component name, int members, int maxMembers, boolean inRun) {
+            this(name, members, maxMembers, inRun, null, false);
+        }
     }
 
     /** The player's own lobby in this source, if they're in one (cheap: asked every 2 s while the tab shows). */
@@ -47,10 +54,12 @@ public interface ActivitySource {
     /**
      * A lobby forming now that the viewer may see on an activity card and in the «Лобі» list (1.3.98): its id, its
      * owner's name, members of the most it takes, the picked difficulty's id ("easy", "hard"…), hardcore, whether it's
-     * joined by request (friends-only) and whether the viewer is in it.
+     * joined by request (friends-only) and whether the viewer is in it; 1.3.103: members marked ready, the minimum join
+     * level (0 = none), the other run modifiers' names (hardcore is its own flag) and when it was made (newest first).
      */
-    record OpenLobby(java.util.UUID lobbyId, String owner, int members, int maxMembers, String difficulty, boolean hardcore, boolean request,
-                     boolean member) {
+    record OpenLobby(java.util.UUID lobbyId, String owner, int members, int maxMembers, String difficulty,
+                     boolean hardcore, boolean request, boolean member, int ready, int minLevel,
+                     List<Component> modifiers, long createdAt) {
         public boolean full() {
             return members >= maxMembers;
         }
@@ -75,6 +84,55 @@ public interface ActivitySource {
      */
     @Nullable
     default Component joinLobby(ServerPlayer player, ResourceLocation activity, java.util.UUID lobby) {
+        return Component.translatable("message.eden_ld.activities.unknown");
+    }
+
+    // ---------------------------------------------------------------- creating lobbies (1.3.103)
+
+    /** A lobby's settings, as the hub's «Створити лобі» panel sets them; visibility 0 public, 1 friends, 2 private. */
+    record LobbySettings(String difficulty, boolean hardcore, List<String> modifiers, int visibility, int minLevel) {
+    }
+
+    /** A run modifier the panel offers: its id, name, what it does, its reward effect ("+2 loot"), what it rules out. */
+    record ModifierView(String id, Component name, Component description, Component rewards, List<String> conflicts) {
+    }
+
+    /**
+     * What the panel offers for an activity: the enabled difficulties (empty: none to pick, e.g. arenas), the run
+     * modifiers (hardcore among them as {@link #HARDCORE}), the most members, and whether minimum levels are checked.
+     */
+    record CreateInfo(List<String> difficulties, List<ModifierView> modifiers, int maxMembers, boolean levelsActive) {
+    }
+
+    /** The hardcore modifier's id: the panel shows it as its own switch. */
+    String HARDCORE = "hardcore_run";
+
+    /** Whether the hub may create lobbies of this source's activities (else the panel only opens them). */
+    default boolean createsLobbies() {
+        return false;
+    }
+
+    default Optional<CreateInfo> createInfo(MinecraftServer server, ResourceLocation activity) {
+        return Optional.empty();
+    }
+
+    /** What a win can give at that difficulty (null: any), for the panel's «Можлива здобич». */
+    default List<net.minecraft.world.item.ItemStack> possibleDrops(MinecraftServer server, ResourceLocation activity,
+                                                                    @Nullable String difficulty) {
+        return List.of();
+    }
+
+    /** The settings of the forming lobby the player owns, for editing (empty when unknown). */
+    default Optional<LobbySettings> ownLobbySettings(ServerPlayer owner) {
+        return Optional.empty();
+    }
+
+    /**
+     * Creates a lobby with these settings (its screen opens), or with {@code edit} changes the one the player owns.
+     * Null when done, otherwise why not.
+     */
+    @Nullable
+    default Component createLobby(ServerPlayer owner, ResourceLocation activity, LobbySettings settings, boolean edit) {
         return Component.translatable("message.eden_ld.activities.unknown");
     }
 
