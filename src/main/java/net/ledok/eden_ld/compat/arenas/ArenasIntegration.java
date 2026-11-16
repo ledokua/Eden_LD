@@ -50,6 +50,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean OPEN_LOBBIES = openLobbiesApi();
     /** The running Arenas_LD creates and changes lobbies for a hub, with minimum levels (4.33.0+). */
     private static final boolean CREATE = createApi();
+    /** The running Arenas_LD shows a party's HP in its ally sidebar outside runs (4.34.0+). */
+    private static final boolean PARTY = partyApi();
 
     private ArenasIntegration() {
     }
@@ -79,9 +81,12 @@ final class ArenasIntegration implements ActivitySource {
         if (CREATE) {
             ArenasLobbyCreation.register();
         }
+        if (PARTY) {
+            ArenasParty.register();
+        }
         EdenLD.LOGGER.info("[Arenas] Arenas_LD APIs found: admin {}, cooldown resets {}, run details {}, own lobby {}, "
-                + "rental builds {}, invite filter {}, open lobbies {}, lobby creation {}.", ADMIN, RESET_COOLDOWNS,
-                RUN_DETAILS, OWN_LOBBY, RENTAL, INVITE_FILTER, OPEN_LOBBIES, CREATE);
+                + "rental builds {}, invite filter {}, open lobbies {}, lobby creation {}, party sidebar {}.", ADMIN,
+                RESET_COOLDOWNS, RUN_DETAILS, OWN_LOBBY, RENTAL, INVITE_FILTER, OPEN_LOBBIES, CREATE, PARTY);
         if (!ADMIN) {
             EdenLD.LOGGER.info("[Arenas] This Arenas_LD has no admin API (4.9.0+): Moderation's controller actions stay hidden.");
         }
@@ -134,6 +139,15 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("setInviteFilter",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$InviteFilter"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean partyApi() {
+        try {
+            ArenasApi.class.getMethod("setPartyProvider", java.util.function.Function.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
