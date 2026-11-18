@@ -54,6 +54,8 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean PARTY = partyApi();
     /** The running Arenas_LD's invite picker groups players by relation (4.40.3+). */
     private static final boolean RELATIONS = relationsApi();
+    /** The running Arenas_LD tells a controller's base loot rolls (4.39.0+). */
+    private static final boolean RUN_SETTINGS = runSettingsApi();
 
     private ArenasIntegration() {
     }
@@ -145,6 +147,15 @@ final class ArenasIntegration implements ActivitySource {
         try {
             ArenasApi.class.getMethod("setInviteFilter",
                     Class.forName("net.ledok.arenas_ld.api.ArenasApi$InviteFilter"));
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static boolean runSettingsApi() {
+        try {
+            ArenasApi.class.getMethod("baseLootRolls", MinecraftServer.class, ResourceLocation.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
@@ -285,6 +296,11 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public int possibleDropsCount(MinecraftServer server, ResourceLocation activity, @Nullable String difficulty) {
         return CREATE ? ArenasLobbyCreation.dropsCount(server, activity, difficulty) : -1;
+    }
+
+    @Override
+    public Optional<LootRolls> baseLootRolls(MinecraftServer server, ResourceLocation activity) {
+        return RUN_SETTINGS ? ArenasRunSettings.baseLootRolls(server, activity) : Optional.empty();
     }
 
     @Override

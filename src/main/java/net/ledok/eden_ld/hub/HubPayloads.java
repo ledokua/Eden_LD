@@ -2337,14 +2337,16 @@ public final class HubPayloads {
      * S2C (1.3.103+): the panel's answer for an activity. {@code creatable} false: the hub can't make its lobbies (the
      * panel only opens it). The enabled difficulties with the level each needs (Eden's), the run modifiers, the most
      * members, whether minimum levels are checked, the possible drops at {@code dropsFor} (of {@code dropsTotal} in all:
-     * the list may be capped, 1.3.107), and with {@code hasCurrent}
+     * the list may be capped, 1.3.107), the base loot rolls of a win ({@code lootRolls}, NaN unknown;
+     * {@code lootRollsDefault}: the server's default, 1.3.118), and with {@code hasCurrent}
      * the player's own lobby's settings ({@code visibility} 0 public, 1 friends, 2 private).
      */
     public record ActivityInfoData(net.minecraft.resources.ResourceLocation activity, boolean creatable,
                                    List<String> difficulties, List<Integer> levels, List<ModifierLine> modifiers,
                                    int maxMembers, boolean levelsActive, String dropsFor,
                                    List<net.minecraft.world.item.ItemStack> drops, int dropsTotal, boolean hasCurrent,
-                                   String difficulty, boolean hardcore, List<String> chosen, int visibility, int minLevel)
+                                   String difficulty, boolean hardcore, List<String> chosen, int visibility, int minLevel,
+                                   double lootRolls, boolean lootRollsDefault)
             implements CustomPacketPayload {
         public static final Type<ActivityInfoData> TYPE = new Type<>(id("activity_info_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ActivityInfoData> CODEC = StreamCodec.of(
@@ -2365,13 +2367,15 @@ public final class HubPayloads {
                     writeList(buf, p.chosen, (b, c) -> b.writeUtf(c, 64));
                     buf.writeVarInt(p.visibility);
                     buf.writeVarInt(p.minLevel);
+                    buf.writeDouble(p.lootRolls);
+                    buf.writeBoolean(p.lootRollsDefault);
                 },
                 buf -> new ActivityInfoData(buf.readResourceLocation(), buf.readBoolean(),
                         readList(buf, b -> b.readUtf(32)), readList(buf, b -> b.readVarInt()),
                         readList(buf, ModifierLine::read), buf.readVarInt(), buf.readBoolean(), buf.readUtf(32),
                         readList(buf, b -> net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC.decode(b)),
                         buf.readVarInt(), buf.readBoolean(), buf.readUtf(32), buf.readBoolean(), readList(buf, b -> b.readUtf(64)),
-                        buf.readVarInt(), buf.readVarInt()));
+                        buf.readVarInt(), buf.readVarInt(), buf.readDouble(), buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

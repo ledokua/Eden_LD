@@ -841,6 +841,15 @@ final class LobbyBrowser {
                 }
             }
         }
+        // A win's base loot rolls (LeDok, 1.3.118): the controller's own, or the server's default.
+        if (info != null && (!Double.isNaN(info.lootRolls()) || info.lootRollsDefault())) {
+            Component rolls = Double.isNaN(info.lootRolls()) ? tr("browser.loot_rolls_default_only")
+                    : tr(info.lootRollsDefault() ? "browser.loot_rolls_default" : "browser.loot_rolls",
+                            formatRolls(info.lootRolls()));
+            CanvasNode rollsLine = line(rolls, EdenParchment.INK_MID, width);
+            rollsLine.tooltip(rolls, tr("browser.loot_rolls_hint"));
+            body.item(rollsLine);
+        }
         // Possible drops are off unless the server turns them on (activities.show_possible_drops; LeDok 2026-11-16:
         // hidden until Arenas reads the gear tables). Off, the server sends a total of -1 and nothing shows.
         if (info != null && info.dropsTotal() >= 0) {
@@ -890,6 +899,12 @@ final class LobbyBrowser {
             row.item(new More(total - shown, info.drops().subList(shown, info.drops().size()), total));
         }
         body.item(grid);
+    }
+
+    /** 3 → "3", 2.5 → "2.5". */
+    private static String formatRolls(double rolls) {
+        return rolls == Math.rint(rolls) ? Long.toString((long) rolls)
+                : String.format(Locale.ROOT, "%.1f", rolls);
     }
 
     /** Rows of drop icons before «+N». */

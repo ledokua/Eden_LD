@@ -127,6 +127,15 @@ public interface ActivitySource {
         return -1;
     }
 
+    /** A win's base loot rolls before difficulty and modifiers, and whether that's the server's default (1.3.118). */
+    record LootRolls(double rolls, boolean serverDefault) {
+    }
+
+    /** The activity's base loot rolls; empty when unknown (an arena, an older Arenas_LD). */
+    default Optional<LootRolls> baseLootRolls(MinecraftServer server, ResourceLocation activity) {
+        return Optional.empty();
+    }
+
     /** The settings of the forming lobby the player owns, for editing (empty when unknown). */
     default Optional<LobbySettings> ownLobbySettings(ServerPlayer owner) {
         return Optional.empty();

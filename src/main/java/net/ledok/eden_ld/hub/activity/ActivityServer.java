@@ -304,13 +304,16 @@ public final class ActivityServer {
         }
         int dropsTotal = !showDrops ? -1 : Math.max(drops.size(), source == null ? -1
                 : source.possibleDropsCount(server, activity.id(), dropsFor.isEmpty() ? null : dropsFor));
+        ActivitySource.LootRolls rolls = source == null ? null
+                : source.baseLootRolls(server, activity.id()).orElse(null);
         ActivitySource.LobbySettings current = request.edit() && source != null
                 ? source.ownLobbySettings(player).orElse(null) : null;
         ServerPlayNetworking.send(player, new HubPayloads.ActivityInfoData(activity.id(), info != null, difficulties,
                 levels, modifiers, info == null ? 0 : info.maxMembers(), info != null && info.levelsActive(), dropsFor,
                 drops, dropsTotal, current != null, current == null ? "" : current.difficulty(),
                 current != null && current.hardcore(), current == null ? List.of() : current.modifiers(),
-                current == null ? 0 : current.visibility(), current == null ? 0 : current.minLevel()));
+                current == null ? 0 : current.visibility(), current == null ? 0 : current.minLevel(),
+                rolls == null ? Double.NaN : rolls.rolls(), rolls != null && rolls.serverDefault()));
     }
 
     /**
