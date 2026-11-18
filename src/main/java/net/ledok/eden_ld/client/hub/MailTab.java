@@ -23,6 +23,7 @@ import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 import net.ledok.vectorlib.text.MarkdownText;
 
 import java.util.ArrayList;
@@ -463,7 +464,7 @@ final class MailTab {
         protected void rebuild() {
             boolean open = id == selected;
             add(Shapes.rect(0, 0, width, height).fill(open ? EdenParchment.ROW_BG : EdenParchment.ROW_BG_ALT)
-                    .stroke(Stroke.of(open ? EdenParchment.ACCENT : hovered ? EdenParchment.HAIRLINE_HI : EdenParchment.HAIRLINE, 1)));
+                    .stroke(Stroke.of((open || focused) ? EdenParchment.ACCENT : hovered ? EdenParchment.HAIRLINE_HI : EdenParchment.HAIRLINE, 1)));
             int color = kind >= 0 && kind < KIND_COLORS.length ? KIND_COLORS[kind] : KIND_COLORS[3];
             add(Shapes.rect(5, (height - 10) / 2, 10, 10).fill(color).stroke(0xC0000000, 1));
             float textX = 20;
@@ -485,13 +486,31 @@ final class MailTab {
             if (button != 0) {
                 return false;
             }
+            openMail();
+            return true;
+        }
+
+        @Override
+        public boolean focusable() {
+            return true;
+        }
+
+        @Override
+        public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+            if (focusable() && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_SPACE)) {
+                openMail();
+                return true;
+            }
+            return false;
+        }
+
+        private void openMail() {
             UiSounds.click();
             selected = id;
             if (unread && !isShop(id)) {
                 send(MailAction.Action.OPEN, id);
             }
             screen.onMailData();
-            return true;
         }
 
         @Override

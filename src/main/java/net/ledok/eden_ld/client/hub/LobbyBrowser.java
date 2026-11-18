@@ -29,6 +29,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,13 +39,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * The Activities tab as a lobby browser (1.3.103; laid out as the Arenas UI rework concept's section 4 in 1.3.105, after
  * LeDok's TEST look): every lobby forming now that the player may see, with Arenas_LD 4.33.0+.
  * <ul>
  *   <li>The page's title row carries «Моє лобі» / «Змінити лобі» and «+ Створити лобі» (top right).</li>
- *   <li>Under the kind tabs, one row of filters: activity, difficulty, hardcore, "only joinable", and the sort.</li>
+ *   <li>Under the kind tabs, filters for activity, difficulty, hardcore, "only joinable", and the sort.</li>
  *   <li>One 28-unit row per lobby: the activity's picture, «name · kind · owner» over pills (difficulty, hardcore,
  *   modifiers, minimum level, friends-only), members, and Приєднатися / Попроситися / Відкрити (greyed with why).</li>
  * </ul>
@@ -318,9 +321,20 @@ final class LobbyBrowser {
 
         List<Row> rows = rows(data, byId, kind);
         if (rows.isEmpty()) {
-            Flex empty = HubScreen.emptyState(HubTab.ACTIVITIES, tr("lobbies.none_title"), tr("browser.none"));
+            boolean filtered = !activityFilter.isEmpty() || !difficultyFilter.isEmpty() || hardcoreFilter != 0 || joinableOnly;
+            Flex empty = filtered
+                    ? HubScreen.emptyState(HubTab.ACTIVITIES, tr("browser.no_matches_title"), tr("browser.no_matches"))
+                    : HubScreen.emptyState(HubTab.ACTIVITIES, tr("lobbies.none_title"), tr("browser.none"));
             empty.id(HubSpotlights.ACTIVITIES_CARDS);
-            empty.item(createButton(screen, kind));
+            if (filtered) {
+                empty.item(EdenParchment.fitButton(tr("browser.clear_filters"), 80, 14, () -> {
+                    activityFilter = "";
+                    difficultyFilter = "";
+                    hardcoreFilter = 0;
+                    joinableOnly = false;
+                    screen.onActivitiesData();
+                }));
+            }
             content.item(empty);
             return;
         }
@@ -377,19 +391,15 @@ final class LobbyBrowser {
         return create;
     }
 
-    /** One row under the kind tabs: activity, difficulty, hardcore, joinable, and the sort; sized to fit 416 units. */
+    /** The filter row wraps its auxiliary controls when the localized labels need more space. */
     private static Flex filters(HubScreen screen, HubPayloads.ActivitiesData data, Map<String, ActivityEntry> byId,
                                 int kind, float width) {
-        Flex filters = Flex.row().gap(3).alignItems(Align.CENTER);
-        filters.sizing(Sizing.fill(), Sizing.content());
-        filters.id(HubSpotlights.ACTIVITIES_SORT);
-        Component joinableLabel = tr("browser.joinable");
-        float toggleWidth = Minecraft.getInstance().font.width(joinableLabel) + 16;
-        float sortWidth = clamp(width * 0.15f, 62, 90);
-        // What's left goes to the three dropdowns, the activity one a bit wider.
-        float left = width - toggleWidth - sortWidth - 3 * 5;
-        float activityWidth = clamp(left * 0.38f, 80, 150);
-        float dropdownWidth = clamp((left - activityWidth) / 2, 66, 110);
+        Flex block = Flex.column().gap(3);
+        block.sizing(Sizing.fill(), Sizing.content());
+        block.id(HubSpotlights.ACTIVITIES_SORT);
+        Flex row = Flex.row().gap(3).alignItems(Align.CENTER);
+        row.sizing(Sizing.fill(), Sizing.content());
+        block.item(row);
 
         List<String> activityOptions = new ArrayList<>();
         activityOptions.add("");
@@ -399,49 +409,81 @@ final class LobbyBrowser {
         if (!activityOptions.contains(activityFilter)) {
             activityFilter = "";
         }
-        filters.item(dropdown(new Dropdown<>(activityWidth, activityOptions, activityFilter,
-                id -> id.isEmpty() ? tr("browser.any_activity") : byId.containsKey(id) ? byId.get(id).name()
-                        : Component.literal(id), id -> {
-                    activityFilter = id;
-                    screen.onActivitiesData();
-                }), activityWidth));
+        Function<String, Component> activityName = id -> id.isEmpty() ? tr("browser.any_activity")
+                : byId.containsKey(id) ? byId.get(id).name() : Component.literal(id);
         List<String> difficultyOptions = new ArrayList<>();
         difficultyOptions.add("");
         difficultyOptions.addAll(DIFFICULTIES);
-        filters.item(dropdown(new Dropdown<>(dropdownWidth, difficultyOptions, difficultyFilter,
-                id -> id.isEmpty() ? tr("browser.any_difficulty") : difficultyName(id), id -> {
-                    difficultyFilter = id;
-                    screen.onActivitiesData();
-                }), dropdownWidth));
-        filters.item(dropdown(new Dropdown<>(dropdownWidth, HARDCORE_FILTERS, hardcoreFilter,
-                value -> tr("browser.hardcore." + value), value -> {
-                    hardcoreFilter = value;
-                    screen.onActivitiesData();
-                }), dropdownWidth));
+        Function<String, Component> difficultyLabel = id -> id.isEmpty() ? tr("browser.any_difficulty") : difficultyName(id);
+        Function<Integer, Component> hardcoreName = value -> tr("browser.hardcore." + value);
+        Function<Sort, Component> sortName = candidate -> tr("browser.sort." + candidate.name().toLowerCase(Locale.ROOT));
+        Component joinableLabel = tr("browser.joinable");
+        float toggleWidth = Minecraft.getInstance().font.width(joinableLabel) + 22;
+        float sortWidth = filterWidth(List.of(Sort.values()), sortName, 62, 110);
+        float activityWidth = filterWidth(activityOptions, activityName, 100, 170);
+        float difficultyWidth = filterWidth(difficultyOptions, difficultyLabel, 70, 130);
+        float hardcoreWidth = filterWidth(HARDCORE_FILTERS, hardcoreName, 70, 140);
+        boolean wrap = activityWidth + difficultyWidth + hardcoreWidth + toggleWidth + sortWidth + 15 > width;
+        if (wrap) {
+            activityWidth = Math.min(220, width - difficultyWidth - hardcoreWidth - 6);
+        }
+
+        row.item(filterDropdown(activityWidth, activityOptions, activityFilter, activityName, id -> {
+            activityFilter = id;
+            screen.onActivitiesData();
+        }));
+        row.item(filterDropdown(difficultyWidth, difficultyOptions, difficultyFilter, difficultyLabel, id -> {
+            difficultyFilter = id;
+            screen.onActivitiesData();
+        }));
+        row.item(filterDropdown(hardcoreWidth, HARDCORE_FILTERS, hardcoreFilter, hardcoreName, value -> {
+            hardcoreFilter = value;
+            screen.onActivitiesData();
+        }));
+
+        Flex actions = row;
+        if (wrap) {
+            actions = Flex.row().gap(3).alignItems(Align.CENTER);
+            actions.sizing(Sizing.fill(), Sizing.content());
+            block.item(actions);
+        }
         Toggle joinable = new Toggle(toggleWidth, joinableLabel, joinableOnly, value -> {
             joinableOnly = value;
             screen.onActivitiesData();
         });
         joinable.tooltip(tr("browser.joinable_hint"));
-        filters.item(joinable);
-        filters.spacer();
-        Dropdown<Sort> sorting = new Dropdown<>(sortWidth, List.of(Sort.values()), sort,
-                candidate -> tr("browser.sort." + candidate.name().toLowerCase(Locale.ROOT)), candidate -> {
-                    sort = candidate;
-                    screen.onActivitiesData();
-                });
-        sorting.tooltip(tr("sort"));
-        filters.item(dropdown(sorting, sortWidth));
-        return filters;
+        actions.item(joinable);
+        actions.spacer();
+        actions.item(filterDropdown(sortWidth, List.of(Sort.values()), sort, sortName, candidate -> {
+            sort = candidate;
+            screen.onActivitiesData();
+        }));
+        return block;
     }
 
-    /** Dropdowns at the filter row's height. */
-    private static <T> Dropdown<T> dropdown(Dropdown<T> dropdown, float width) {
+    private static <T> float filterWidth(List<T> options, Function<T, Component> label, float min, float max) {
+        var font = Minecraft.getInstance().font;
+        int widest = options.stream().map(label).mapToInt(font::width).max().orElse(0);
+        return clamp(widest + 20, min, max);
+    }
+
+    private static <T> Dropdown<T> filterDropdown(float width, List<T> options, T selected, Function<T, Component> label,
+                                                  Consumer<T> onSelect) {
+        var font = Minecraft.getInstance().font;
+        int textWidth = (int) width - 20;
+        Dropdown<T> dropdown = new Dropdown<>(width, options, selected, value -> {
+            Component text = label.apply(value);
+            if (font.width(text) <= textWidth) {
+                return text;
+            }
+            String cut = font.plainSubstrByWidth(text.getString(), textWidth - font.width("…"));
+            return Component.literal(cut + "…");
+        }, onSelect);
         dropdown.sizing(Sizing.fixed(width), Sizing.fixed(16));
+        dropdown.tooltip(() -> List.of(label.apply(dropdown.selected())));
         return dropdown;
     }
 
-    /** One lobby in the list, with its activity. */
     private record Row(String activity, @Nullable ActivityEntry entry, HubPayloads.LobbyLine lobby) {
     }
 
@@ -531,7 +573,7 @@ final class LobbyBrowser {
             first.append(Component.literal(" · ").append(tr("browser.type." + entry.type())).withColor(EdenParchment.INK_DIM & 0xFFFFFF));
         }
         first.append(Component.literal(" · " + lobby.owner()).withColor(EdenParchment.INK_DIM & 0xFFFFFF));
-        lines.item(EdenParchment.text(first, EdenParchment.INK).maxWidth(textWidth).ellipsis(true));
+        lines.item(line(first, EdenParchment.INK, textWidth));
 
         Flex pills = Flex.row().gap(2).alignItems(Align.CENTER);
         if (!lobby.difficulty().isEmpty()) {
@@ -567,7 +609,8 @@ final class LobbyBrowser {
             rest.append(tr("lobbies.yours").copy().withColor(EdenParchment.GOOD & 0xFFFFFF));
         }
         if (!rest.getSiblings().isEmpty()) {
-            pills.item(EdenParchment.text(rest, EdenParchment.INK_DIM).maxWidth(Math.max(20, textWidth - 90)).ellipsis(true));
+            float used = pills.measure(-1, -1)[0] + (pills.children().isEmpty() ? 0 : 2);
+            pills.item(line(rest, EdenParchment.INK_DIM, Math.max(12, textWidth - used)));
         }
         lines.item(pills);
         box.item(lines);
@@ -690,7 +733,7 @@ final class LobbyBrowser {
         screen.onActivitiesData();
     }
 
-    private static void closePanel(HubScreen screen) {
+    static void closePanel(HubScreen screen) {
         panelOpen = false;
         editing = false;
         screen.onActivitiesData();
@@ -1149,6 +1192,9 @@ final class LobbyBrowser {
             if (on) {
                 add(Shapes.rect(0, 0, 2, height).fill(accent | 0xFF000000));
             }
+            if (focused) {
+                add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(EdenParchment.ACCENT, 1)));
+            }
             // The checkbox.
             float box = 9;
             float bx = 4;
@@ -1177,9 +1223,27 @@ final class LobbyBrowser {
             if (button != 0) {
                 return false;
             }
+            toggle();
+            return true;
+        }
+
+        @Override
+        public boolean focusable() {
+            return true;
+        }
+
+        @Override
+        public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_SPACE) {
+                toggle();
+                return true;
+            }
+            return false;
+        }
+
+        private void toggle() {
             UiSounds.click();
             onChange.accept(!on());
-            return true;
         }
 
         @Override
@@ -1198,7 +1262,8 @@ final class LobbyBrowser {
         bar.sizing(Sizing.fill(), Sizing.content());
         bar.background(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE));
         if (entry == null || info == null) {
-            bar.item(EdenParchment.text(Component.literal(" "), EdenParchment.INK_DIM));
+            Component hint = entry == null ? tr("browser.pick") : Component.translatable("gui.eden_ld.hub.home.loading");
+            bar.item(EdenParchment.text(hint, EdenParchment.INK_DIM, (int) width - 8));
             return bar;
         }
         boolean closed = HubState.closedActivities.contains(entry.id().toString()) && !HubState.closedBypass;

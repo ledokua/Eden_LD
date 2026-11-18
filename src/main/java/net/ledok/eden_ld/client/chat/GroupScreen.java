@@ -1,6 +1,8 @@
 package net.ledok.eden_ld.client.chat;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.ledok.eden_ld.chat.dm.DmRules;
+import net.ledok.eden_ld.client.ScrollFocus;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.vectorlib.client.canvas.Shapes;
 import net.ledok.vectorlib.client.canvas.Stroke;
@@ -12,6 +14,7 @@ import net.ledok.vectorlib.client.canvas.layout.Flex;
 import net.ledok.vectorlib.client.canvas.layout.Insets;
 import net.ledok.vectorlib.client.canvas.layout.Sizing;
 import net.ledok.vectorlib.client.canvas.widget.Button;
+import net.ledok.vectorlib.client.canvas.widget.Label;
 import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
 import net.ledok.vectorlib.client.canvas.widget.TextField;
 import net.ledok.vectorlib.client.canvas.widget.Toggle;
@@ -23,9 +26,12 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -70,7 +76,13 @@ public final class GroupScreen extends CanvasScreen {
         root.item(TextNode.of(getTitle()).color(TEXT).shadow(false));
 
         float inner = WIDTH - 16;
-        TextField field = new TextField(inner, name, value -> this.name = value);
+        Button submit = new Button(70, Component.translatable(renaming == null ? "chat.eden_ld.dm.group.create"
+                : "chat.eden_ld.dm.group.save"), this::done);
+        TextField field = new TextField(inner, name, value -> {
+            this.name = value;
+            updateSubmit(submit);
+        });
+        updateSubmit(submit);
         field.size(inner, 16);
         field.hint(Component.translatable("chat.eden_ld.dm.group.name_hint").getString());
         field.maxLength(NAME_MAX);
@@ -78,8 +90,9 @@ public final class GroupScreen extends CanvasScreen {
         root.item(field);
 
         if (renaming == null) {
-            root.item(TextNode.of(Component.translatable("chat.eden_ld.dm.group.players",
-                    MAX_MEMBERS - 1)).color(DIM).shadow(false).maxWidth((int) inner));
+            Label count = Label.of(inner, playerCount()).color(DIM);
+            root.item(count);
+            Map<UUID, Toggle> choices = new LinkedHashMap<>();
             Flex list = Flex.column().gap(2);
             List<PlayerInfo> online = online(Set.of());
             if (online.isEmpty()) {
@@ -87,13 +100,18 @@ public final class GroupScreen extends CanvasScreen {
             }
             for (PlayerInfo info : online) {
                 UUID id = info.getProfile().getId();
-                list.item(new Toggle(inner - 12, Component.literal(info.getProfile().getName()), false, on -> {
+                Toggle choice = new Toggle(inner - 12, Component.literal(info.getProfile().getName()), false, on -> {
                     if (on) {
                         picked.add(id);
                     } else {
                         picked.remove(id);
                     }
-                }));
+                    count.text(playerCount());
+                    boolean atLimit = picked.size() >= MAX_MEMBERS - 1;
+                    choices.forEach((candidate, toggle) -> toggle.enabled(!atLimit || picked.contains(candidate)));
+                });
+                choices.put(id, choice);
+                list.item(choice);
             }
             root.item(new ScrollPanel(inner, LIST_HEIGHT, list));
         }
@@ -104,12 +122,25 @@ public final class GroupScreen extends CanvasScreen {
         spacer.sizing(Sizing.expand(), Sizing.fixed(1));
         buttons.item(spacer);
         buttons.item(new Button(70, Component.translatable("gui.cancel"), this::onClose));
-        buttons.item(new Button(70, Component.translatable(renaming == null ? "chat.eden_ld.dm.group.create"
-                : "chat.eden_ld.dm.group.save"), this::done));
+        buttons.item(submit);
         root.item(buttons);
         canvas().add(root);
         root.layoutIn(WIDTH, height);
         canvas().focus(field);
+    }
+
+    private Component playerCount() {
+        return Component.translatable("chat.eden_ld.dm.group.players_count", picked.size(), MAX_MEMBERS - 1);
+    }
+
+    private void updateSubmit(Button button) {
+        boolean valid = DmRules.cleanName(name) != null;
+        button.enabled(valid);
+        if (!valid) {
+            button.tooltip(Component.translatable("chat.eden_ld.dm.group.name_required"));
+        } else {
+            button.tooltip();
+        }
     }
 
     private static float height(boolean create) {
@@ -129,8 +160,8 @@ public final class GroupScreen extends CanvasScreen {
     }
 
     private void done() {
-        String trimmed = name.trim();
-        if (trimmed.isEmpty() || !ClientPlayNetworking.canSend(HubPayloads.GroupCreate.TYPE)) {
+        String trimmed = DmRules.cleanName(name);
+        if (trimmed == null || !ClientPlayNetworking.canSend(HubPayloads.GroupCreate.TYPE)) {
             return;
         }
         if (renaming == null) {
@@ -152,6 +183,15 @@ public final class GroupScreen extends CanvasScreen {
         super.init();
         float fit = Math.min(1f, Math.min((width - 8f) / WIDTH, (height - 8f) / height(renaming == null)));
         placement(Placement.Screen.center().scale(fit));
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        boolean used = super.keyPressed(keyCode, scanCode, modifiers);
+        if (used && keyCode == GLFW.GLFW_KEY_TAB) {
+            ScrollFocus.reveal(input().focusedNode());
+        }
+        return used;
     }
 
     @Override

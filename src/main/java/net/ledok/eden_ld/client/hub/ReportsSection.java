@@ -154,16 +154,16 @@ final class ReportsSection {
         long selected = detail == null ? -1 : detail.getLong("id");
         Flex rows = Flex.column().gap(2);
         ListTag list = data.getList("rows", Tag.TAG_COMPOUND);
-        if (list.isEmpty()) {
-            rows.item(text(tr("none"), DIM, (int) LIST - 10));
-        }
+        String query = search.strip().toLowerCase(java.util.Locale.ROOT);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag row = list.getCompound(i);
-            if (!search.isBlank() && !row.getString("reporter").toLowerCase(java.util.Locale.ROOT)
-                    .contains(search.toLowerCase(java.util.Locale.ROOT).strip())) {
+            if (!row.getString("reporter").toLowerCase(java.util.Locale.ROOT).contains(query)) {
                 continue;
             }
             rows.item(new Row(row, row.getLong("id") == selected));
+        }
+        if (rows.children().isEmpty()) {
+            rows.item(text(query.isEmpty() ? tr("none") : tr("no_matches"), DIM, (int) LIST - 10));
         }
         if (data.getInt("total") > list.size()) {
             rows.item(text(tr("more", list.size(), data.getInt("total")), DIM, (int) LIST - 10));
@@ -186,6 +186,8 @@ final class ReportsSection {
         right.sizing(Sizing.expand(), Sizing.fill());
         if (detail != null) {
             buildDetail(right, detail);
+        } else {
+            right.item(text(tr("select_report"), DIM, (int) (width - LIST - 8)));
         }
         columns.item(right);
         main.item(columns);
@@ -387,12 +389,13 @@ final class ReportsSection {
             this.row = row;
             this.on = on;
             sizing(Sizing.fixed(LIST - 8), Sizing.fixed(ROW_H));
+            tooltip(Component.literal("#" + row.getLong("id") + "  ").append(label(row)));
         }
 
         @Override
         protected void rebuild() {
             add(Shapes.rect(0, 0, width, height).fill(on ? PANEL : 0xFF22252A)
-                    .stroke(Stroke.of(on ? ACCENT : hovered ? DIM : LINE, 1)));
+                    .stroke(Stroke.of(on || focused ? ACCENT : hovered ? DIM : LINE, 1)));
             net.minecraft.client.gui.Font font = net.minecraft.client.Minecraft.getInstance().font;
             // Who took it, right-aligned on the first line: the second keeps clear of the status label.
             String assignee = row.getString("assignee");
@@ -421,9 +424,27 @@ final class ReportsSection {
             if (button != 0) {
                 return false;
             }
+            select();
+            return true;
+        }
+
+        @Override
+        public boolean focusable() {
+            return true;
+        }
+
+        @Override
+        public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+            if (key == 257 || key == 335 || key == 32) {
+                select();
+                return true;
+            }
+            return false;
+        }
+
+        private void select() {
             UiSounds.click();
             view(null, row.getLong("id"));
-            return true;
         }
 
         @Override

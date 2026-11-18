@@ -218,16 +218,31 @@ public final class ReportsTab {
             // Said plainly, so nobody is surprised (LeDok, 2026-11-15).
             form.item(EdenParchment.text(tr("evidence"), EdenParchment.INK_DIM, (int) width));
         }
-        TextArea area = new TextArea(width, 46, text, value -> text = value);
+        Button send = EdenParchment.fitButton(tr("send"), 70, 14, () -> send(data));
+        TextArea area = new TextArea(width, 46, text, value -> {
+            text = value;
+            updateSend(send, complaint, value);
+        });
+        updateSend(send, complaint, text);
         area.hint(tr("hint." + kindKey(kind)).getString()).maxLength(MAX_TEXT);
         form.item(area);
 
         Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
         actions.spacer();
-        Button send = EdenParchment.fitButton(tr("send"), 70, 14, () -> send(data));
         actions.item(send);
         form.item(actions);
         return form;
+    }
+
+    private static void updateSend(Button button, boolean complaint, String value) {
+        Component missing = complaint && target == null ? tr("pick_player")
+                : value.isBlank() ? tr("message_required") : null;
+        button.enabled(missing == null);
+        if (missing == null) {
+            button.tooltip();
+        } else {
+            button.tooltip(missing);
+        }
     }
 
     private static void send(HubPayloads.ReportsData data) {
@@ -320,6 +335,15 @@ public final class ReportsTab {
         screen.onReportsData();
     }
 
+    static boolean backToList(HubScreen screen) {
+        if (openThread < 0) {
+            return false;
+        }
+        openThread = -1;
+        screen.onReportsData();
+        return true;
+    }
+
     // ---------------------------------------------------------------- the conversation
 
     /**
@@ -329,10 +353,7 @@ public final class ReportsTab {
     private static void thread(HubScreen screen, Flex content, ReportEntry entry, float width) {
         Flex top = Flex.row().gap(6).alignItems(Align.CENTER);
         top.sizing(Sizing.fill(), Sizing.content());
-        top.item(EdenParchment.fitButton(tr("back"), 40, 14, () -> {
-            openThread = -1;
-            screen.onReportsData();
-        }));
+        top.item(EdenParchment.fitButton(tr("back"), 40, 14, () -> backToList(screen)));
         float headWidth = width - EdenParchment.fitWidth(tr("back"), 40) - 6;
         top.item(head(entry, headWidth));
         content.item(top);
@@ -353,7 +374,16 @@ public final class ReportsTab {
             content.item(EdenParchment.text(tr("thread_closed"), EdenParchment.INK_DIM, (int) width));
             return;
         }
-        TextArea area = new TextArea(width, 34, reply, value -> reply = value);
+        Button send = EdenParchment.fitButton(tr("send"), 70, 14, () -> {
+            replySentAt = entry.messages().size();
+            ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(entry.id(),
+                    HubPayloads.ReportThreadAction.WRITE, reply));
+        });
+        TextArea area = new TextArea(width, 34, reply, value -> {
+            reply = value;
+            updateSend(send, false, value);
+        });
+        updateSend(send, false, reply);
         area.hint(tr("reply_hint").getString()).maxLength(MAX_TEXT);
         content.item(area);
         Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
@@ -363,13 +393,7 @@ public final class ReportsTab {
         close.tooltip(tr("close_thread.hint"));
         actions.item(close);
         actions.spacer();
-        actions.item(EdenParchment.fitButton(tr("send"), 70, 14, () -> {
-            if (!reply.isBlank()) {
-                replySentAt = entry.messages().size();
-                ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(entry.id(),
-                        HubPayloads.ReportThreadAction.WRITE, reply));
-            }
-        }));
+        actions.item(send);
         content.item(actions);
     }
 

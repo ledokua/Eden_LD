@@ -34,21 +34,22 @@ final class ChatMentions {
     /** The chat field a tab just built (a rebuild makes a new one). */
     static void target(TextField chatField, Supplier<List<String>> members) {
         field = chatField;
+        completed = null;
         names = members;
     }
 
     /** Tab in the hub: completes when the chat field has the focus. */
-    static boolean tab() {
+    static boolean tab(HubScreen screen) {
         TextField target = field;
-        if (target == null || !target.isFocused()) {
+        if (target == null || target.canvas() != screen.canvas() || !target.isFocused()) {
             return false;
         }
         String text = target.text();
         if (completed == null || !text.equals(completed)) {
             // A fresh completion: the "@part" at the end of the message.
             int at = text.lastIndexOf('@');
-            if (at < 0 || text.substring(at).contains(" ") || at > 0 && !Character.isWhitespace(text.charAt(at - 1))) {
-                return true;
+            if (at < 0 || text.substring(at + 1).chars().anyMatch(Character::isWhitespace) || at > 0 && !Character.isWhitespace(text.charAt(at - 1))) {
+                return false;
             }
             String part = text.substring(at + 1).toLowerCase(Locale.ROOT);
             matches = new ArrayList<>();
@@ -58,7 +59,7 @@ final class ChatMentions {
                 }
             }
             if (matches.isEmpty()) {
-                return true;
+                return false;
             }
             base = text.substring(0, at);
             index = 0;

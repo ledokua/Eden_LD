@@ -21,6 +21,7 @@ import net.minecraft.util.FormattedCharSequence;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,9 +34,12 @@ import java.util.List;
  */
 public final class PollOverlay {
 
-    private static final int WIDTH = 136;
+    private static final int MIN_WIDTH = 136;
+    private static final int MAX_WIDTH = 180;
     private static final int PAD = 6;
-    private static final int BUTTON = 14;
+    private static final int LINE = 10;
+    private static final int BUTTON_PAD = 4;
+    private static final int BARS_HEIGHT = 3 + 6 + 3 + 2 + 5;
     private static final int MARGIN = 4;
     private static final long RESULT_MILLIS = 6000;
     private static final int[] ANSWER_COLORS = {0xFF4E8A3A, 0xFFA83A2E, 0xFF3A6EA5, 0xFFB58A1E};
@@ -154,26 +158,60 @@ public final class PollOverlay {
      */
     @Nullable
     public static int[] bounds(int screenWidth, int screenHeight) {
-        return bounds(screenWidth, screenHeight, true);
-    }
-
-    /** {@code interactive}: in a GUI (×) or in the game (the hide hint under the vote line). */
-    @Nullable
-    private static int[] bounds(int screenWidth, int screenHeight, boolean interactive) {
         HubPayloads.PollData poll = shown();
         if (poll == null) {
             return null;
         }
+        Layout layout = layout(poll, screenWidth, screenHeight, true);
+        return new int[]{layout.x(), layout.y(), (int) Math.ceil(layout.width() * layout.scale()),
+                (int) Math.ceil(layout.height() * layout.scale())};
+    }
+
+    private record Answer(List<FormattedCharSequence> lines) {
+        int height() {
+            return lines.size() * LINE + BUTTON_PAD;
+        }
+    }
+
+    private record Layout(int x, int y, int width, int height, float scale, List<FormattedCharSequence> title,
+                          List<FormattedCharSequence> status, List<Answer> answers) {
+        int bodyTop() {
+            return PAD + title.size() * LINE + BARS_HEIGHT;
+        }
+
+        boolean closeAt(double x, double y) {
+            return x >= width - 16 && x < width - 2 && y >= 2 && y < 16;
+        }
+    }
+
+    /** Draw, hit-test and reserve the same rectangle, including any multi-line answers. */
+    private static Layout layout(HubPayloads.PollData poll, int screenWidth, int screenHeight, boolean interactive) {
         Font font = Minecraft.getInstance().font;
-        int inner = WIDTH - PAD * 2;
-        int titleLines = font.split(Component.literal(poll.question()), inner - 10).size();
+        int width = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, screenWidth / 3));
+        int inner = width - PAD * 2;
+        List<FormattedCharSequence> title = font.split(Component.literal(poll.question()), inner - (interactive ? 12 : 0));
         boolean voting = !poll.ended() && poll.myVote() < 0;
-        int body = voting ? poll.answers().size() * (BUTTON + 2) - 2
-                : font.split(statusLine(poll, interactive), inner).size() * 10;
-        int height = PAD + titleLines * 10 + 3 + 6 + 3 + 2 + 5 + body + PAD;
-        int x = screenWidth - WIDTH - MARGIN;
-        int y = Math.max(MARGIN, (screenHeight - height) / 2);
-        return new int[]{x, y, WIDTH, height};
+        List<FormattedCharSequence> status = voting ? List.of() : font.split(statusLine(poll, interactive), inner);
+        List<Answer> answers = new ArrayList<>();
+        int body = status.size() * LINE;
+        if (voting) {
+            for (int i = 0; i < poll.answers().size(); i++) {
+                Component label = poll.answers().get(i);
+                if (!interactive && i < 2) {
+                    label = Component.literal("[").append((i == 0 ? KEY_FIRST : KEY_SECOND).getTranslatedKeyMessage())
+                            .append("] ").append(label);
+                }
+                Answer answer = new Answer(font.split(label, inner - 12));
+                answers.add(answer);
+                body += answer.height() + (i == 0 ? 0 : 2);
+            }
+        }
+        int height = PAD + title.size() * LINE + BARS_HEIGHT + body + PAD;
+        float scale = Math.min(1f, Math.min(Math.max(1, screenWidth - 2 * MARGIN) / (float) width,
+                Math.max(1, screenHeight - 2 * MARGIN) / (float) height));
+        int x = screenWidth - MARGIN - (int) Math.ceil(width * scale);
+        int y = (screenHeight - (int) Math.ceil(height * scale)) / 2;
+        return new Layout(x, y, width, height, scale, title, status, answers);
     }
 
     // ---------------------------------------------------------------- drawing
@@ -185,35 +223,33 @@ public final class PollOverlay {
             return;
         }
         Font font = Minecraft.getInstance().font;
-        int inner = WIDTH - PAD * 2;
-        List<FormattedCharSequence> title = font.split(Component.literal(poll.question()), inner - 10);
-        boolean voting = !poll.ended() && poll.myVote() < 0;
-        List<FormattedCharSequence> status = voting ? List.of() : font.split(statusLine(poll, interactive), inner);
-        int[] box = bounds(screenWidth, screenHeight, interactive);
-        int x = box[0];
-        int y = box[1];
-        int height = box[3];
+        Layout layout = layout(poll, screenWidth, screenHeight, interactive);
+        int width = layout.width();
+        int height = layout.height();
+        int inner = width - PAD * 2;
+        float mx = (mouseX - layout.x()) / layout.scale();
+        float my = (mouseY - layout.y()) / layout.scale();
 
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 400);
-        // The frame: a dark edge, a light inner line, the parchment.
-        graphics.fill(x, y, x + WIDTH, y + height, EdenParchment.HAIRLINE_HI);
-        graphics.fill(x + 1, y + 1, x + WIDTH - 1, y + height - 1, EdenParchment.HAIRLINE);
-        graphics.fill(x + 2, y + 2, x + WIDTH - 2, y + height - 2, EdenParchment.PANEL);
+        graphics.pose().translate(layout.x(), layout.y(), 400);
+        graphics.pose().scale(layout.scale(), layout.scale(), 1);
+        graphics.fill(0, 0, width, height, EdenParchment.HAIRLINE_HI);
+        graphics.fill(1, 1, width - 1, height - 1, EdenParchment.HAIRLINE);
+        graphics.fill(2, 2, width - 2, height - 2, EdenParchment.PANEL);
 
-        int cy = y + PAD;
-        for (FormattedCharSequence line : title) {
-            graphics.drawString(font, line, x + PAD, cy, EdenParchment.INK, false);
-            cy += 10;
+        int cy = PAD;
+        for (FormattedCharSequence line : layout.title()) {
+            graphics.drawString(font, line, PAD, cy, EdenParchment.INK, false);
+            cy += LINE;
         }
         if (interactive) {
-            boolean over = mouseX >= x + WIDTH - 13 && mouseX < x + WIDTH - 3 && mouseY >= y + 3 && mouseY < y + 13;
-            graphics.drawString(font, "×", x + WIDTH - 11, y + PAD - 1, over ? EdenParchment.DANGER : EdenParchment.INK_DIM, false);
+            boolean over = layout.closeAt(mx, my);
+            graphics.drawString(font, "×", width - 12, PAD - 1, over ? EdenParchment.DANGER : EdenParchment.INK_DIM, false);
         }
         cy += 3;
 
         // The votes so far: one part per answer, the track for those who haven't voted.
-        int barX = x + PAD;
+        int barX = PAD;
         graphics.fill(barX, cy, barX + inner, cy + 6, EdenParchment.HAIRLINE);
         graphics.fill(barX + 1, cy + 1, barX + inner - 1, cy + 5, EdenParchment.BAR_TRACK);
         int voted = 0;
@@ -241,29 +277,25 @@ public final class PollOverlay {
         graphics.fill(barX, cy, barX + Math.round(inner * left), cy + 2, left < 0.2f ? EdenParchment.DANGER : EdenParchment.ACCENT);
         cy += 2 + 5;
 
-        if (voting) {
-            for (int i = 0; i < poll.answers().size(); i++) {
-                int top = cy + i * (BUTTON + 2);
-                boolean over = interactive && mouseX >= barX && mouseX < barX + inner && mouseY >= top && mouseY < top + BUTTON;
-                graphics.fill(barX, top, barX + inner, top + BUTTON, EdenParchment.HAIRLINE);
-                graphics.fill(barX + 1, top + 1, barX + inner - 1, top + BUTTON - 1,
-                        over ? EdenParchment.PANEL_2 : EdenParchment.ROW_BG);
-                graphics.fill(barX + 1, top + 1, barX + 4, top + BUTTON - 1, ANSWER_COLORS[i % ANSWER_COLORS.length]);
-                Component label = poll.answers().get(i);
-                if (!interactive && i < 2) {
-                    // In the game there's no cursor: the answer's key.
-                    label = Component.literal("[").append((i == 0 ? KEY_FIRST : KEY_SECOND).getTranslatedKeyMessage())
-                            .append("] ").append(label);
-                }
-                String text = font.plainSubstrByWidth(label.getString(), inner - 12);
-                graphics.drawString(font, text, barX + 8, top + 3, over ? EdenParchment.BUTTON_TEXT_HOVER
-                        : EdenParchment.BUTTON_TEXT, false);
+        for (int i = 0; i < layout.answers().size(); i++) {
+            Answer answer = layout.answers().get(i);
+            int bottom = cy + answer.height();
+            boolean over = interactive && mx >= barX && mx < barX + inner && my >= cy && my < bottom;
+            graphics.fill(barX, cy, barX + inner, bottom, EdenParchment.HAIRLINE);
+            graphics.fill(barX + 1, cy + 1, barX + inner - 1, bottom - 1,
+                    over ? EdenParchment.PANEL_2 : EdenParchment.ROW_BG);
+            graphics.fill(barX + 1, cy + 1, barX + 4, bottom - 1, ANSWER_COLORS[i % ANSWER_COLORS.length]);
+            int labelY = cy + BUTTON_PAD / 2 + 1;
+            for (FormattedCharSequence line : answer.lines()) {
+                graphics.drawString(font, line, barX + 8, labelY,
+                        over ? EdenParchment.BUTTON_TEXT_HOVER : EdenParchment.BUTTON_TEXT, false);
+                labelY += LINE;
             }
-        } else {
-            for (FormattedCharSequence line : status) {
-                graphics.drawString(font, line, barX, cy, poll.ended() ? EdenParchment.INK : EdenParchment.INK_MID, false);
-                cy += 10;
-            }
+            cy = bottom + 2;
+        }
+        for (FormattedCharSequence line : layout.status()) {
+            graphics.drawString(font, line, barX, cy, poll.ended() ? EdenParchment.INK : EdenParchment.INK_MID, false);
+            cy += LINE;
         }
         graphics.pose().popPose();
     }
@@ -299,32 +331,31 @@ public final class PollOverlay {
     /** True when the click was the panel's (it never reaches the screen under it, nor EMI). */
     private static boolean click(int screenWidth, int screenHeight, double mouseX, double mouseY, int button) {
         HubPayloads.PollData poll = shown();
-        int[] box = bounds(screenWidth, screenHeight);
-        if (poll == null || box == null) {
+        if (poll == null) {
             return false;
         }
-        int panelX = box[0];
-        int panelY = box[1];
-        if (mouseX < panelX || mouseX >= panelX + WIDTH || mouseY < panelY || mouseY >= panelY + box[3]) {
+        Layout layout = layout(poll, screenWidth, screenHeight, true);
+        double x = (mouseX - layout.x()) / layout.scale();
+        double y = (mouseY - layout.y()) / layout.scale();
+        if (x < 0 || x >= layout.width() || y < 0 || y >= layout.height()) {
             return false;
         }
-        int buttonsY = panelY + PAD + Minecraft.getInstance().font.split(Component.literal(poll.question()),
-                WIDTH - PAD * 2 - 10).size() * 10 + 3 + 6 + 3 + 2 + 5;
         if (button != 0) {
             return true;
         }
-        if (mouseX >= panelX + WIDTH - 13 && mouseY < panelY + 13) {
+        if (layout.closeAt(x, y)) {
             hidden = true;
             return true;
         }
-        if (!poll.ended() && poll.myVote() < 0) {
-            int inner = WIDTH - PAD * 2;
-            if (mouseX >= panelX + PAD && mouseX < panelX + PAD + inner && mouseY >= buttonsY) {
-                int index = (int) ((mouseY - buttonsY) / (BUTTON + 2));
-                boolean onButton = (mouseY - buttonsY) - index * (BUTTON + 2) < BUTTON;
-                if (onButton && index < poll.answers().size()) {
-                    vote(index);
+        if (x >= PAD && x < layout.width() - PAD) {
+            int top = layout.bodyTop();
+            for (int i = 0; i < layout.answers().size(); i++) {
+                int bottom = top + layout.answers().get(i).height();
+                if (y >= top && y < bottom) {
+                    vote(i);
+                    return true;
                 }
+                top = bottom + 2;
             }
         }
         return true;

@@ -9,6 +9,8 @@ import net.ledok.vectorlib.client.canvas.layout.Align;
 import net.ledok.vectorlib.client.canvas.layout.Flex;
 import net.ledok.vectorlib.client.canvas.layout.Insets;
 import net.ledok.vectorlib.client.canvas.layout.Sizing;
+import net.ledok.vectorlib.client.canvas.widget.Button;
+import net.ledok.vectorlib.client.canvas.widget.Label;
 import net.ledok.vectorlib.client.canvas.widget.TextField;
 import net.ledok.vectorlib.client.presentation.CanvasScreen;
 import net.ledok.vectorlib.client.presentation.Placement;
@@ -49,7 +51,16 @@ final class MailTextScreen extends CanvasScreen {
     private final Runnable autosave;
     private final Preview preview;
     private final Flex root;
+    private final Flex columns;
+    private final Flex source;
+    private final Flex previewPane;
     private final Flex previewBox;
+    private final Label heading;
+    private final Button switchPane;
+    private final float controlsWidth;
+    private final RichTextEditor editor;
+    private boolean compact;
+    private boolean showingPreview;
     private String title;
     private String body;
 
@@ -83,16 +94,24 @@ final class MailTextScreen extends CanvasScreen {
 
         Flex header = Flex.row().gap(6).alignItems(Align.CENTER);
         header.sizing(Sizing.fill(), Sizing.fixed(16));
-        header.item(TextNode.of(heading).color(TEXT).shadow(false).maxWidth((int) (windowWidth - 110)).ellipsis(true));
+        this.heading = Label.of(80, heading).color(TEXT).tooltipWhenCut(true);
+        header.item(this.heading);
         Flex spacer = Flex.row();
         spacer.sizing(Sizing.expand(), Sizing.fixed(1));
         header.item(spacer);
-        header.item(ModerationScreen.small("gui.eden_ld.moderation.back", 70, this::onClose));
+        Component previewLabel = Component.translatable("gui.eden_ld.moderation.preview");
+        Component editLabel = Component.translatable("gui.eden_ld.moderation.edit_source");
+        float switchWidth = Math.max(60, Math.max(fontWidth(previewLabel), fontWidth(editLabel)) + 12);
+        switchPane = new Button(switchWidth, 14, previewLabel, this::switchPane);
+        header.item(switchPane);
+        Button back = ModerationScreen.small("gui.eden_ld.moderation.back", 42, this::onClose);
+        header.item(back);
+        controlsWidth = back.width() + switchWidth + 18;
         root.item(header);
 
-        Flex columns = Flex.row().gap(8);
+        columns = Flex.row().gap(8);
         columns.sizing(Sizing.fill(), Sizing.expand());
-        Flex source = Flex.column().gap(4);
+        source = Flex.column().gap(4);
         source.sizing(Sizing.fixed(SOURCE), Sizing.fill());
         float editorHeight = HEIGHT - 12 - 16 - 4;
         if (title != null) {
@@ -107,7 +126,7 @@ final class MailTextScreen extends CanvasScreen {
             source.item(titleField);
             editorHeight -= 16 + 4;
         }
-        RichTextEditor editor = new RichTextEditor(SOURCE, editorHeight, body)
+        editor = new RichTextEditor(SOURCE, editorHeight, body)
                 .sizes(true)
                 .placeholders(placeholders)
                 .onChange(value -> {
@@ -121,35 +140,78 @@ final class MailTextScreen extends CanvasScreen {
         source.item(editor);
         columns.item(source);
 
-        Flex right = Flex.column().gap(4);
-        right.sizing(Sizing.expand(), Sizing.fill());
-        right.item(TextNode.of(Component.translatable("gui.eden_ld.moderation.preview_caption")).color(DIM).shadow(false));
+        previewPane = Flex.column().gap(4);
+        previewPane.sizing(Sizing.fixed(previewWidth), Sizing.fill());
+        previewPane.item(TextNode.of(Component.translatable("gui.eden_ld.moderation.preview_caption"))
+                .color(DIM).shadow(false).maxWidth((int) previewWidth));
         previewBox = Flex.column();
         previewBox.sizing(Sizing.fill(), Sizing.expand());
-        right.item(previewBox);
-        columns.item(right);
+        previewPane.item(previewBox);
+        columns.item(previewPane);
         root.item(columns);
         canvas().add(root);
-        root.layoutIn(windowWidth, HEIGHT);
         refreshPreview();
-        root.layoutIn(windowWidth, HEIGHT);
         canvas().focus(editor.area());
     }
 
 
+    private static int fontWidth(Component label) {
+        return net.minecraft.client.Minecraft.getInstance().font.width(label);
+    }
+
+    private void switchPane() {
+        showingPreview = !showingPreview;
+        updateLayout();
+        canvas().focus(showingPreview ? switchPane : editor.area());
+    }
+
     private void refreshPreview() {
         previewBox.clear();
         previewBox.item(preview.build(title, body, (int) previewWidth));
-        if (root != null && root.canvas() != null) {
-            root.layoutIn(windowWidth, HEIGHT);
-        }
+        root.layoutIn(canvas().width(), HEIGHT);
+    }
+
+    private void updateLayout() {
+        float layoutWidth = compact ? 16 + (showingPreview ? previewWidth : SOURCE) : windowWidth;
+        switchPane.visible(compact);
+        switchPane.label(Component.translatable(showingPreview ? "gui.eden_ld.moderation.edit_source"
+                : "gui.eden_ld.moderation.preview"));
+        source.visible(!compact || !showingPreview);
+        previewPane.visible(!compact || showingPreview);
+        float headerRoom = compact ? controlsWidth : controlsWidth - switchPane.width() - 6;
+        heading.sizing(Sizing.fixed(Math.max(30, layoutWidth - 16 - headerRoom)), Sizing.fixed(12));
+        canvas().size(layoutWidth, HEIGHT);
+        root.sizing(Sizing.fixed(layoutWidth), Sizing.fixed(HEIGHT));
+        root.layoutIn(layoutWidth, HEIGHT);
+        float fit = Math.min(1f, Math.min(Math.max(1f, width - 8f) / layoutWidth,
+                Math.max(1f, height - 8f) / HEIGHT));
+        placement(Placement.Screen.center().scale(fit));
     }
 
     @Override
     protected void init() {
         super.init();
-        float fit = Math.min(1f, Math.min((width - 8f) / windowWidth, (height - 8f) / HEIGHT));
-        placement(Placement.Screen.center().scale(fit));
+        float heightFit = Math.min(1f, Math.max(1f, height - 8f) / HEIGHT);
+        compact = width - 8f < windowWidth * heightFit;
+        if (!compact) {
+            showingPreview = false;
+        }
+        updateLayout();
+        if (!compact && input().focusedNode() == switchPane) {
+            canvas().focus(editor.area());
+        }
+    }
+
+    @Override
+    public boolean shouldCloseOnEsc() {
+        if (!super.shouldCloseOnEsc()) {
+            return false;
+        }
+        if (compact && showingPreview) {
+            switchPane();
+            return false;
+        }
+        return true;
     }
 
     @Override

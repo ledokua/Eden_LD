@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.ledok.eden_ld.client.ScrollFocus;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubPayloads.HomeData;
 import net.ledok.eden_ld.hub.HubPayloads.MailDraftData;
@@ -36,6 +37,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,6 +67,7 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private static final float RIGHT = 172;
     /** Room kept free on the right for EMI's item list when EMI is installed. */
     private static final float EMI_ROOM = 130;
+    private static final float EMI_FOOTER = 22;
     private static final boolean EMI = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("emi");
     private static final DateTimeFormatterHolder DATES = new DateTimeFormatterHolder();
     private static final float SLOT = 18;
@@ -101,7 +104,6 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     private final Flex main;
     private Section section = Section.MAIL;
     private float fit = 1f;
-    private float offsetX;
     @Nullable
     private Dropdown<Long> draftList;
 
@@ -204,14 +206,17 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
     @Override
     protected void init() {
         super.init();
-        float room = EMI ? EMI_ROOM : 0;
-        fit = Math.min(1f, Math.min((width - 8f - room) / WIDTH, (height - 8f) / HEIGHT));
-        // With EMI the window moves left, leaving its item list room on the right.
-        float w = WIDTH * fit;
-        float centered = (width - w) / 2f;
-        float left = Math.max(4f, (width - room - w) / 2f);
-        offsetX = left - centered;
-        placement(Placement.Screen.center().scale(fit).offset(offsetX, 0));
+        float available = Math.max(1f, width - 8f);
+        float footer = EMI ? EMI_FOOTER : 0;
+        float availableHeight = Math.max(1f, height - 8f - footer);
+        float naturalFit = Math.min(1f, Math.min(available / WIDTH, availableHeight / HEIGHT));
+        // Keep the full-size panel when height is the limiting axis. On narrower windows give EMI
+        // a smaller gutter instead of shrinking the whole staff UI to make room for its item list.
+        float spare = available - WIDTH * naturalFit;
+        float room = EMI ? Math.min(EMI_ROOM, Math.max(spare, available * 0.12f)) : 0;
+        fit = Math.min(naturalFit, (available - room) / WIDTH);
+        // Leave room for EMI's item list and bottom search bar.
+        placement(Placement.Screen.center().scale(fit).offset(-room / 2, -footer / 2));
         open = this;
     }
 
@@ -222,7 +227,11 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
             input.keyPressed(keyCode, scanCode, modifiers);
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        boolean used = super.keyPressed(keyCode, scanCode, modifiers);
+        if (used && keyCode == GLFW.GLFW_KEY_TAB) {
+            ScrollFocus.reveal(input().focusedNode());
+        }
+        return used;
     }
 
     // Nothing here is a real container: no slot clicks, no "clicked outside" drops.
@@ -418,9 +427,11 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
 
     /** Where the window sits on screen (EMI keeps its panels beside it). */
     public int[] screenBounds() {
-        int w = Math.round(WIDTH * fit);
-        int h = Math.round(HEIGHT * fit);
-        return new int[]{Math.round((width - w) / 2f + offsetX), (height - h) / 2, w, h};
+        float[] origin = placement.resolve(width, height, WIDTH, HEIGHT);
+        int x = (int) Math.floor(origin[0]);
+        int y = (int) Math.floor(origin[1]);
+        return new int[]{x, y, (int) Math.ceil(origin[0] + WIDTH * fit) - x,
+                (int) Math.ceil(origin[1] + HEIGHT * fit) - y};
     }
 
     /** An item dragged from EMI onto a ghost slot (screen coordinates); false when it isn't over one. */
@@ -579,26 +590,30 @@ public final class ModerationScreen extends CanvasHandledScreen<net.ledok.eden_l
         side.sizing(Sizing.fixed(SIDEBAR), Sizing.fill());
         side.background(r -> Shapes.rect(0, 0, r.width(), r.height()).fill(PANEL));
         side.item(text(Component.translatable("gui.eden_ld.moderation.title"), TEXT));
-        side.item(gap(4));
+        var sections = Flex.column().gap(3);
         // Only what this staff member may use.
         for (Section target : Section.values()) {
             if (!allowed(target)) {
                 continue;
             }
             if ((target == Section.PLAYERS || target == Section.NEWS || target == Section.GUILDS)
-                    && side.children().size() > 2) {
-                side.item(gap(6));
+                    && !sections.children().isEmpty()) {
+                sections.item(gap(6));
             }
-            side.item(sectionButton(target, true));
+            sections.item(sectionButton(target));
         }
+        ScrollPanel nav = HubScroll.panel("mod/navigation", SIDEBAR - 12, 100, sections);
+        nav.sizing(Sizing.fill(), Sizing.expand());
+        side.item(nav);
+        side.item(small(parent == null ? "gui.eden_ld.hub.close" : "gui.eden_ld.moderation.back",
+                SIDEBAR - 12, this::onClose));
         return side;
     }
 
-    private Button sectionButton(Section target, boolean allowed) {
-        Button button = new Button(SIDEBAR - 12, 16,
+    private Button sectionButton(Section target) {
+        Button button = new Button(SIDEBAR - 18, 16,
                 Component.translatable("gui.eden_ld.moderation.section." + target.name().toLowerCase(Locale.ROOT)),
                 () -> show(target));
-        button.enabled(allowed);
         if (target == section) {
             button.style(SELECTED);
         }

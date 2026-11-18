@@ -195,7 +195,7 @@ public final class HubSpotlights {
         Spotlight.register(BALANCE, Component.literal("Hub: balance on the Home page"));
         Spotlight.register(INVENTORY_BUTTON, Component.literal("Inventory: Hub button"));
         Spotlight.register(INVENTORY_PVP_BUTTON, Component.literal("Inventory: PvP button"));
-        Spotlight.register(HELP_TOUR, Component.literal("Hub: help window's ▶ tour button"));
+        Spotlight.register(HELP_TOUR, Component.literal("Hub: help window's Start tour button"));
         String[][] parts = {
                 {GUILD_CREATE, "Guild (no guild): create form"}, {GUILD_CREATE_BUTTON, "Guild (no guild): Create button"},
                 {GUILD_CREATE_TOGGLE, "Guild (no guild): create form fold bar"}, {GUILD_DIRECTORY, "Guild (no guild): directory"},

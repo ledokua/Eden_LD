@@ -27,6 +27,7 @@ import net.ledok.vectorlib.client.canvas.widget.TextField;
 import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
@@ -312,7 +313,7 @@ final class WardrobeTab {
             boolean locked = item.state() == WardrobeItem.FOR_SALE || item.state() == WardrobeItem.LOCKED;
             add(Shapes.rect(0, 0, width, height).fill(EdenParchment.ROW_BG));
             add(picture(item, width - 4, PICTURE_H, locked ? 0.35f : 0).at(2, 2));
-            int frame = worn ? EdenParchment.GOOD : hovered ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
+            int frame = focused ? EdenParchment.ACCENT : worn ? EdenParchment.GOOD : hovered ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
             add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(frame, worn ? 2 : 1)));
             // The state keeps what it needs (up to 40%); the name gets the rest of the line.
             Component stateText = state(item);
@@ -330,9 +331,27 @@ final class WardrobeTab {
             if (button != 0) {
                 return false;
             }
+            showDetails();
+            return true;
+        }
+
+        @Override
+        public boolean focusable() {
+            return true;
+        }
+
+        @Override
+        public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+            if (focusable() && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_SPACE)) {
+                showDetails();
+                return true;
+            }
+            return false;
+        }
+
+        private void showDetails() {
             UiSounds.click();
             open(screen, data, item);
-            return true;
         }
 
         @Override

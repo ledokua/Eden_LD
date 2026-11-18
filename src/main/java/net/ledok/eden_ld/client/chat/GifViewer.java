@@ -3,7 +3,6 @@ package net.ledok.eden_ld.client.chat;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.chat.emoji.GifStrip;
-import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -133,9 +132,11 @@ public final class GifViewer {
             NativeImage first = frames.get(0);
             double scale = (double) VIEW_SIDE / Math.max(first.getWidth(), first.getHeight());
             width = Math.max(60, (int) Math.round(first.getWidth() * scale));
-            height = (int) Math.round(first.getHeight() * scale);
+            height = Math.max(1, (int) Math.round(first.getHeight() * scale));
         } else {
-            height = 40;
+            Font font = Minecraft.getInstance().font;
+            width = Math.min(VIEW_SIDE, Math.max(60, screenWidth - 12));
+            height = Math.max(36, 10 * font.split(statusText(), width - 8).size() + 8);
         }
         int x1 = screenWidth - 4;
         int y1 = screenHeight - 18;
@@ -175,18 +176,30 @@ public final class GifViewer {
                 shownFrame = frame;
             }
             NativeImage image = frames.get(0);
-            int width = p[2] - p[0] - 4;
-            int height = p[3] - top - 2;
-            graphics.blit(TEXTURE, p[0] + 2, top, width, height, 0, 0, image.getWidth(), image.getHeight(),
+            int availableWidth = p[2] - p[0] - 4;
+            int availableHeight = p[3] - top - 4;
+            double scale = Math.min(availableWidth / (double) image.getWidth(), availableHeight / (double) image.getHeight());
+            int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
+            int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
+            int x = p[0] + 2 + (availableWidth - width) / 2;
+            int y = top + 2 + (availableHeight - height) / 2;
+            graphics.blit(TEXTURE, x, y, width, height, 0, 0, image.getWidth(), image.getHeight(),
                     image.getWidth(), image.getHeight());
         } else {
-            Component note = status == Status.LOADING ? Component.translatable("chat.eden_ld.gif.loading")
-                    : Component.translatable("chat.eden_ld.gif.failed").withStyle(ChatFormatting.GRAY);
-            graphics.drawString(font, note, p[0] + 4, top + 6, 0xFFA0A0A0, false);
+            int y = top + 4;
+            for (var line : font.split(statusText(), p[2] - p[0] - 12)) {
+                graphics.drawString(font, line, p[0] + 4, y, 0xFFA0A0A0, false);
+                y += 10;
+            }
         }
         if (overOpen) {
             graphics.renderTooltip(font, Component.translatable("chat.eden_ld.gif.browser"), mouseX, mouseY);
         }
+    }
+
+    private static Component statusText() {
+        return status == Status.LOADING ? Component.translatable("chat.eden_ld.gif.loading")
+                : Component.translatable("chat.eden_ld.gif.failed");
     }
 
     /** A click while open: the title buttons act; any click inside is kept; outside closes it. */

@@ -1,6 +1,8 @@
 package net.ledok.eden_ld.client.hub;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.client.EdenParchment;
+import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.vectorlib.client.canvas.layout.Flex;
 import net.ledok.vectorlib.client.canvas.layout.Insets;
 import net.ledok.vectorlib.client.canvas.layout.Sizing;
@@ -9,8 +11,10 @@ import net.ledok.vectorlib.client.canvas.widget.Window;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Locale;
+
 /**
- * The "?" window: what the open tab is for and how it works — and, on tabs with a tour, ▶ in its title bar, which
+ * The "?" window: what the open tab is for and how it works — and, on tabs with a tour, a Start tour button, which
  * starts that tab's NPCs_LD walk-through ({@code tutorial.tab_tours}; the server lists the tabs). The text is the lang key
  * {@code gui.eden_ld.hub.help.<tab>} (paragraphs split on blank lines), so it's translated and a
  * server can reword it through {@code config/eden_ld/lang/}.
@@ -48,10 +52,9 @@ public final class HubHelp {
             buttonKey = "";
         });
         help.id(HubSpotlights.HELP_WINDOW);
-        help.body().gap(0);
+        help.body().gap(4);
         window = help;
         shown = tab;
-        tourButton(help);
         fill(help);
         help.open(canvas);
     }
@@ -60,7 +63,7 @@ public final class HubHelp {
     public static void onTours(java.util.List<String> tabs) {
         tours = java.util.Set.copyOf(tabs);
         if (window != null) {
-            tourButton(window);
+            fill(window);
         }
     }
 
@@ -83,24 +86,10 @@ public final class HubHelp {
         return key;
     }
 
-    /** After a rebuild (a sub-tab or filter switched, data arrived): ▶ follows what the tab shows. */
+    /** After a rebuild the tour follows the selected sub-tab. */
     static void refreshTour() {
         if (window != null && !tourKey(shown).equals(buttonKey)) {
-            tourButton(window);
-        }
-    }
-
-    /** ▶ in the title bar when what the tab shows has a tour; it starts the tour and closes this window. */
-    private static void tourButton(Window help) {
-        help.clearTitleButtons();
-        String key = tourKey(shown);
-        buttonKey = key;
-        if (tours.contains(key)) {
-            help.titleButton(Component.literal("▶"), Component.translatable("gui.eden_ld.hub.help.tour"), () -> {
-                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
-                        new net.ledok.eden_ld.hub.HubPayloads.TourStart(key));
-                help.close();
-            }, HubSpotlights.HELP_TOUR);
+            fill(window);
         }
     }
 
@@ -111,7 +100,6 @@ public final class HubHelp {
         }
         shown = tab;
         window.title(title(tab));
-        tourButton(window);
         fill(window);
     }
 
@@ -125,12 +113,27 @@ public final class HubHelp {
         body.clear();
         int textWidth = (int) Math.max(40, help.width() - 16 - 4 - LANE);
         Flex paragraphs = Flex.column().gap(5).padding(Insets.of(2, 0, 2, 2));
-        String text = Component.translatable("gui.eden_ld.hub.help." + shown.name().toLowerCase()).getString();
+        String text = Component.translatable("gui.eden_ld.hub.help." + shown.name().toLowerCase(Locale.ROOT)).getString();
         for (String paragraph : text.split("\n\n")) {
             paragraphs.item(EdenParchment.text(Component.literal(paragraph), EdenParchment.INK_MID, textWidth));
         }
         ScrollPanel scroll = HubScroll.panel("help/" + shown.name(), textWidth + 2 + LANE, 100, paragraphs);
         scroll.sizing(Sizing.fill(), Sizing.expand());
         body.item(scroll);
+
+        buttonKey = tourKey(shown);
+        if (tours.contains(buttonKey) && ClientPlayNetworking.canSend(HubPayloads.TourStart.TYPE)) {
+            String key = buttonKey;
+            var start = EdenParchment.fitButton(Component.translatable("gui.eden_ld.hub.help.start_tour"), 72, 14, () -> {
+                ClientPlayNetworking.send(new HubPayloads.TourStart(key));
+                help.close();
+            });
+            start.id(HubSpotlights.HELP_TOUR);
+            start.tooltip(Component.translatable("gui.eden_ld.hub.help.tour"));
+            Flex actions = Flex.row().justify(net.ledok.vectorlib.client.canvas.layout.Justify.END);
+            actions.sizing(Sizing.fill(), Sizing.content());
+            actions.item(start);
+            body.item(actions);
+        }
     }
 }

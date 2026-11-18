@@ -8,6 +8,7 @@ import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
 import net.ledok.vectorlib.client.canvas.widget.WidgetStyle;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * A small button showing a drawn hub icon (or a text symbol until its file exists), skinned like
@@ -67,6 +68,21 @@ final class HubIconButton extends Widget {
             UiSounds.click();
             onClick.run();
         }
+    }
+
+    @Override
+    public boolean focusable() {
+        return true;
+    }
+
+    @Override
+    public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_SPACE) {
+            UiSounds.click();
+            onClick.run();
+            return true;
+        }
+        return false;
     }
 
     @Override

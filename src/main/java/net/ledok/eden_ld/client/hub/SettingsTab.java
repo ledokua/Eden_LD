@@ -74,6 +74,7 @@ final class SettingsTab {
                 })
                 .rowBackground(EdenParchment.framed(EdenParchment.ROW_BG, EdenParchment.HAIRLINE))
                 .searchable(true)
+                .searchWidth(Math.min(168, HubScreen.innerWidth() / 3))
                 .remember("eden_ld/settings");
         view.sizing(Sizing.fill(), Sizing.expand());
         if (HubState.openSettingsSection != null) {

@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.client.hub;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.ledok.eden_ld.client.ScrollFocus;
 import net.ledok.eden_ld.client.EdenParchment;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.vectorlib.client.canvas.ImageNode;
@@ -446,10 +447,14 @@ public class HubScreen extends CanvasScreen {
             return true;
         }
         // Tab in a party/guild chat field completes "@name" instead of moving the focus.
-        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB && ChatMentions.tab()) {
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB && modifiers == 0 && !canvas().hasPopup()
+                && ChatMentions.tab(this)) {
             return true;
         }
         if (super.keyPressed(keyCode, scanCode, modifiers)) {
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB) {
+                ScrollFocus.reveal(input().focusedNode());
+            }
             return true;
         }
         // Keys the canvas didn't take go to a hosted lobby (never Esc: that closed the hub above).
@@ -459,6 +464,21 @@ public class HubScreen extends CanvasScreen {
     @Override
     public boolean charTyped(char c, int modifiers) {
         return super.charTyped(c, modifiers) || LobbyBrowser.charTyped(c, modifiers);
+    }
+
+    @Override
+    public boolean shouldCloseOnEsc() {
+        if (!super.shouldCloseOnEsc()) {
+            return false;
+        }
+        if (HubState.lastTab == HubTab.ACTIVITIES && LobbyBrowser.panelOpen()) {
+            LobbyBrowser.closePanel(this);
+            return false;
+        }
+        if (HubState.lastTab == HubTab.REPORTS && ReportsTab.backToList(this)) {
+            return false;
+        }
+        return true;
     }
 
     /** Tells the server the bank isn't on screen any more (it stops pushing bank updates). */

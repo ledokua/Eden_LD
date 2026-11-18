@@ -79,7 +79,7 @@ final class TabBookmark extends Widget {
         boolean lit = hovered || focused;
         WidgetStyle.Skin skin = pressed ? style.buttonPressed() : lit ? style.buttonHover() : style.button();
         add(skin.create(0, 0, width, height));
-        if (lit && !pressed && !active) {
+        if (lit && !pressed && (!active || focused)) {
             add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(style.accent(), 1)));
         }
         int text = lit ? style.textHover() : style.text();

@@ -18,6 +18,7 @@ import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
 import net.ledok.vectorlib.client.canvas.widget.UiSounds;
 import net.ledok.vectorlib.client.canvas.widget.Widget;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -376,11 +377,13 @@ final class ActivitiesTab {
             } else if (hovered) {
                 add(Shapes.rect(0, 0, width, height).fill(0x22FFFFFF));
             }
-            int frame = glow ? HubNotifications.color() : hovered && clickable() ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
+            int frame = focused ? EdenParchment.ACCENT : glow ? HubNotifications.color()
+                    : hovered && clickable() ? EdenParchment.ACCENT : EdenParchment.HAIRLINE;
             add(Shapes.rect(0.5f, 0.5f, width - 1, height - 1).stroke(Stroke.of(frame, glow ? 2 : 1)));
             // Light text with a shadow over pictures and the dark lock; theme ink on the plain card.
             boolean light = art || !entry.unlocked() || closed;
-            add(TextNode.of(entry.name()).at(5, 5).maxWidth((int) width - 10).ellipsis(true)
+            int titleWidth = (int) width - 10 - (below.isEmpty() ? 0 : 10);
+            add(TextNode.of(entry.name()).at(5, 5).maxWidth(titleWidth).ellipsis(true)
                     .color(light ? 0xFFFFFFFF : EdenParchment.INK).shadow(light));
             if (!below.isEmpty()) {
                 HubIcons.Icon warning = HubIcons.get("warning");
@@ -440,10 +443,28 @@ final class ActivitiesTab {
             if (button != 0 || !clickable()) {
                 return false;
             }
+            openActivity();
+            return true;
+        }
+
+        @Override
+        public boolean focusable() {
+            return clickable();
+        }
+
+        @Override
+        public boolean onKeyPressed(int key, int scanCode, int modifiers) {
+            if (clickable() && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_SPACE)) {
+                openActivity();
+                return true;
+            }
+            return false;
+        }
+
+        private void openActivity() {
             UiSounds.click();
             ActivityReturn.arm();
             ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
-            return true;
         }
 
         @Override

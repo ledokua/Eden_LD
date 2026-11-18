@@ -4,6 +4,7 @@ import net.ledok.eden_ld.hub.moderation.AdminTools;
 import net.ledok.vectorlib.client.canvas.layout.Align;
 import net.ledok.vectorlib.client.canvas.layout.Flex;
 import net.ledok.vectorlib.client.canvas.layout.Sizing;
+import net.ledok.vectorlib.client.canvas.widget.ScrollPanel;
 import net.ledok.vectorlib.client.canvas.widget.TextField;
 import net.minecraft.Util;
 import net.minecraft.nbt.CompoundTag;
@@ -190,9 +191,11 @@ final class PollsSection {
             main.item(text(tr("none"), DIM, (int) width));
             return;
         }
-        main.item(text(running ? tr("running", poll.getInt("seconds_left"), poll.getString("by"))
-                : tr("last", poll.getString("by")), running ? GOOD : DIM, (int) width));
-        main.item(text(Component.literal(poll.getString("question")), TEXT, (int) width));
+        int textWidth = (int) width - 8;
+        Flex results = Flex.column().gap(4);
+        results.item(text(running ? tr("running", poll.getInt("seconds_left"), poll.getString("by"))
+                : tr("last", poll.getString("by")), running ? GOOD : DIM, textWidth));
+        results.item(text(Component.literal(poll.getString("question")), TEXT, textWidth));
         ListTag list = poll.getList("answers", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag answer = list.getCompound(i);
@@ -201,12 +204,15 @@ final class PollsSection {
             for (int j = 0; j < voters.size(); j++) {
                 names.append(j == 0 ? "" : ", ").append(voters.getString(j));
             }
-            main.item(text(Component.empty().append(PlayerTabs.json(answer.getString("text")))
-                    .append(": " + answer.getInt("count")), TEXT, (int) width));
+            results.item(text(Component.empty().append(PlayerTabs.json(answer.getString("text")))
+                    .append(": " + answer.getInt("count")), TEXT, textWidth));
             if (!names.isEmpty()) {
-                main.item(text(Component.literal(names.toString()), DIM, (int) width));
+                results.item(text(Component.literal(names.toString()), DIM, textWidth));
             }
         }
+        ScrollPanel scroll = HubScroll.panel("mod/polls/results", width, 72, results);
+        scroll.sizing(Sizing.fill(), Sizing.expand());
+        main.item(scroll);
         if (running) {
             Flex row = Flex.row().gap(6).alignItems(Align.CENTER);
             row.sizing(Sizing.fill(), Sizing.content());
