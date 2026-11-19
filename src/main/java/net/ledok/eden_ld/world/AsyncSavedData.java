@@ -29,7 +29,8 @@ import java.util.stream.Stream;
  * World data files ({@code .dat}: every mod's {@code SavedData}, Lootr's per-chest files…) are written off the server
  * thread ({@code saving.json} {@code async_saved_data}). The live autosave froze the server 2–4 s every 5 minutes, two
  * thirds of it in vanilla's {@code SavedData#save(File)}, mostly gzip and a synced file write. Now the server thread only
- * builds the data (and copies it, so a mod that hands out its live tags can't change it mid-write) and clears the dirty
+ * builds the data (and copies it, so a mod that hands out its live tags can't change it mid-write; classes in
+ * {@code no_copy_saved_data} build fresh tags and skip the copy) and clears the dirty
  * flag; one writer thread compresses each snapshot into {@code <world>/eden_ld_saving/} and moves it over the real file
  * in one step, so a file is always either the old or the new one. Writes stay in order; a file still waiting gets the
  * newer snapshot instead. A flushing save ({@code /save-all flush}, server stop) waits for the writer, and reading a
@@ -95,7 +96,9 @@ public final class AsyncSavedData {
         tag.put("data", data.save(new CompoundTag(), registries));
         NbtUtils.addCurrentDataVersion(tag);
         data.setDirty(false);
-        queue(file.toPath().toAbsolutePath().normalize(), tag.copy(), tempFolder);
+        java.util.List<String> noCopy = EdenLD.CONFIG.saving.no_copy_saved_data;
+        boolean fresh = noCopy != null && noCopy.contains(data.getClass().getName());
+        queue(file.toPath().toAbsolutePath().normalize(), fresh ? tag : tag.copy(), tempFolder);
         return true;
     }
 

@@ -459,6 +459,15 @@ public class EdenConfig {
         public boolean async_saved_data = true;
 
         /**
+         * Saved data classes (full Java class names) whose {@code save} builds every tag fresh, so the writer can take
+         * their data without the defensive copy the others get (in case a mod hands out tags it keeps changing). The
+         * copy was a third of the autosave's saved-data time on live (2026-11-19 spike profile); Lootr's chest data is
+         * the largest and is built from scratch. Only add a class after checking its {@code save}.
+         */
+        public List<String> no_copy_saved_data = new ArrayList<>(List.of(
+                "noobanidus.mods.lootr.common.data.LootrSavedData"));
+
+        /**
          * Write a player's advancement file only when their progress changed (and once per session). False = vanilla:
          * every online player's file at every save.
          */

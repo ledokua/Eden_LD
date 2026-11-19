@@ -1606,7 +1606,7 @@ Back up or move the folder as a whole, with the server stopped.
 Lootr's per-chest files): gzip and a synced file write on the server thread. Now the server thread only builds each
 file's data (a copy, taken at the save) and marks it saved; one writer thread compresses it into
 `<world>/eden_ld_saving/` and moves it over the real file in one step, so a file is always the old or the new one, never
-half-written. A file still waiting when the next save comes gets the newer data instead. `/save-all flush` and the
+half-written. A file still waiting when the next save comes gets the newer data instead. `no_copy_saved_data` (1.3.128) lists saved data classes whose save builds every tag fresh (default: Lootr's `LootrSavedData`); their data goes to the writer without the defensive copy, a third of the saved-data time at the autosave on live. `/save-all flush` and the
 server stop wait until everything is written; loading a file waits for its pending write; Lootr's `/lootr` refresh and
 cull wait before they list and delete its files. The log says
 "[Saving] World data (.dat) files are written off the server thread." at the first save. Write errors are logged with
@@ -1773,7 +1773,8 @@ changed into the new files, then delete it). Below, each top-level key is the fi
     "locked_blocks": ["#minecraft:all_signs", "minecraft:chiseled_bookshelf", "#minecraft:trapdoors"]
   },
   "saving": {
-    "async_saved_data": true
+    "async_saved_data": true,
+    "no_copy_saved_data": ["noobanidus.mods.lootr.common.data.LootrSavedData"]
   }
 }
 ```
