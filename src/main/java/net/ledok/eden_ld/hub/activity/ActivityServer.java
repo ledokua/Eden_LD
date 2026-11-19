@@ -54,6 +54,8 @@ public final class ActivityServer {
         });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityOpen.TYPE,
                 (payload, context) -> open(context.player(), payload.id()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.ActivityLeaderboard.TYPE,
+                (payload, context) -> openLeaderboard(context.player(), payload.id()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.OwnLobbyRequest.TYPE, (payload, context) -> {
             sendOwnLobby(context.player());
             sendLobbies(context.player(), false);
@@ -377,6 +379,21 @@ public final class ActivityServer {
         }
         sendOwnLobby(player);
         sendLobbies(player, true);
+    }
+
+    /** The create panel's «Таблиця лідерів»: the same checks as opening the activity, then its leaderboard. */
+    private static void openLeaderboard(ServerPlayer player, ResourceLocation id) {
+        Component refused = ActivityGate.check(player, id, null);
+        if (refused != null) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(refused));
+            return;
+        }
+        MinecraftServer server = player.getServer();
+        ActivitySource source = server == null ? null : Activities.sourceFor(server, id);
+        if (source == null || !source.openLeaderboard(player, id)) {
+            ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
+                    Component.translatable("message.eden_ld.activities.unknown")));
+        }
     }
 
     // ---------------------------------------------------------------- runs

@@ -56,6 +56,9 @@ final class ArenasIntegration implements ActivitySource {
     private static final boolean RELATIONS = relationsApi();
     /** The running Arenas_LD tells a controller's base loot rolls (4.39.0+). */
     private static final boolean RUN_SETTINGS = runSettingsApi();
+    /** {@code ArenasApi.openLeaderboard(ServerPlayer, ResourceLocation)} (asked of Arenas_LD for 1.3.126); null when missing. */
+    @Nullable
+    private static final java.lang.reflect.Method OPEN_LEADERBOARD = openLeaderboardMethod();
 
     private ArenasIntegration() {
     }
@@ -150,6 +153,15 @@ final class ArenasIntegration implements ActivitySource {
             return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             return false;
+        }
+    }
+
+    @Nullable
+    private static java.lang.reflect.Method openLeaderboardMethod() {
+        try {
+            return ArenasApi.class.getMethod("openLeaderboard", ServerPlayer.class, ResourceLocation.class);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return null;
         }
     }
 
@@ -255,6 +267,19 @@ final class ArenasIntegration implements ActivitySource {
     @Override
     public boolean open(ServerPlayer player, ResourceLocation activity) {
         return ArenasApi.openLobbies(player, activity);
+    }
+
+    /** {@code ArenasApi.openLeaderboard} when the running Arenas_LD has it, else its lobby screen. */
+    @Override
+    public boolean openLeaderboard(ServerPlayer player, ResourceLocation activity) {
+        if (OPEN_LEADERBOARD != null) {
+            try {
+                return Boolean.TRUE.equals(OPEN_LEADERBOARD.invoke(null, player, activity));
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                // Fall back to the lobby screen.
+            }
+        }
+        return open(player, activity);
     }
 
     @Override

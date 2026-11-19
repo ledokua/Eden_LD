@@ -51,6 +51,11 @@ public interface ActivitySource {
         return false;
     }
 
+    /** Opens the activity's leaderboard (1.3.126); by default its lobby screen, as {@link #open}. */
+    default boolean openLeaderboard(ServerPlayer player, ResourceLocation activity) {
+        return open(player, activity);
+    }
+
     /**
      * A lobby forming now that the viewer may see on an activity card and in the «Лобі» list (1.3.98): its id, its
      * owner's name, members of the most it takes, the picked difficulty's id ("easy", "hard"…), hardcore, whether it's

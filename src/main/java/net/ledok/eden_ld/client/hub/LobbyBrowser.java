@@ -148,6 +148,10 @@ final class LobbyBrowser {
 
     @Nullable
     private static Hosted hosted;
+    /** When the create panel's «Таблиця лідерів» was pressed (the view the server opens next is that leaderboard). */
+    private static long leaderboardAskedAt;
+    /** The hosted view is that leaderboard: leaving it reopens the create panel as it was. */
+    private static boolean hostedFromPanel;
     private static Component hostedName = Component.empty();
 
     /**
@@ -166,6 +170,9 @@ final class LobbyBrowser {
         }
         hosted = view;
         hostedName = name;
+        // Opened from the create panel's «Таблиця лідерів» just now: ← Назад goes back to the panel.
+        hostedFromPanel = panelOpen && System.currentTimeMillis() - leaderboardAskedAt < 5000;
+        leaderboardAskedAt = 0;
         panelOpen = false;
         editing = false;
         awaitingLobby = false;
@@ -186,6 +193,7 @@ final class LobbyBrowser {
     static void closeHosted() {
         Hosted view = hosted;
         hosted = null;
+        hostedFromPanel = false;
         if (view != null) {
             view.close();
         }
@@ -196,6 +204,8 @@ final class LobbyBrowser {
         Hosted view = hosted;
         if (view != null && view.closed()) {
             hosted = null;
+            panelOpen = hostedFromPanel;
+            hostedFromPanel = false;
             // Left the lobby (or it's gone): back to the lobby list (LeDok 2026-11-19, 1.3.124: «Покинути» left the
             // player on an empty «Ви не в лобі»). A run starting closes the hub anyway: Arenas_LD 4.36.1+ sends every
             // party member vanilla's container close, which closes the screen.
@@ -227,7 +237,9 @@ final class LobbyBrowser {
         }
         Component back = tr("browser.back");
         Button button = EdenParchment.button(back, EdenParchment.fitWidth(back, 50), 14, () -> {
+            boolean toPanel = hostedFromPanel;
             closeHosted();
+            panelOpen = toPanel;
             screen.onActivitiesData();
         });
         button.tooltip(tr("browser.back_hint"));
@@ -961,7 +973,13 @@ final class LobbyBrowser {
         Component board = tr("browser.leaderboard");
         Button leaderboard = EdenParchment.button(board, Math.min(width, EdenParchment.fitWidth(board, 70)), 14, () -> {
             ActivityReturn.arm();
-            ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
+            // The leaderboard tab of the activity's view, hosted in the hub; ← Назад comes back here (1.3.126).
+            leaderboardAskedAt = System.currentTimeMillis();
+            if (ClientPlayNetworking.canSend(HubPayloads.ActivityLeaderboard.TYPE)) {
+                ClientPlayNetworking.send(new HubPayloads.ActivityLeaderboard(entry.id()));
+            } else {
+                ClientPlayNetworking.send(new HubPayloads.ActivityOpen(entry.id()));
+            }
         });
         leaderboard.tooltip(tr("browser.leaderboard_hint"));
         if (!entry.unlocked()) {

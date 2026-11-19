@@ -2216,6 +2216,18 @@ public final class HubPayloads {
         }
     }
 
+    /** C2S (1.3.126+): open this activity's leaderboard (its lobby view on the leaderboard tab; level checked first). */
+    public record ActivityLeaderboard(net.minecraft.resources.ResourceLocation id) implements CustomPacketPayload {
+        public static final Type<ActivityLeaderboard> TYPE = new Type<>(HubPayloads.id("activity_leaderboard"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLeaderboard> CODEC = StreamCodec.of(
+                (buf, p) -> buf.writeResourceLocation(p.id), buf -> new ActivityLeaderboard(buf.readResourceLocation()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: open this activity's lobby screen (the server checks the level first). */
     public record ActivityOpen(net.minecraft.resources.ResourceLocation id) implements CustomPacketPayload {
         public static final Type<ActivityOpen> TYPE = new Type<>(HubPayloads.id("activity_open"));
@@ -4288,6 +4300,7 @@ public final class HubPayloads {
         PayloadTypeRegistry.playS2C().register(OwnLobbyData.TYPE, OwnLobbyData.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityLobbies.TYPE, ActivityLobbies.CODEC);
         PayloadTypeRegistry.playC2S().register(LobbyJoin.TYPE, LobbyJoin.CODEC);
+        PayloadTypeRegistry.playC2S().register(ActivityLeaderboard.TYPE, ActivityLeaderboard.CODEC);
         PayloadTypeRegistry.playC2S().register(ActivityInfoRequest.TYPE, ActivityInfoRequest.CODEC);
         PayloadTypeRegistry.playS2C().register(ActivityInfoData.TYPE, ActivityInfoData.CODEC);
         PayloadTypeRegistry.playC2S().register(LobbyCreate.TYPE, LobbyCreate.CODEC);
