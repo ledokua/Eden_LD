@@ -122,12 +122,49 @@ public final class ActivityServer {
             badges.add(new HubPayloads.LobbyBadge(activity, lines));
         });
         HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(Activities.listsLobbies(),
-                Activities.createsLobbies(), badges);
+                Activities.createsLobbies(), badges, instanceCounts(player.server));
         if (!force && data.equals(LOBBIES_SENT.get(player.getUUID()))) {
             return;
         }
         LOBBIES_SENT.put(player.getUUID(), data);
         ServerPlayNetworking.send(player, data);
+    }
+
+    /** The instance counts, worked out once per server tick for everyone who has the tab open. */
+    private static List<HubPayloads.InstanceCount> instanceCounts;
+    private static int instanceCountsTick = -1;
+
+    /**
+     * Free of all instances per visible activity with live status (Arenas_LD's dungeons, raids and arenas), for the
+     * browser and the create panel (LeDok 2026-11-19, 1.3.124: players only learned there was no free place after
+     * creating a lobby). Free: not running, not cooling down, not marked for removal; all: not marked for removal.
+     */
+    private static List<HubPayloads.InstanceCount> instanceCounts(MinecraftServer server) {
+        if (instanceCounts != null && instanceCountsTick == server.getTickCount()) {
+            return instanceCounts;
+        }
+        List<HubPayloads.InstanceCount> counts = new ArrayList<>();
+        for (Activity activity : Activities.visible(server)) {
+            Activities.status(server, activity.id()).ifPresent(status -> {
+                int free = 0;
+                int total = 0;
+                for (ActivityLiveStatus.Instance instance : status.instances()) {
+                    if (instance.pendingRemoval()) {
+                        continue;
+                    }
+                    total++;
+                    if (instance.state() == ActivityLiveStatus.State.FREE) {
+                        free++;
+                    }
+                }
+                if (total > 0) {
+                    counts.add(new HubPayloads.InstanceCount(activity.id(), free, total));
+                }
+            });
+        }
+        instanceCounts = List.copyOf(counts);
+        instanceCountsTick = server.getTickCount();
+        return instanceCounts;
     }
 
     // ---------------------------------------------------------------- unlocks

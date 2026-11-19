@@ -2270,7 +2270,12 @@ public final class HubPayloads {
      * Activities tab is then the lobby browser with «Створити лобі»).
      * Sent with the Activities tab's data and, while the tab shows, when they change (answering its 2 s poll).
      */
-    public record ActivityLobbies(boolean available, boolean creates, List<LobbyBadge> badges)
+    /** An activity's places to run (1.3.124): how many are free now of all it has. */
+    public record InstanceCount(net.minecraft.resources.ResourceLocation activity, int free, int total) {
+    }
+
+    public record ActivityLobbies(boolean available, boolean creates, List<LobbyBadge> badges,
+                                  List<InstanceCount> instances)
             implements CustomPacketPayload {
         public static final Type<ActivityLobbies> TYPE = new Type<>(id("activity_lobbies"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ActivityLobbies> CODEC = StreamCodec.of(
@@ -2281,9 +2286,15 @@ public final class HubPayloads {
                         b.writeResourceLocation(badge.activity());
                         writeList(b, badge.lobbies(), LobbyLine::write);
                     });
+                    writeList(buf, p.instances, (b, count) -> {
+                        b.writeResourceLocation(count.activity());
+                        b.writeVarInt(count.free());
+                        b.writeVarInt(count.total());
+                    });
                 },
                 buf -> new ActivityLobbies(buf.readBoolean(), buf.readBoolean(), readList(buf, b -> new LobbyBadge(b.readResourceLocation(),
-                        readList(b, LobbyLine::read)))));
+                        readList(b, LobbyLine::read))), readList(buf, b -> new InstanceCount(b.readResourceLocation(),
+                        b.readVarInt(), b.readVarInt()))));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

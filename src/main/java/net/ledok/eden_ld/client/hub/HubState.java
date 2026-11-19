@@ -34,6 +34,8 @@ public final class HubState {
     public static boolean lobbiesAvailable;
     /** The server creates lobbies from the hub (Arenas_LD 4.33.0+): Activities is the lobby browser (1.3.103). */
     public static boolean lobbiesCreate;
+    /** Free and total instances by activity id (1.3.124), from the lobby list's updates; absent: unknown. */
+    public static java.util.Map<String, int[]> activityInstances = java.util.Map.of();
     public static boolean closedBypass;
     public static HubPayloads.DuelsData duelsData;
     public static HubPayloads.WardrobeData wardrobeData;
@@ -112,6 +114,7 @@ public final class HubState {
         activityLobbies = java.util.Map.of();
         lobbiesAvailable = false;
         lobbiesCreate = false;
+        activityInstances = java.util.Map.of();
         closedBypass = false;
         duelsData = null;
         wardrobeData = null;

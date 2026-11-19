@@ -22,6 +22,8 @@ final class HubWindow {
     private static float width = -1;
     private static float height = -1;
     private static boolean maximized;
+    /** The player resized or toggled the hub at least once (their choice is saved and wins over the default). */
+    private static boolean chosen;
 
     private HubWindow() {
     }
@@ -37,16 +39,24 @@ final class HubWindow {
         return height;
     }
 
+    /**
+     * Maximized as the player left it; before they ever resized or toggled it (no saved size), full-screen at GUI scale 3
+     * and up, where the normal frame is cramped (LeDok 2026-11-19, 1.3.124).
+     */
     static boolean maximized() {
         load();
+        if (!chosen) {
+            return net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale() >= 3;
+        }
         return maximized;
     }
 
     static void save(float newWidth, float newHeight, boolean newMaximized) {
         load();
-        if (newWidth == width && newHeight == height && newMaximized == maximized) {
+        if (chosen && newWidth == width && newHeight == height && newMaximized == maximized) {
             return;
         }
+        chosen = true;
         width = newWidth;
         height = newHeight;
         maximized = newMaximized;
@@ -75,6 +85,7 @@ final class HubWindow {
             width = json.has("width") ? json.get("width").getAsFloat() : -1;
             height = json.has("height") ? json.get("height").getAsFloat() : -1;
             maximized = json.has("maximized") && json.get("maximized").getAsBoolean();
+            chosen = json.has("maximized");
         } catch (Exception e) {
             EdenLD.LOGGER.warn("[Hub] Couldn't read the hub size from {}; using the default.", FILE, e);
         }

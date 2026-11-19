@@ -41,10 +41,18 @@ public final class OwnLobbyButton {
             for (HubPayloads.LobbyBadge badge : payload.badges()) {
                 lobbies.put(badge.activity().toString(), java.util.List.copyOf(badge.lobbies()));
             }
+            java.util.Map<String, int[]> instances = new java.util.HashMap<>();
+            for (HubPayloads.InstanceCount count : payload.instances()) {
+                instances.put(count.activity().toString(), new int[]{count.free(), count.total()});
+            }
+            boolean sameInstances = instances.size() == HubState.activityInstances.size()
+                    && instances.entrySet().stream().allMatch(e -> java.util.Arrays.equals(e.getValue(),
+                    HubState.activityInstances.get(e.getKey())));
             if (lobbies.equals(HubState.activityLobbies) && payload.available() == HubState.lobbiesAvailable
-                    && payload.creates() == HubState.lobbiesCreate) {
+                    && payload.creates() == HubState.lobbiesCreate && sameInstances) {
                 return;
             }
+            HubState.activityInstances = instances;
             HubState.activityLobbies = lobbies;
             HubState.lobbiesAvailable = payload.available();
             HubState.lobbiesCreate = payload.creates();

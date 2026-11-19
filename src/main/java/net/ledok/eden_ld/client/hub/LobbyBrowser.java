@@ -67,6 +67,8 @@ final class LobbyBrowser {
     private static final float ROW_H = 28;
     private static final float THUMB = 18;
     private static final float MOD_H = 16;
+    /** A modifier row whose effect goes under its name. */
+    private static final float MOD_H2 = 25;
     /** A scroll column's lane and padding: what its content can't use. */
     private static final float COLUMN_INSET = 10;
 
@@ -189,15 +191,16 @@ final class LobbyBrowser {
         }
     }
 
-    /** Every client tick: the server closed the view (run start, lobby gone, kick): the hub closes. */
+    /** Every client tick: the view was closed (left, the lobby gone, a kick): the browser comes back. */
     static void tick() {
         Hosted view = hosted;
         if (view != null && view.closed()) {
             hosted = null;
-            // The server closed it (the run starting, the lobby gone, a kick): the hub goes too, so nothing covers the
-            // run's countdown (LeDok, 1.3.111), as vanilla does when a server closes a menu.
-            if (Minecraft.getInstance().screen instanceof HubScreen) {
-                Minecraft.getInstance().setScreen(null);
+            // Left the lobby (or it's gone): back to the lobby list (LeDok 2026-11-19, 1.3.124: «Покинути» left the
+            // player on an empty «Ви не в лобі»). A run starting closes the hub anyway: Arenas_LD 4.36.1+ sends every
+            // party member vanilla's container close, which closes the screen.
+            if (Minecraft.getInstance().screen instanceof HubScreen hub && HubState.lastTab == HubTab.ACTIVITIES) {
+                hub.onActivitiesData();
             }
         }
     }
@@ -334,6 +337,10 @@ final class LobbyBrowser {
                     joinableOnly = false;
                     screen.onActivitiesData();
                 }));
+            } else {
+                // A second, big create button right where the player is looking (1.3.124).
+                empty.item(EdenParchment.spacer(4));
+                empty.item(createButton(screen, kind, 140, 22));
             }
             content.item(empty);
             return;
@@ -382,9 +389,18 @@ final class LobbyBrowser {
         return actions.toArray(CanvasNode[]::new);
     }
 
+    /** The title row's «+ Створити лобі»: taller and wider than the other title buttons, in the accent skin. */
     private static Button createButton(HubScreen screen, int kind) {
+        return createButton(screen, kind, 90, 16);
+    }
+
+    /**
+     * «+ Створити лобі» at a size: the title row's, or the big one in an empty list (LeDok 2026-11-19, 1.3.124: new
+     * players didn't find it).
+     */
+    private static Button createButton(HubScreen screen, int kind, float minWidth, float height) {
         Component label = tr("browser.create_plus");
-        Button create = EdenParchment.button(label, EdenParchment.fitWidth(label, 70), 14,
+        Button create = EdenParchment.button(label, EdenParchment.fitWidth(label, minWidth) + 8, height,
                 () -> openPanel(screen, null, false, kind));
         create.style(EdenParchment.TAB_ACTIVE);
         create.tooltip(tr("browser.create_hint"));
@@ -602,6 +618,14 @@ final class LobbyBrowser {
             }
             rest.append(tr("browser.friends_only"));
         }
+        int[] instances = HubState.activityInstances.get(row.activity());
+        if (instances != null && !lobby.member()) {
+            if (!rest.getSiblings().isEmpty()) {
+                rest.append(" · ");
+            }
+            rest.append(tr("browser.instances", instances[0], instances[1]).copy()
+                    .withColor((instances[0] > 0 ? EdenParchment.INK_DIM : EdenParchment.DANGER) & 0xFFFFFF));
+        }
         if (lobby.member()) {
             if (!rest.getSiblings().isEmpty()) {
                 rest.append(" · ");
@@ -803,6 +827,22 @@ final class LobbyBrowser {
         return node;
     }
 
+    /**
+     * Text wrapped to {@code width} (LeDok 2026-11-19, 1.3.124: wrap, don't cut with "…"), one single-line node per line,
+     * split here so each line's height is known before layout (a wrapped TextNode was once measured one line short and
+     * the next line drew over it, 1.3.106). The whole text is the tooltip too.
+     */
+    private static Flex wrapped(Component text, int color, float width) {
+        Flex column = Flex.column().gap(1);
+        var font = Minecraft.getInstance().font;
+        for (net.minecraft.network.chat.FormattedText part : font.getSplitter().splitLines(text, Math.max(20, (int) width),
+                net.minecraft.network.chat.Style.EMPTY)) {
+            column.item(EdenParchment.text(Component.literal(part.getString()), color));
+        }
+        column.tooltip(text);
+        return column;
+    }
+
     /** A small dim caps heading, as in the concept ("DIFFICULTY", "POSSIBLE DROPS"). */
     private static CanvasNode section(Component label) {
         // Full size: a scaled label was laid out at its unscaled size and drawn half outside its row (1.3.108).
@@ -841,8 +881,23 @@ final class LobbyBrowser {
                 button.style(EdenParchment.TAB_ACTIVE);
             }
             list.item(button);
+            // Free places right under it (LeDok's mock-up «INSTANCES 1/10», 1.3.124), red when none is free.
+            Component instances = instancesLine(entry.id().toString());
+            if (instances != null) {
+                int[] count = HubState.activityInstances.get(entry.id().toString());
+                var line = EdenParchment.text(instances, count[0] > 0 ? EdenParchment.INK_DIM : EdenParchment.DANGER);
+                line.tooltip(tr("browser.instances_hint"));
+                list.item(line);
+            }
         }
         return list;
+    }
+
+    /** «Вільно: 1/10» for an activity whose instances the server reported; null when unknown. */
+    @Nullable
+    private static Component instancesLine(String activity) {
+        int[] count = HubState.activityInstances.get(activity);
+        return count == null ? null : tr("browser.instances", count[0], count[1]);
     }
 
     /** Middle: the picture, name, kind and size, the level, possible drops, and the leaderboard. */
@@ -855,10 +910,15 @@ final class LobbyBrowser {
         body.item(new Art(entry, width));
         // One line each, cut with "…" (full in the tooltip): wrapped lines here were measured short and the next
         // line drew over them (1.3.106).
-        body.item(line(entry.name(), EdenParchment.INK, width));
-        body.item(line(tr("browser.type." + entry.type()), EdenParchment.INK_MID, width));
+        body.item(wrapped(entry.name(), EdenParchment.INK, width));
+        body.item(wrapped(tr("browser.type." + entry.type()), EdenParchment.INK_MID, width));
         if (info != null && info.maxMembers() > 0) {
-            body.item(line(tr("browser.max_members", info.maxMembers()), EdenParchment.INK_MID, width));
+            body.item(wrapped(tr("browser.max_members", info.maxMembers()), EdenParchment.INK_MID, width));
+        }
+        Component instances = instancesLine(entry.id().toString());
+        if (instances != null) {
+            int[] count = HubState.activityInstances.get(entry.id().toString());
+            body.item(wrapped(instances, count[0] > 0 ? EdenParchment.INK_MID : EdenParchment.DANGER, width));
         }
         int level = entry.unlockLevel();
         if (info != null && !difficulty.isEmpty()) {
@@ -869,7 +929,7 @@ final class LobbyBrowser {
         }
         if (data.gated()) {
             boolean meets = level <= 0 || data.level() >= level;
-            body.item(line(level > 0 ? tr("browser.required_level_yours", level, data.level())
+            body.item(wrapped(level > 0 ? tr("browser.required_level_yours", level, data.level())
                     : tr("browser.level_none", data.level()), meets ? EdenParchment.GOOD : EdenParchment.DANGER, width));
             // Every difficulty's level, ✓ or ✗ against the player's (LeDok: the drops' space goes to this, 1.3.109).
             if (info != null && !info.difficulties().isEmpty()) {
@@ -878,7 +938,7 @@ final class LobbyBrowser {
                     int needed = i < info.levels().size() ? info.levels().get(i) : 0;
                     boolean has = needed <= 0 || data.level() >= needed;
                     Component tier = difficultyName(info.difficulties().get(i));
-                    body.item(line(tr(has ? "browser.level_row_ok" : "browser.level_row_no", tier,
+                    body.item(wrapped(tr(has ? "browser.level_row_ok" : "browser.level_row_no", tier,
                                     needed > 0 ? tr("browser.level_badge", needed) : tr("browser.level_free")),
                             has ? EdenParchment.GOOD : EdenParchment.DANGER, width));
                 }
@@ -889,7 +949,7 @@ final class LobbyBrowser {
             Component rolls = Double.isNaN(info.lootRolls()) ? tr("browser.loot_rolls_default_only")
                     : tr(info.lootRollsDefault() ? "browser.loot_rolls_default" : "browser.loot_rolls",
                             formatRolls(info.lootRolls()));
-            CanvasNode rollsLine = line(rolls, EdenParchment.INK_MID, width);
+            Flex rollsLine = wrapped(rolls, EdenParchment.INK_MID, width);
             rollsLine.tooltip(rolls, tr("browser.loot_rolls_hint"));
             body.item(rollsLine);
         }
@@ -1039,14 +1099,16 @@ final class LobbyBrowser {
             // One row when every name fits its share; else two per row (1.3.106: «Nightmare» ran over its button).
             int count = info.difficulties().size();
             var font = Minecraft.getInstance().font;
-            float needed = 0;
+            // The widest button's label and level badge with the skin's padding (1.3.124: «Норм… 5+» was cut), then
+            // as many per row as fit: all, two, or one.
+            float widest = 0;
             for (int i = 0; i < count; i++) {
                 int level = i < info.levels().size() ? info.levels().get(i) : 0;
                 Component badge = levelBadge(data, level);
-                needed += font.width(difficultyName(info.difficulties().get(i))) + 12
-                        + (badge == null ? 0 : font.width(badge) + 6);
+                widest = Math.max(widest, font.width(difficultyName(info.difficulties().get(i))) + 24
+                        + (badge == null ? 0 : font.width(badge) + 10));
             }
-            int perRow = needed + 2 * (count - 1) <= width ? count : 2;
+            int perRow = count * widest + 2 * (count - 1) <= width ? count : 2 * widest + 2 <= width ? 2 : 1;
             float each = (width - 2 * (perRow - 1)) / perRow;
             Flex grid = Flex.column().gap(2);
             Flex seg = null;
@@ -1148,11 +1210,11 @@ final class LobbyBrowser {
 
         ModifierRow(HubPayloads.ModifierLine modifier, boolean hardcoreRow, float width,
                     java.util.function.Consumer<Boolean> onChange) {
-            super(width, MOD_H);
+            super(width, rowHeight(modifier, width));
             this.modifier = modifier;
             this.hardcoreRow = hardcoreRow;
             this.onChange = onChange;
-            sizing(Sizing.fixed(width), Sizing.fixed(MOD_H));
+            sizing(Sizing.fixed(width), Sizing.fixed(rowHeight(modifier, width)));
             tooltip(() -> {
                 List<Component> lines = new ArrayList<>();
                 lines.add(modifier.name().copy().withStyle(ChatFormatting.BOLD));
@@ -1176,6 +1238,18 @@ final class LobbyBrowser {
                 }
                 return lines;
             });
+        }
+
+        /** Name and effect don't fit on one line side by side: two lines. */
+        private static boolean twoLines(HubPayloads.ModifierLine modifier, float width) {
+            var font = Minecraft.getInstance().font;
+            float available = width - (4 + 9 + 4) - 4;
+            float effect = font.width(modifier.rewards());
+            return effect > 0 && font.width(modifier.name()) + 6 + effect > available;
+        }
+
+        private static float rowHeight(HubPayloads.ModifierLine modifier, float width) {
+            return twoLines(modifier, width) ? MOD_H2 : MOD_H;
         }
 
         /** Read live: another row's click may have switched this one off. */
@@ -1207,6 +1281,14 @@ final class LobbyBrowser {
             var font = Minecraft.getInstance().font;
             float textX = bx + box + 4;
             float available = width - textX - 4;
+            if (twoLines(modifier, width)) {
+                // Name over its effect (1.3.124: the effect was cut with "…"); still "…" past the whole width.
+                add(TextNode.of(modifier.name()).at(textX, 3).maxWidth((int) available).ellipsis(true)
+                        .color(EdenParchment.INK)).pickable(false);
+                add(TextNode.of(modifier.rewards()).at(textX, 14).maxWidth((int) available).ellipsis(true)
+                        .color(EdenParchment.GOOD)).pickable(false);
+                return;
+            }
             // The effect keeps up to 45% of the room; the name takes the rest.
             float effectWidth = Math.min(font.width(modifier.rewards()), available * 0.45f);
             float nameWidth = Math.max(10, available - effectWidth - (effectWidth > 0 ? 6 : 0));
