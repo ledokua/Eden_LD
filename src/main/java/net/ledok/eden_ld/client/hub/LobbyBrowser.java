@@ -1289,8 +1289,9 @@ final class LobbyBrowser {
                         .color(EdenParchment.GOOD)).pickable(false);
                 return;
             }
-            // The effect keeps up to 45% of the room; the name takes the rest.
-            float effectWidth = Math.min(font.width(modifier.rewards()), available * 0.45f);
+            // One line only when name and effect both fit whole (twoLines), so the effect gets all it needs (1.3.125: a
+            // 45% cap still cut effects like «+15% досвіду · +25% валюти» that fit beside their name).
+            float effectWidth = font.width(modifier.rewards());
             float nameWidth = Math.max(10, available - effectWidth - (effectWidth > 0 ? 6 : 0));
             add(TextNode.of(modifier.name()).at(textX, textY(height)).maxWidth((int) nameWidth).ellipsis(true)
                     .color(EdenParchment.INK)).pickable(false);
