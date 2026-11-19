@@ -57,6 +57,24 @@ public final class RentalPresets {
         return cut < 0 ? preset : preset.substring(0, cut);
     }
 
+    /** The preset part of a kit id ("…/25/paladin_holy" → "paladin_holy"): what spell picks are saved under. */
+    public static String presetName(String kitId) {
+        return kitId.substring(Math.max(kitId.lastIndexOf('/'), kitId.lastIndexOf(':')) + 1);
+    }
+
+    /** A preset's level: its folder ("falleneden:rental/25/paladin_holy" → 25), or -1. */
+    public static int kitLevel(@org.jetbrains.annotations.Nullable String kitId) {
+        String[] parts = kitId == null ? new String[0] : kitId.split("/");
+        if (parts.length < 2) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(parts[parts.length - 2]);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
     /** The kit's own display name (/kit name), else its preset id. */
     public static Component displayName(String kitId) {
         ResourceLocation id = ResourceLocation.tryParse(kitId);

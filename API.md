@@ -364,7 +364,7 @@ boolean end(ServerPlayer player)
 boolean end(MinecraftServer server, UUID player)  // offline: done at their next login
 boolean isRenting(Player player)
 @Nullable String sessionOf(Player player)
-boolean reequip(ServerPlayer player)              // the kit again (after a death in a run)
+boolean reequip(ServerPlayer player)              // after a death in a run: the items as they were at the death
 boolean stashItem(ServerPlayer player, ItemStack stack) // a reward kept for the end, safe from the cleanup
 boolean isRentalItem(ItemStack stack)             // custom_data {eden_rental: <session>}
 ```
@@ -383,13 +383,72 @@ boolean isRentalItem(ItemStack stack)             // custom_data {eden_rental: <
     crafting, anvils, trades, shops, modded storage screens.
   - Rental items can't go into item frames, armor stands, allays, display blocks or bundles.
   - The player picks nothing up from the ground.
-- **Death** drops nothing and makes no grave. Rental items are deleted; the player's other items are kept for `end`.
-  The session continues: call `end`, or `reequip` after the respawn.
+- **Death** drops nothing and makes no grave. Rental items are taken off the player (their slots are remembered); the
+  player's other items are kept for `end`. The session continues: call `end`, or `reequip` after the respawn.
+  `reequip` (1.3.121) gives back the exact rental items from the death: same stacks, same slots, used consumables stay
+  used. Only without such a snapshot does it hand out a fresh kit, and (1.3.122) only when the player holds none of the
+  session's items: an Arenas run's "downed" is no death (nothing is taken), so `reequip` then leaves the inventory
+  exactly as it is.
 - **Sessions are not ended on disconnect**, so a player who reconnects is still renting; the owner ends the session.
-  After a restart or crash, the next login ends it.
+  After a restart or crash, the next login ends it, and the rental items as they were are remembered (1.3.121). A
+  `begin` with the **same session id** then gives those back instead of a fresh kit; a `begin` for any other session
+  forgets them.
 - Once a second, rental items found anywhere outside their own session are removed. A dropped rental item is removed
   as soon as it spawns.
 - Staff: `/eden rental status|end <player>`, `/eden rental begin <player> <kit>` (testing).
+
+### The rental picker (1.3.120+)
+
+One picker for every mod that lends rental builds (ranked Duels_LD, Arenas_LD runs). Presets are Kits_LD's hidden kits
+`falleneden:rental/<level>/<preset>`; a preset's class is its name up to the first `_`.
+
+```java
+record Pick(String kitId, List<String> spells)   // spells for the kit's book, may be empty
+record PickerRequest(int level, Component title, @Nullable Component subtitle, @Nullable Pick current,
+                     long deadlineMs, Consumer<Pick> onPick, @Nullable Runnable onClose)
+
+boolean openPicker(ServerPlayer player, PickerRequest request)
+void closePicker(ServerPlayer player)
+boolean hasPicker(ServerPlayer player)
+List<String> presets(int level)                          // RentalPresets.forLevel
+@Nullable Pick recommended(ServerPlayer player, int level)
+@Nullable Pick validate(ServerPlayer player, int level, Pick pick)
+boolean begin(ServerPlayer player, String session, Pick pick)
+String classOf(String kitId)                             // "paladin" from ".../25/paladin_holy"
+int kitLevel(String kitId)                               // 25 from ".../25/paladin_holy", -1 when none
+```
+
+- **What the player sees:** every preset of the level, the one for their skill-tree class first with a "Recommended"
+  tag, and the `current` pick highlighted. Each preset shows its items (vanilla tooltips) and its spell book's choice:
+  one spell per tier as radio rows (`spell_tiers`), or a free choice with a counter. With a deadline, a bar and
+  "Closes in N s" drain on the client. At 0 it stays at 0: closing is the caller's job.
+- **Where it opens:** as its own screen, or as a modal on a host's canvas when a client host is registered
+  (`client.rental.RentalPickerClient.registerHost(Supplier<@Nullable VectorCanvas>)`, so a menu stays open).
+- **`openPicker`** replaces an open picker without calling its `onClose`. It returns false, with nothing sent, when the
+  level has no preset or the client lacks Eden's payload.
+- **One request per player.** The client's answers carry the request id; answers for an older request are ignored. A
+  pick must be a kit that picker showed, and its spells are validated, before `onPick` runs (server thread).
+- **A pick keeps the request.** The client closes its picker after a pick; call `openPicker` again (with the pick as
+  `current`) to let the player change it. `onClose` runs only when the player closes it without picking (Esc, Close).
+  `closePicker`, a disconnect (no callback) and the server stop drop the request.
+- **`recommended`:** the first preset whose class is the player's class, else the first preset. The class is the
+  branch with the most unlocked nodes in the `class_tree` (Pufferfish Skills), mapped through `class_presets`. Spells
+  are prefilled: the player's saved pick for that preset, else their own book's spells when it has the same pool, else
+  the kit's own.
+- **`validate`:** null when the level doesn't offer the kit. Spells are cut to what the book allows, and per-tier rows
+  are filled. With no spells picked, the prefill.
+- **`begin(…, Pick)`:** `begin(player, session, kit)`, then the spells go into the lent book a second later, retried
+  once a second until Spell Engine reads them back. After 10 tries, or once the rental ended, it gives up (with a WARN).
+  `reequip` puts them in again. It doesn't check the level: `validate` first.
+- **Spell picks are saved** per player and preset (SavedData `eden_ld_rental_spells`) on each pick and on `begin`.
+- **Config (`rental.json`):**
+  - `class_tree`: default `"falleneden:classes"`; empty means nothing is recommended.
+  - `class_presets`: skill-tree class → preset class, where the names differ (`"earth": "terra"`).
+  - `spell_max_tier`: kit level folder → highest spell tier; empty means the whole pool.
+  - `spell_tiers`: default `[2, 3, 4]`; empty means a free choice up to the book's size.
+  - These replace Arenas_LD's `rental_class_presets`, `rental_spell_max_tier` and `rental_spell_tiers`.
+- **Payloads:** S2C `eden_ld:rental_picker_open` and `eden_ld:rental_picker_close`; C2S `eden_ld:rental_picker_choice`
+  and `eden_ld:rental_picker_closed`.
 
 ## Stability
 

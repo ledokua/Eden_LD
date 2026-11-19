@@ -388,7 +388,7 @@ public class EdenConfig {
     }
 
     /** Hopper costs (Observable: a hopper feeding an Extended Drawers access point took 328 µs every tick). */
-    /** Rental builds (Arenas_LD runs with a rented kit, {@code rental/RentalStash}). */
+    /** Rental builds (Arenas_LD runs and ranked Duels_LD with a rented kit, {@code rental/RentalStash}, the picker). */
     public static class Rental {
         /**
          * Players keep their own Pufferfish skill tree while renting a kit (it gives max health and class stats since
@@ -396,6 +396,37 @@ public class EdenConfig {
          * the rental ends. A stash that already holds a tree (put aside before this was turned on) still gives it back.
          */
         public boolean keep_skill_tree = true;
+        /**
+         * The Pufferfish Skills tree whose branch is a player's class: the branch with the most unlocked nodes (node
+         * ids start with it, "rogue.t3.s2.b" is "rogue"). The rental picker puts that class's presets first, marked
+         * "Recommended", and a player who doesn't pick in time gets the first of them. Empty = nothing recommended.
+         */
+        public String class_tree = "falleneden:classes";
+        /**
+         * A skill-tree class → the preset class its kits use, where the names differ ("earth": "terra"). Unlisted
+         * classes use their own name. Replaces Arenas_LD's {@code rental_class_presets}.
+         */
+        public java.util.Map<String, String> class_presets = new java.util.LinkedHashMap<>();
+        /**
+         * Rental spell books: the highest spell tier each kit level folder may pick ("0": 1, "15": 2, …; the highest
+         * folder at or below the kit's level counts). Empty = the book's whole pool. Replaces Arenas_LD's
+         * {@code rental_spell_max_tier}.
+         */
+        public java.util.Map<String, Integer> spell_max_tier = new java.util.LinkedHashMap<>();
+        /**
+         * Rental spell books: the spell tiers the picker offers, one spell each (LeDok 2026-11-18: "3 pairs" per
+         * class). Pool spells of other tiers are hidden and can't be picked. Empty = free choice of the pool, up to the
+         * book's size. Replaces Arenas_LD's {@code rental_spell_tiers}.
+         */
+        public List<Integer> spell_tiers = new ArrayList<>(List.of(2, 3, 4));
+
+        /** Defaults for settings a hand-edited file set to null. */
+        void fillMissing() {
+            if (class_tree == null) class_tree = "";
+            if (class_presets == null) class_presets = new java.util.LinkedHashMap<>();
+            if (spell_max_tier == null) spell_max_tier = new java.util.LinkedHashMap<>();
+            if (spell_tiers == null) spell_tiers = new ArrayList<>();
+        }
     }
 
     public static class Hoppers {
@@ -674,7 +705,7 @@ public class EdenConfig {
         public double pvp = 0.5;
         /** Burning and freezing count as another player's doing while one hit the target this recently. */
         public int pvp_seconds = 5;
-        /** One rule per damage type id; armor doesn't reduce these types. */
+        /** One rule per damage type id; armor doesn't reduce these types unless the rule says {@code "armor": true}. */
         public java.util.Map<String, Rule> damage_types = defaultRules();
         /** The poison effect (its damage type, minecraft:magic, is shared with harming potions). */
         public Rule poison = Rule.current(4).pvp().notLethal();
@@ -701,6 +732,12 @@ public class EdenConfig {
             public boolean lethal = true;
             /** Bleeding only: times the effect's level. */
             public boolean per_stack;
+            /**
+             * Damage types only (1.3.123): armor, armor toughness and {@code eden_ld:damage_reduction} reduce this hazard
+             * like an ordinary hit, also for types vanilla lets through armor (falls). False: they leave it alone, as
+             * before. Enchantment protection (Feather Falling, Fire Protection) applies either way.
+             */
+            public boolean armor;
 
             static Rule max(double percent) {
                 Rule rule = new Rule();
@@ -737,6 +774,11 @@ public class EdenConfig {
 
             Rule perStack() {
                 per_stack = true;
+                return this;
+            }
+
+            Rule armor() {
+                armor = true;
                 return this;
             }
         }
@@ -780,7 +822,8 @@ public class EdenConfig {
             rules.put("minecraft:cactus", Rule.max(1));
             rules.put("minecraft:sweet_berry_bush", Rule.max(1));
             rules.put("minecraft:lightning_bolt", Rule.max(15).pvp());
-            rules.put("minecraft:fall", Rule.perPoint(3.5));
+            // LeDok 2026-11-19: armor and damage reduction soften falls (spell launches in duels).
+            rules.put("minecraft:fall", Rule.perPoint(3.5).armor());
             rules.put("minecraft:fly_into_wall", Rule.perPoint(3.5));
             rules.put("minecraft:stalagmite", Rule.perPoint(3.5));
             rules.put("minecraft:wither", Rule.max(1).missing(4).pvp());
@@ -850,6 +893,7 @@ public class EdenConfig {
         config.hazards.fillMissing();
         config.tutorial.fillMissing();
         config.chat_system_only.fillMissing();
+        config.rental.fillMissing();
         config.save();
         return config;
     }

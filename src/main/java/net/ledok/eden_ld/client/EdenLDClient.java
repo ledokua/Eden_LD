@@ -114,6 +114,8 @@ public class EdenLDClient implements ClientModInitializer {
         });
         net.ledok.eden_ld.client.ClientStamina.register();
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> net.ledok.eden_ld.combat.Stealth.install());
+        // The rental picker (ranked Duels, Arenas runs): a screen of its own, or a modal on a registered host.
+        net.ledok.eden_ld.client.rental.RentalPickerClient.register();
         ClientPlayNetworking.registerGlobalReceiver(net.ledok.eden_ld.combat.CombatTag.Sync.TYPE,
                 (payload, context) -> ClientCombatTag.onSync(payload.millis()));
         // The PvP toggle: the player's own state, and who else has PvP on or is dueling (targeting, nameplates).

@@ -65,6 +65,16 @@ public final class RentalStash {
             .copyOnDeath()
             .buildAndRegister(ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "rental_stash"));
 
+    /**
+     * 1.3.121 (LeDok 2026-11-19): the rental items as they were when a session ended without its owner (a restart, a
+     * crash) — {session, kit} with every item's place. When the same session begins again, these come back instead of
+     * a fresh kit (used potions stay used, the hotbar stays as they set it). Any other session's begin drops it.
+     */
+    private static final AttachmentType<CompoundTag> RESUME = AttachmentRegistry.<CompoundTag>builder()
+            .persistent(CompoundTag.CODEC)
+            .copyOnDeath()
+            .buildAndRegister(ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "rental_resume"));
+
     /** Running sessions by player (kept while they're offline; a restart forgets them, and the login ends them). */
     private static final Map<UUID, String> LIVE = new ConcurrentHashMap<>();
     /**
@@ -190,8 +200,17 @@ public final class RentalStash {
         if (asideSkills) {
             RentalSkills.clearAll(player);
         }
+        CompoundTag resume = player.getAttached(RESUME);
+        player.removeAttached(RESUME);
+        boolean resumed = false;
         try {
-            giveLoadout.accept(player);
+            if (resume != null && session.equals(resume.getString("session"))) {
+                // The same session again after a restart: the items exactly as they were, not a fresh kit.
+                resumed = restoreRental(player, resume.getCompound("kit")) > 0;
+            }
+            if (!resumed) {
+                giveLoadout.accept(player);
+            }
         } catch (RuntimeException e) {
             EdenLD.LOGGER.error("[Rental] {}'s loadout for {} failed; everything is given back.",
                     player.getGameProfile().getName(), session, e);
@@ -202,9 +221,9 @@ public final class RentalStash {
         player.inventoryMenu.broadcastChanges();
         // The loadout's armor changes max health: they start the fight full.
         healLater(player, 1.0f);
-        EdenLD.LOGGER.info("[Rental] {} began rental session {} ({}): {} own stacks put aside{}, {} loadout stacks given.",
+        EdenLD.LOGGER.info("[Rental] {} began rental session {} ({}): {} own stacks put aside{}, {} loadout stacks {}.",
                 player.getGameProfile().getName(), session, kit == null ? "custom loadout" : kit, own,
-                asideSkills ? " with the skill tree" : "", given);
+                asideSkills ? " with the skill tree" : "", given, resumed ? "back as they were (resumed)" : "given");
         return true;
     }
 
@@ -221,6 +240,18 @@ public final class RentalStash {
             return live != null;
         }
         String session = record.getString("session");
+        if (live == null) {
+            // Ended without its owner (a restart or crash; or it ended while they were away): the rental items as they
+            // are now (or as they were at a death not yet re-equipped), for the same session's begin (1.3.121).
+            CompoundTag resume = new CompoundTag();
+            resume.putString("session", session);
+            resume.put("kit", record.contains("death_kit", Tag.TAG_COMPOUND) ? record.getCompound("death_kit")
+                    : snapshotRental(player));
+            resume.putLong("saved", System.currentTimeMillis());
+            player.setAttached(RESUME, resume);
+        } else {
+            player.removeAttached(RESUME);
+        }
         List<ItemStack> kept = new ArrayList<>();
         int[] removed = {0};
         Consumer<ItemStack> sort = stack -> {
@@ -285,14 +316,38 @@ public final class RentalStash {
     }
 
     /**
-     * The session's loadout handed out again (after a death in a run, say): rental items they still hold go first.
-     * False when they don't rent, or the session's loadout wasn't a kit.
+     * After a death in a run: the rental items back exactly as they were at the death (same stacks, same slots; used
+     * consumables stay used; 1.3.121, LeDok 2026-11-19). Only with no snapshot of the death is the session's kit handed
+     * out fresh, and only when they hold none of the session's items: still holding them (an Arenas "downed", which is
+     * no death), nothing is touched (1.3.122). False when they don't rent, or there is neither a snapshot nor a kit.
      */
     public static boolean reequip(ServerPlayer player) {
         CompoundTag record = player.getAttached(STASH);
         String session = LIVE.get(player.getUUID());
-        ResourceLocation kit = record == null ? null : ResourceLocation.tryParse(record.getString("kit"));
-        if (session == null || kit == null || record.getString("kit").isEmpty()) {
+        if (session == null || record == null) {
+            return false;
+        }
+        if (record.contains("death_kit", Tag.TAG_COMPOUND)) {
+            CompoundTag snapshot = record.getCompound("death_kit");
+            record.remove("death_kit");
+            player.setAttached(STASH, record);
+            removeRental(player, stack -> true);
+            int back = restoreRental(player, snapshot);
+            player.inventoryMenu.broadcastChanges();
+            healLater(player, 1.0f);
+            EdenLD.LOGGER.info("[Rental] {}: {} rental stacks back as they were at the death ({}).",
+                    player.getGameProfile().getName(), back, session);
+            return true;
+        }
+        if (holdsRental(player, session)) {
+            // 1.3.122 (LeDok 2026-11-19): they still have their rental items (an Arenas run's "downed" is no real death:
+            // nothing was taken), so the inventory is left exactly as it is.
+            EdenLD.LOGGER.info("[Rental] {}: re-equip skipped, the rental items are still there ({}).",
+                    player.getGameProfile().getName(), session);
+            return true;
+        }
+        ResourceLocation kit = ResourceLocation.tryParse(record.getString("kit"));
+        if (kit == null || record.getString("kit").isEmpty()) {
             return false;
         }
         removeRental(player, stack -> true);
@@ -377,6 +432,12 @@ public final class RentalStash {
         if (record == null) {
             return;
         }
+        // The rental items with their places, for the re-equip after the respawn (1.3.121). Holding none (a second
+        // death before a re-equip), the earlier snapshot stays.
+        CompoundTag snapshot = snapshotRental(player);
+        if (snapshot.getInt("count") > 0 || !record.contains("death_kit", Tag.TAG_COMPOUND)) {
+            record.put("death_kit", snapshot);
+        }
         ListTag extra = record.getList("extra", Tag.TAG_COMPOUND);
         Consumer<ItemStack> keep = stack -> {
             if (!RentalItems.isRental(stack)) {
@@ -419,6 +480,118 @@ public final class RentalStash {
             }
             return true;
         });
+    }
+
+    /**
+     * The player's rental items with their places, nothing changed: {@code items} ({slot, item}: inventory slot, armor
+     * and off-hand included), {@code loose} (cursor and crafting grid: no place to keep), {@code trinkets} (as
+     * {@link RentalTrinkets#save}) and {@code count}.
+     */
+    private static CompoundTag snapshotRental(ServerPlayer player) {
+        var registries = player.registryAccess();
+        CompoundTag out = new CompoundTag();
+        int count = 0;
+        ListTag items = new ListTag();
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && RentalItems.isRental(stack)) {
+                CompoundTag entry = new CompoundTag();
+                entry.putInt("slot", slot);
+                entry.put("item", stack.save(registries));
+                items.add(entry);
+                count++;
+            }
+        }
+        ListTag loose = new ListTag();
+        ItemStack carried = player.containerMenu.getCarried();
+        if (!carried.isEmpty() && RentalItems.isRental(carried)) {
+            loose.add(carried.save(registries));
+            count++;
+        }
+        CraftingContainer grid = player.inventoryMenu.getCraftSlots();
+        for (int slot = 0; slot < grid.getContainerSize(); slot++) {
+            ItemStack stack = grid.getItem(slot);
+            if (!stack.isEmpty() && RentalItems.isRental(stack)) {
+                loose.add(stack.save(registries));
+                count++;
+            }
+        }
+        out.put("items", items);
+        out.put("loose", loose);
+        if (TRINKETS) {
+            ListTag trinkets = RentalTrinkets.save(player, RentalItems::isRental);
+            out.put("trinkets", trinkets);
+            count += trinkets.size();
+        }
+        out.putInt("count", count);
+        return out;
+    }
+
+    /**
+     * A {@link #snapshotRental} back on the player: each item in its slot (a taken slot: anywhere free; no room: the
+     * item is lost, as rental items never drop). How many stacks came back.
+     */
+    private static int restoreRental(ServerPlayer player, CompoundTag snapshot) {
+        var registries = player.registryAccess();
+        Inventory inventory = player.getInventory();
+        List<ItemStack> elsewhere = new ArrayList<>();
+        int back = 0;
+        for (Tag tag : snapshot.getList("items", Tag.TAG_COMPOUND)) {
+            CompoundTag entry = (CompoundTag) tag;
+            ItemStack stack = ItemStack.parseOptional(registries, entry.getCompound("item"));
+            if (stack.isEmpty()) {
+                continue;
+            }
+            int slot = entry.getInt("slot");
+            if (slot >= 0 && slot < inventory.getContainerSize() && inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, stack);
+                back++;
+            } else {
+                elsewhere.add(stack);
+            }
+        }
+        for (Tag tag : snapshot.getList("loose", Tag.TAG_COMPOUND)) {
+            ItemStack.parse(registries, tag).ifPresent(elsewhere::add);
+        }
+        if (TRINKETS && snapshot.contains("trinkets", Tag.TAG_LIST)) {
+            ListTag trinkets = snapshot.getList("trinkets", Tag.TAG_COMPOUND);
+            int[] leftover = {0};
+            RentalTrinkets.giveBack(player, trinkets, stack -> {
+                elsewhere.add(stack);
+                leftover[0]++;
+            });
+            back += trinkets.size() - leftover[0];
+        }
+        for (ItemStack stack : elsewhere) {
+            if (inventory.add(stack)) {
+                back++;
+            } else {
+                EdenLD.LOGGER.warn("[Rental] {}: no room for rental item {} on restore; it's gone.",
+                        player.getGameProfile().getName(), stack);
+            }
+        }
+        return back;
+    }
+
+    /** Whether the player holds any item of {@code session} (inventory, armor, off-hand, cursor, Trinkets). */
+    private static boolean holdsRental(ServerPlayer player, String session) {
+        java.util.function.Predicate<ItemStack> ours = stack -> !stack.isEmpty() && session.equals(RentalItems.sessionOf(stack));
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (ours.test(inventory.getItem(slot))) {
+                return true;
+            }
+        }
+        if (ours.test(player.containerMenu.getCarried())) {
+            return true;
+        }
+        if (TRINKETS) {
+            boolean[] found = {false};
+            RentalTrinkets.forEach(player, stack -> found[0] |= ours.test(stack));
+            return found[0];
+        }
+        return false;
     }
 
     /** Marks a renter's death in progress (see {@link #onDeath}). */

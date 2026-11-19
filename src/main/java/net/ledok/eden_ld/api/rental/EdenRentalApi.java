@@ -1,7 +1,10 @@
 package net.ledok.eden_ld.api.rental;
 
 import net.ledok.eden_ld.rental.RentalItems;
+import net.ledok.eden_ld.rental.RentalPicker;
+import net.ledok.eden_ld.rental.RentalPresets;
 import net.ledok.eden_ld.rental.RentalStash;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -9,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -20,11 +24,104 @@ import java.util.function.Consumer;
  * <session>}}. {@link #end} removes every rental item and gives everything back exactly. Between the two, rental items
  * can't leave the player (no dropping, containers, item frames, trades, graves), the player picks nothing up from the
  * ground, and a death drops nothing. A crash or restart during a session is undone at the player's next login.
+ *
+ * <p>Rental presets are Kits_LD's hidden kits {@code falleneden:rental/<level>/<preset>}. {@link #openPicker} shows the
+ * player every preset at a kit level (items, the book's spell choice, their skill-tree class first) and hands the pick
+ * to the caller; {@link #begin(ServerPlayer, String, Pick)} lends it with the picked spells (1.3.120+).
  */
 public final class EdenRentalApi {
 
     private EdenRentalApi() {
     }
+
+    /** A rental pick: a preset kit id (falleneden:rental/<level>/<preset>) and the spells for its book (may be empty). */
+    public record Pick(String kitId, List<String> spells) {
+        public Pick {
+            spells = spells == null ? List.of() : List.copyOf(spells);
+        }
+    }
+
+    /**
+     * What the picker shows and where the answer goes.
+     *
+     * @param level      the kit level folder cap (presets via RentalPresets.forLevel(level))
+     * @param title      heading line
+     * @param subtitle   hint line under it, or null
+     * @param current    the pick to highlight as current, or null
+     * @param deadlineMs milliseconds until the caller stops waiting (shown as a draining bar + "N s"), 0 = no deadline
+     * @param onPick     called with a validated pick each time the player picks (server thread)
+     * @param onClose    called when the player closes the picker without picking (Esc/Close), or null
+     */
+    public record PickerRequest(int level, Component title, @Nullable Component subtitle, @Nullable Pick current,
+                                long deadlineMs, Consumer<Pick> onPick, @Nullable Runnable onClose) {
+    }
+
+    // ---------------------------------------------------------------- the picker (1.3.120+)
+
+    /**
+     * Opens the picker for the player (replacing an open one, whose onClose is NOT called). False, nothing sent, when
+     * no preset exists at that level or the client lacks Eden's payload.
+     * <p>
+     * A pick keeps the request: onPick runs for every pick until {@link #closePicker}, the player closes it without
+     * picking (onClose), or they disconnect (no callback). The client closes its picker after a pick; open it again
+     * (with the pick as {@code current}) to let them change it. The deadline is only shown: closing at 0 is the caller's.
+     */
+    public static boolean openPicker(ServerPlayer player, PickerRequest request) {
+        return RentalPicker.open(player, request);
+    }
+
+    /** Closes the player's picker (client side too) without calling onClose. */
+    public static void closePicker(ServerPlayer player) {
+        RentalPicker.close(player);
+    }
+
+    /** Whether the player has a picker request (open, or picked from and not closed since). */
+    public static boolean hasPicker(ServerPlayer player) {
+        return RentalPicker.isOpen(player);
+    }
+
+    /** Kit ids offered at this level (RentalPresets.forLevel). */
+    public static List<String> presets(int level) {
+        return RentalPicker.presets(level);
+    }
+
+    /**
+     * The recommended pick: the first preset at that level whose class matches the player's skill-tree class
+     * (class_presets mapping), else the first preset; spells prefilled (saved pick → own book of same pool → kit
+     * default). Null when there are no presets.
+     */
+    @Nullable
+    public static Pick recommended(ServerPlayer player, int level) {
+        return RentalPicker.recommended(player, level);
+    }
+
+    /** The pick checked against what the level offers: null when the kit isn't offered; spells validated (filled per tier). */
+    @Nullable
+    public static Pick validate(ServerPlayer player, int level, Pick pick) {
+        return RentalPicker.validate(player, level, pick);
+    }
+
+    /**
+     * begin(player, session, kit) + puts the pick's spells into the lent book; the spells are retried once a second
+     * (server tick) until Spell Engine reads them back, giving up with a WARN after 10 tries or when the rental ended.
+     * Saves the spell pick per player+preset. {@link #reequip} puts them in again. The pick isn't checked against a
+     * level: {@link #validate} it first.
+     */
+    public static boolean begin(ServerPlayer player, String session, Pick pick) {
+        return RentalPicker.begin(player, session, pick);
+    }
+
+    /** "paladin" from ".../25/paladin_holy". */
+    public static String classOf(String kitId) {
+        return RentalPresets.classOf(kitId);
+    }
+
+    /** The kit level folder (25 from ".../25/paladin_holy"), -1 when none. */
+    public static int kitLevel(String kitId) {
+        return RentalPresets.kitLevel(kitId);
+    }
+
+    // ---------------------------------------------------------------- sessions
 
     /**
      * Starts a rental session with a Kits_LD kit (0.3.0+; hidden kits like {@code falleneden:rental/warrior/10}) as
@@ -68,10 +165,15 @@ public final class EdenRentalApi {
 
     /**
      * Hands the session's kit out again (after a death in a run: a death empties the inventory and the session goes
-     * on). Rental items still held go first. False when they don't rent or the loadout wasn't a kit.
+     * on). Rental items still held go first; spells picked through {@link #begin(ServerPlayer, String, Pick)} go into
+     * the new book again. False when they don't rent or the loadout wasn't a kit.
      */
     public static boolean reequip(ServerPlayer player) {
-        return RentalStash.reequip(player);
+        boolean given = RentalStash.reequip(player);
+        if (given) {
+            RentalPicker.afterReequip(player); // the kit's own book came back: the picked spells go in again
+        }
+        return given;
     }
 
     /**

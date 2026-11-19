@@ -23,12 +23,17 @@ final class RentalTrinkets {
 
     /** Every worn trinket as {group, slot, index, item}; nothing changes. */
     static ListTag save(ServerPlayer player) {
+        return save(player, stack -> true);
+    }
+
+    /** The worn trinkets the test picks as {group, slot, index, item}; nothing changes. */
+    static ListTag save(ServerPlayer player, java.util.function.Predicate<ItemStack> which) {
         ListTag saved = new ListTag();
         HolderLookup.Provider registries = player.registryAccess();
         forEachSlot(player, (inventory, group, slot) -> {
             for (int index = 0; index < inventory.getContainerSize(); index++) {
                 ItemStack stack = inventory.getItem(index);
-                if (stack.isEmpty()) {
+                if (stack.isEmpty() || !which.test(stack)) {
                     continue;
                 }
                 CompoundTag entry = new CompoundTag();

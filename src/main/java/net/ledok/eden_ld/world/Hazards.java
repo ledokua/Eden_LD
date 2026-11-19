@@ -65,14 +65,33 @@ public final class Hazards {
         return apply(target, rule, amount, rule.pvp && byPlayer(target, type));
     }
 
-    /** Whether armor leaves this damage alone: every damage type with a hazard rule, while hazards are on. */
+    /**
+     * Whether armor leaves this damage alone: every damage type with a hazard rule, while hazards are on, unless the rule
+     * says {@code "armor": true}.
+     */
     public static boolean ignoresArmor(DamageSource source) {
+        EdenConfig.Hazards.Rule rule = rule(source);
+        return rule != null && !rule.armor;
+    }
+
+    /**
+     * Whether armor must reduce this hazard although vanilla lets the type through it (falls are in
+     * {@code #minecraft:bypasses_armor}): its rule says {@code "armor": true} (1.3.123).
+     */
+    public static boolean armorReduces(DamageSource source) {
+        EdenConfig.Hazards.Rule rule = rule(source);
+        return rule != null && rule.armor;
+    }
+
+    /** The hazard rule for this damage's type, while hazards are on; null for none. */
+    @org.jetbrains.annotations.Nullable
+    private static EdenConfig.Hazards.Rule rule(DamageSource source) {
         EdenConfig.Hazards config = EdenLD.CONFIG.hazards;
-        if (!config.enabled) {
-            return false;
+        if (!config.enabled || config.damage_types == null) {
+            return null;
         }
         ResourceKey<DamageType> type = source.typeHolder().unwrapKey().orElse(null);
-        return type != null && config.damage_types.containsKey(type.location().toString());
+        return type == null ? null : config.damage_types.get(type.location().toString());
     }
 
     /** A poison tick's damage (vanilla: 1); it never takes the last point of health. */
