@@ -210,6 +210,7 @@
   "message.eden_ld.friends.not_found": "%s не має акаунта Minestar.",
   "message.eden_ld.friends.already_friends": "Ви вже друзі з %s.",
   "message.eden_ld.friends.already_pending": "Запит у друзі з %s уже очікує.",
+  "message.eden_ld.friends.limit": "Список друзів повний: щонайбільше %s друзів.",
   "message.eden_ld.friends.request_sent": "Запит у друзі надіслано гравцю %s.",
   "message.eden_ld.friends.now_friends": "Ви з %s тепер друзі!",
   "message.eden_ld.friends.declined": "Запит у друзі від %s відхилено.",

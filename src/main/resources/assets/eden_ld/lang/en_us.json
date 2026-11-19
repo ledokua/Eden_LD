@@ -210,6 +210,7 @@
   "message.eden_ld.friends.not_found": "%s has no Minestar account.",
   "message.eden_ld.friends.already_friends": "You are already friends with %s.",
   "message.eden_ld.friends.already_pending": "A friend request with %s is already pending.",
+  "message.eden_ld.friends.limit": "Friend list full: at most %s friends.",
   "message.eden_ld.friends.request_sent": "Friend request sent to %s.",
   "message.eden_ld.friends.now_friends": "You and %s are now friends!",
   "message.eden_ld.friends.declined": "Declined %s's friend request.",

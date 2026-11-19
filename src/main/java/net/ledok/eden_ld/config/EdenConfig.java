@@ -33,6 +33,15 @@ public class EdenConfig {
     public Rental rental = new Rental();
 
     public static class Minestar {
+        /**
+         * Where friends and profiles come from (1.3.127): {@code auto} — the Minestar platform when its mod is installed,
+         * else kept on this server; {@code platform} — only the platform (off without the mod); {@code local} — kept on
+         * this server even with the Minestar mod installed (no platform calls at all). The website shop and prime syncing
+         * need the platform; locally, prime is being in {@link #prime_group}.
+         */
+        public String mode = "auto";
+        /** Local mode: most friends a player may have (0 = no limit). */
+        public int local_friend_limit = 100;
         public boolean prime_role_sync_enabled = true;
         public String prime_group = "prime";
         public boolean shop_notify_on_join = true;

@@ -239,7 +239,7 @@ public final class HubServer {
                     }
                     ServerPlayNetworking.send(player, new HubPayloads.HomeData(
                             group, prime, hasEconomy, balance, playtimeTicks, news,
-                            shopPending, partyInvites, MinestarHook.LOADED, friendRequests,
+                            shopPending, partyInvites, MinestarHook.social(), friendRequests,
                             WaystonesHook.LOADED,
                             dailies == null ? 0 : dailies.claimableCount(),
                             dailies == null ? 0 : dailies.claimedCount(),
@@ -689,7 +689,7 @@ public final class HubServer {
             ServerPlayNetworking.send(player, new HubPayloads.ChatFlags(HubSettings.chatFlags(server, player.getUUID())));
         }
         ServerPlayNetworking.send(player, new HubPayloads.SettingsData(
-                HubSettings.partyInvitesFrom(server, player.getUUID()).ordinal(), MinestarHook.LOADED,
+                HubSettings.partyInvitesFrom(server, player.getUUID()).ordinal(), MinestarHook.social(),
                 HubSettings.theme(server, player.getUUID()),
                 HubSettings.availableThemes(server, player.getUUID()),
                 net.ledok.eden_ld.hub.guild.GuildManager.get(server).guildOf(player.getUUID()) != null,
@@ -776,7 +776,7 @@ public final class HubServer {
      * profile (no platform calls) so "on this server" markers stay live.
      */
     private static void pushCachedFriends(MinecraftServer server) {
-        if (!MinestarHook.LOADED) {
+        if (!MinestarHook.social()) {
             return;
         }
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
@@ -849,7 +849,7 @@ public final class HubServer {
     private static void handleFriendAction(ServerPlayer player, HubPayloads.FriendAction action) {
         MinecraftServer server = player.getServer();
         UUID target = action.target();
-        if (server == null || !MinestarHook.LOADED || target.equals(player.getUUID())) {
+        if (server == null || !MinestarHook.social() || target.equals(player.getUUID())) {
             return;
         }
         String targetName = friendName(server, player, target);

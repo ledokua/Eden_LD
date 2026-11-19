@@ -478,7 +478,7 @@ public class EdenCommands {
                                     return 1;
                                 }))));
 
-        if (MinestarHook.LOADED) {
+        if (MinestarHook.platform()) {
             dispatcher.register(Commands.literal("shop-receive")
                     .executes(context -> {
                         ServerPlayer player = context.getSource().getPlayer();
