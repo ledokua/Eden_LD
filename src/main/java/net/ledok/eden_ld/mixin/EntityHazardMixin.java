@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.mixin;
 
+import net.ledok.eden_ld.combat.PvpIgnore;
 import net.ledok.eden_ld.world.Hazards;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -14,7 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * What the hazards' PvP rule ({@link Hazards}) needs from vanilla, which doesn't remember who lit a fire:
  * a player set alight while another player was hitting them burns as that player's doing until the fire
- * goes out; and lightning remembers who called it (a Channeling trident) while it hits.
+ * goes out; and lightning remembers who called it (a Channeling trident) while it hits, and leaves alone whoever that
+ * player can't hurt.
  */
 @Mixin(Entity.class)
 public abstract class EntityHazardMixin {
@@ -35,8 +37,17 @@ public abstract class EntityHazardMixin {
         }
     }
 
-    @Inject(method = "thunderHit", at = @At("HEAD"))
+    /**
+     * Lightning a player called (a Channeling trident) skips the sides that player can't hurt: friends and ignored pairs
+     * and their pets take no strike or burn from it (review finding 58: the bolt's damage names no attacker,
+     * so the damage gate alone let it through).
+     */
+    @Inject(method = "thunderHit", at = @At("HEAD"), cancellable = true)
     private void eden_ld$lightningCause(ServerLevel level, LightningBolt lightning, CallbackInfo ci) {
+        if (!PvpIgnore.allows(lightning.getCause(), (Entity) (Object) this)) {
+            ci.cancel();
+            return;
+        }
         Hazards.lightning(lightning.getCause());
     }
 

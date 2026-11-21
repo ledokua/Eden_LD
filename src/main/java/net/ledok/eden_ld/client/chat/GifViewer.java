@@ -51,6 +51,9 @@ public final class GifViewer {
     private static DynamicTexture texture;
     /** Bumped on every open/close: a download finishing late for an older GIF is dropped. */
     private static int generation;
+    /** The download running for the open GIF: closing the viewer (or opening another) stops it (review finding 62). */
+    @Nullable
+    private static MediaLoader.Ticket loading;
 
     private GifViewer() {
     }
@@ -71,27 +74,37 @@ public final class GifViewer {
         sticker = net.ledok.eden_ld.chat.ChatLinks.isSticker(link);
         status = Status.LOADING;
         int ticket = ++generation;
+        MediaLoader.Ticket download = new MediaLoader.Ticket();
+        loading = download;
         Util.backgroundExecutor().execute(() -> {
             GifStrip.Frames decoded = null;
             try {
-                decoded = MediaLoader.load(link, MAX_FRAMES, MAX_SIDE);
+                decoded = MediaLoader.load(link, MAX_FRAMES, MAX_SIDE, download);
             } catch (IOException | RuntimeException e) {
-                EdenLD.LOGGER.info("[GIF] Can't preview {}: {}", link, e.toString());
+                if (!download.cancelled()) {
+                    EdenLD.LOGGER.info("[GIF] Can't preview {}: {}", link, e.toString());
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } finally {
+                // Whatever happened (an Error included), the viewer leaves "Loading…" (review finding 63).
+                GifStrip.Frames result = decoded;
+                Minecraft.getInstance().execute(() -> {
+                    if (ticket == generation) {
+                        ready(result);
+                    }
+                });
             }
-            GifStrip.Frames result = decoded;
-            Minecraft.getInstance().execute(() -> {
-                if (ticket == generation) {
-                    ready(result);
-                }
-            });
         });
     }
 
     /** Closes the viewer and frees its images. */
     public static void close() {
         generation++;
+        if (loading != null) {
+            loading.cancel();
+            loading = null;
+        }
         url = null;
         frames.forEach(NativeImage::close);
         frames = List.of();
@@ -106,6 +119,7 @@ public final class GifViewer {
     // ---------------------------------------------------------------- render thread
 
     private static void ready(@Nullable GifStrip.Frames decoded) {
+        loading = null;
         if (decoded == null || decoded.images().isEmpty()) {
             status = Status.FAILED;
             return;

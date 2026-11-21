@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.sugar.Local;
 import net.ledok.eden_ld.world.Hazards;
 import net.minecraft.core.Holder;
@@ -42,22 +43,20 @@ public abstract class LivingEntityHazardMixin implements Hazards.HazardState {
      * Armor doesn't reduce hazards (nor wears down from them): a 90%-armor tank can't sit in lava. A rule with
      * {@code "armor": true} (falls, 1.3.123) goes through armor like an ordinary hit instead, also where vanilla lets the
      * type through armor: the armor wears and absorbs as vanilla's own path does for other damage.
+     * <p>
+     * Review finding 56: this changes vanilla's own "bypasses armor" check instead of replacing the method, so the rest of
+     * its body still runs for armor-flagged hazards: {@code hurtArmor}, then the {@code CombatRules} call that Effective
+     * Armor Formula redirects (its curve, not vanilla's), and the hooks other mods put there (Aquamirae's armor, Arenas'
+     * blocked-by-armor stats).
      */
-    @Inject(method = "getDamageAfterArmorAbsorb", at = @At("HEAD"), cancellable = true)
-    private void eden_ld$hazardIgnoresArmor(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
+    @ModifyExpressionValue(method = "getDamageAfterArmorAbsorb", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/damagesource/DamageSource;is(Lnet/minecraft/tags/TagKey;)Z"))
+    private boolean eden_ld$hazardArmor(boolean bypassesArmor, @Local(argsOnly = true) DamageSource source) {
         if (Hazards.ignoresArmor(source)) {
-            cir.setReturnValue(amount);
-        } else if (source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_ARMOR) && Hazards.armorReduces(source)) {
-            LivingEntity self = (LivingEntity) (Object) this;
-            hurtArmor(source, amount);
-            cir.setReturnValue(net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(self, amount, source,
-                    (float) self.getArmorValue(),
-                    (float) self.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS)));
+            return true;
         }
+        return bypassesArmor && !Hazards.armorReduces(source);
     }
-
-    @org.spongepowered.asm.mixin.Shadow
-    protected abstract void hurtArmor(DamageSource source, float amount);
 
     @Inject(method = "addEffect(Lnet/minecraft/world/effect/MobEffectInstance;Lnet/minecraft/world/entity/Entity;)Z",
             at = @At("RETURN"))

@@ -215,6 +215,55 @@ public final class EmojiRegistry {
 
     /** Most images one request may ask for (a client asks once per list). */
     private static final int MAX_REQUEST = 512;
+    /**
+     * Image bytes one answer carries at most; the rest go in further answers (review finding 43: one request could
+     * ask for one big image hundreds of times, all in one packet).
+     */
+    private static final int MAX_ANSWER_BYTES = 256 * 1024;
+    /**
+     * Image bytes a player is sent in a burst at most, refilled over {@link #IMAGE_REFILL_MS} (review finding 43): a
+     * fresh client needs every image once (a few hundred KB); a client asking in a loop gets no more than the refill.
+     */
+    private static final double IMAGE_BURST_BYTES = 2 * 1024 * 1024;
+    private static final long IMAGE_REFILL_MS = 10_000;
+    /**
+     * Images each online player asked for past their budget, in order: sent once it refills ({@link #sendWaiting}),
+     * since a client asks only when a list or guest notice arrives (review finding 43). Server thread.
+     */
+    private static final Map<UUID, Set<String>> WAITING = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Per-player image-byte buckets: bytes left, and when last topped up ({@link net.minecraft.Util#getMillis}). */
+    private static final Map<UUID, double[]> IMAGE_BUDGET = new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * New guests one player's text may make the server fetch per {@link #GUEST_WINDOW_MS}, and every source together
+     * (the Discord bridge included) — review finding 40: pasted ids were fetched without limit.
+     */
+    private static final int GUESTS_PER_PLAYER = 8;
+    private static final int GUESTS_PER_SERVER = 60;
+    private static final long GUEST_WINDOW_MS = 60_000;
+    private static final Map<UUID, double[]> GUEST_BUDGET = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final double[] SERVER_GUEST_BUDGET = {GUESTS_PER_SERVER, net.minecraft.Util.getMillis()};
+    /** Ids Discord gave no usable image for, and when: not fetched again for {@link #FAILED_MS} (review finding 40). */
+    private static final Map<String, Long> FAILED = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long FAILED_MS = 10 * 60_000;
+    private static final int MAX_FAILED = 4096;
+    /** A guest image (still PNG or frame strip) bigger than this isn't kept: a 32 px emoji never is (review finding 43). */
+    private static final int MAX_GUEST_BYTES = 256 * 1024;
+    /**
+     * Guest fetches run here, two at a time with a short queue; past that a line's new guests are skipped (they stay
+     * links or ":name:") rather than piling up on the common pool (review finding 40).
+     */
+    private static final java.util.concurrent.ThreadPoolExecutor FETCHER = fetcher();
+
+    private static java.util.concurrent.ThreadPoolExecutor fetcher() {
+        java.util.concurrent.ThreadPoolExecutor executor = new java.util.concurrent.ThreadPoolExecutor(2, 2, 30,
+                java.util.concurrent.TimeUnit.SECONDS, new java.util.concurrent.ArrayBlockingQueue<>(16), task -> {
+                    Thread thread = new Thread(task, "Eden emoji fetch");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
 
     private EmojiRegistry() {
     }
@@ -232,28 +281,131 @@ public final class EmojiRegistry {
             if (server.getTickCount() % 1200 == 0) {
                 refreshLimits(server);
             }
+            if (server.getTickCount() % 20 == 0 && !WAITING.isEmpty()) {
+                sendWaiting(server);
+            }
         });
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                server.execute(() -> send(handler.getPlayer())));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> {
+            // A fresh client asks for what it lacks itself.
+            WAITING.remove(handler.getPlayer().getUUID());
+            send(handler.getPlayer());
+        }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                net.ledok.eden_ld.util.OnServerThread.run(server, () -> SENT_LIMITS.remove(handler.getPlayer().getUUID())));
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.EmojiRequest.TYPE, (payload, context) -> {
-            List<HubPayloads.EmojiImage> answer = new ArrayList<>();
-            for (String id : payload.ids().subList(0, Math.min(MAX_REQUEST, payload.ids().size()))) {
-                Image image = IMAGES.get(id);
-                if (image != null) {
-                    answer.add(new HubPayloads.EmojiImage(id, image.png()));
-                }
-            }
-            if (!answer.isEmpty()) {
-                ServerPlayNetworking.send(context.player(), new HubPayloads.EmojiImages(answer));
-            }
-        });
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+                    UUID id = handler.getPlayer().getUUID();
+                    SENT_LIMITS.remove(id);
+                    WAITING.remove(id);
+                    IMAGE_BUDGET.remove(id);
+                    GUEST_BUDGET.remove(id);
+                }));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.EmojiRequest.TYPE,
+                (payload, context) -> answer(context.player(), payload.ids()));
         // Group permissions granted or taken apply live.
         ServerLifecycleEvents.SERVER_STARTED.register(started -> LuckPermsCompat.onUserDataChange(() ->
                 started.execute(() -> started.getPlayerList().getPlayers().forEach(EmojiRegistry::send))));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.EmojiFavorite.TYPE,
                 (payload, context) -> setFavorite(context.player(), payload.id(), payload.add()));
+    }
+
+    /**
+     * The images a client asked for (review finding 43): duplicates dropped, within the player's byte budget, split
+     * into answers of at most {@link #MAX_ANSWER_BYTES}. Ids past the budget wait in {@link #WAITING} for the refill;
+     * an id asked for again (the client dropped it) is sent again, within the budget.
+     */
+    private static void answer(ServerPlayer player, List<String> ids) {
+        UUID uuid = player.getUUID();
+        double[] budget = IMAGE_BUDGET.computeIfAbsent(uuid, key -> new double[]{IMAGE_BURST_BYTES, net.minecraft.Util.getMillis()});
+        List<HubPayloads.EmojiImage> batch = new ArrayList<>();
+        int batchBytes = 0;
+        Set<String> later = null;
+        for (String id : new java.util.LinkedHashSet<>(ids.subList(0, Math.min(MAX_REQUEST, ids.size())))) {
+            Image image = IMAGES.get(id);
+            // An image bigger than the whole budget could never go: it isn't kept waiting.
+            if (image == null || image.png().length > IMAGE_BURST_BYTES) {
+                continue;
+            }
+            int bytes = image.png().length;
+            if (later != null || !take(budget, IMAGE_BURST_BYTES, IMAGE_REFILL_MS, bytes)) {
+                if (later == null) {
+                    later = WAITING.computeIfAbsent(uuid, key -> new java.util.LinkedHashSet<>());
+                }
+                if (later.size() < MAX_REQUEST) {
+                    later.add(id);
+                }
+                continue;
+            }
+            if (!batch.isEmpty() && batchBytes + bytes > MAX_ANSWER_BYTES) {
+                ServerPlayNetworking.send(player, new HubPayloads.EmojiImages(batch));
+                batch = new ArrayList<>();
+                batchBytes = 0;
+            }
+            batch.add(new HubPayloads.EmojiImage(id, image.png()));
+            batchBytes += bytes;
+        }
+        if (!batch.isEmpty()) {
+            ServerPlayNetworking.send(player, new HubPayloads.EmojiImages(batch));
+        }
+    }
+
+    /** Once a second: images owed past a player's budget go as far as it has refilled (the rest keep waiting). */
+    private static void sendWaiting(MinecraftServer server) {
+        for (UUID uuid : List.copyOf(WAITING.keySet())) {
+            Set<String> owed = WAITING.remove(uuid);
+            ServerPlayer player = server.getPlayerList().getPlayer(uuid);
+            if (owed != null && !owed.isEmpty() && player != null && !player.hasDisconnected()) {
+                answer(player, List.copyOf(owed));
+            }
+        }
+    }
+
+    /**
+     * Takes {@code amount} from a bucket ({@code [left, last top-up]}) holding up to {@code capacity}, refilled fully
+     * every {@code refillMs}; false (nothing taken) when there isn't enough.
+     */
+    private static boolean take(double[] bucket, double capacity, long refillMs, double amount) {
+        synchronized (bucket) {
+            long now = net.minecraft.Util.getMillis();
+            bucket[0] = Math.min(capacity, bucket[0] + Math.max(0, now - (long) bucket[1]) * capacity / refillMs);
+            bucket[1] = now;
+            if (bucket[0] < amount) {
+                return false;
+            }
+            bucket[0] -= amount;
+            return true;
+        }
+    }
+
+    /** One new guest fetch for {@code player}'s text (null: the Discord bridge), within theirs and the server's budget. */
+    private static boolean guestBudget(@Nullable UUID player) {
+        if (player != null && !take(GUEST_BUDGET.computeIfAbsent(player,
+                key -> new double[]{GUESTS_PER_PLAYER, net.minecraft.Util.getMillis()}), GUESTS_PER_PLAYER, GUEST_WINDOW_MS, 1)) {
+            return false;
+        }
+        return take(SERVER_GUEST_BUDGET, GUESTS_PER_SERVER, GUEST_WINDOW_MS, 1);
+    }
+
+    /** Whether fetching this id failed less than {@link #FAILED_MS} ago. */
+    private static boolean failedRecently(String id) {
+        Long at = FAILED.get(id);
+        if (at == null) {
+            return false;
+        }
+        if (net.minecraft.Util.getMillis() - at < FAILED_MS) {
+            return true;
+        }
+        FAILED.remove(id);
+        return false;
+    }
+
+    private static void markFailed(String id) {
+        long now = net.minecraft.Util.getMillis();
+        if (FAILED.size() >= MAX_FAILED) {
+            FAILED.values().removeIf(at -> now - at >= FAILED_MS);
+            if (FAILED.size() >= MAX_FAILED) {
+                FAILED.clear();
+            }
+        }
+        FAILED.put(id, now);
     }
 
     // ---------------------------------------------------------------- loading
@@ -324,6 +476,8 @@ public final class EmojiRegistry {
             listedByCodepoint = characters;
             IMAGES.clear();
             IMAGES.putAll(loaded);
+            // Failed ids get another try.
+            FAILED.clear();
             List<HubPayloads.EmojiRef> previous = ready;
             ready = List.copyOf(list);
             // Players only hear about it when something changed (the hourly sync usually doesn't).
@@ -818,12 +972,24 @@ public final class EmojiRegistry {
      * style, from Discord or pasted in game) — known: unknown ones are fetched and registered as
      * guests, and every player learns about them. Completes on the server thread once that's
      * done (at once when nothing is unknown); at most {@link #MAX_NEW_GUESTS_PER_LINE} per text.
+     * Counts against the server's guest budget only; {@link #fetchGuests(MinecraftServer, String, UUID)}
+     * also charges the player who wrote it.
      */
     public static CompletableFuture<Void> fetchGuests(MinecraftServer server, String text) {
+        return fetchGuests(server, text, null);
+    }
+
+    /**
+     * {@link #fetchGuests(MinecraftServer, String)} for a player's text: new guests count against their budget
+     * ({@value #GUESTS_PER_PLAYER} a minute) and the server's ({@value #GUESTS_PER_SERVER}); ids that failed lately
+     * aren't fetched again. Those left out stay a link or ":name:" (review finding 40).
+     */
+    public static CompletableFuture<Void> fetchGuests(MinecraftServer server, String text, @Nullable UUID player) {
         List<Mention> unknown = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Mention mention : mentions(text)) {
-            if (byId(mention.id()) == null && seen.add(mention.id()) && unknown.size() < MAX_NEW_GUESTS_PER_LINE) {
+            if (byId(mention.id()) == null && seen.add(mention.id()) && unknown.size() < MAX_NEW_GUESTS_PER_LINE
+                    && !failedRecently(mention.id()) && guestBudget(player)) {
                 unknown.add(mention);
             }
         }
@@ -845,28 +1011,68 @@ public final class EmojiRegistry {
             return CompletableFuture.completedFuture(null);
         }
         Set<String> keep = allFavorites(server);
-        return CompletableFuture.supplyAsync(() -> {
-            List<HubPayloads.EmojiRef> added = new ArrayList<>();
-            for (Mention mention : unknown) {
-                Image image = fetch(mention.id(), mention.animated(), mention.name());
-                if (image == null) {
-                    continue;
-                }
-                GuestEmojis.Guest guest = GUESTS.add(mention.id(), sanitize(mention.name()), mention.animated(), keep);
-                if (guest != null) {
-                    IMAGES.put(guest.id(), image);
-                    added.add(ref(asEmoji(guest), image));
-                }
-            }
-            if (!added.isEmpty()) {
-                GUESTS.save();
-            }
-            return added;
-        }).exceptionally(error -> List.of()).thenAcceptAsync(added -> {
+        CompletableFuture<List<HubPayloads.EmojiRef>> fetched;
+        try {
+            fetched = CompletableFuture.supplyAsync(() -> fetchNew(unknown, keep), FETCHER);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Too many fetches waiting already: this text's new guests are skipped.
+            announceGuests(server, known);
+            return CompletableFuture.completedFuture(null);
+        }
+        return fetched.exceptionally(error -> List.of()).thenAcceptAsync(added -> {
             List<HubPayloads.EmojiRef> all = new ArrayList<>(known);
             all.addAll(added);
             announceGuests(server, all);
         }, server);
+    }
+
+    /**
+     * Fetches and registers new guests ({@link #FETCHER}). A failed or oversized one is remembered as failed; a guest
+     * evicted to make room loses its image and cached file unless it's listed (review finding 40).
+     */
+    private static List<HubPayloads.EmojiRef> fetchNew(List<Mention> unknown, Set<String> keep) {
+        List<HubPayloads.EmojiRef> added = new ArrayList<>();
+        List<GuestEmojis.Guest> evicted = new ArrayList<>();
+        for (Mention mention : unknown) {
+            Image image = fetch(mention.id(), mention.animated(), mention.name());
+            if (image == null || image.png().length > MAX_GUEST_BYTES) {
+                if (image != null) {
+                    EdenLD.LOGGER.warn("[Emoji] Guest {} ({}) is too big to keep ({} bytes).", mention.name(), mention.id(),
+                            image.png().length);
+                    deleteCached(mention.id(), mention.animated());
+                }
+                markFailed(mention.id());
+                continue;
+            }
+            GuestEmojis.Guest guest = GUESTS.add(mention.id(), sanitize(mention.name()), mention.animated(), keep,
+                    evicted::add);
+            if (guest != null) {
+                IMAGES.put(guest.id(), image);
+                added.add(ref(asEmoji(guest), image));
+            }
+        }
+        for (GuestEmojis.Guest gone : evicted) {
+            if (!listedById.containsKey(gone.id()) && GUESTS.get(gone.id()) == null) {
+                IMAGES.remove(gone.id());
+                deleteCached(gone.id(), gone.animated());
+            }
+        }
+        if (!added.isEmpty() || !evicted.isEmpty()) {
+            GUESTS.save();
+        }
+        return added;
+    }
+
+    /** Deletes a guest's downloaded file (unless a listed emoji uses the id). Off the server thread. */
+    private static void deleteCached(String id, boolean animated) {
+        if (listedById.containsKey(id)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(CACHE.resolve(id + "." + (animated ? "gif" : "png")));
+        } catch (IOException e) {
+            EdenLD.LOGGER.warn("[Emoji] Can't delete the cached guest {}: {}", id, e.toString());
+        }
     }
 
     /** Guests to every online Eden client (they keep them for the session; images load from cache or on request). */

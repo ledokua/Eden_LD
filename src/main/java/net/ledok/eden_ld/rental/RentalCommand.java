@@ -42,9 +42,12 @@ public final class RentalCommand {
                 .then(Commands.literal("end").then(Commands.argument("player", EntityArgument.player())
                         .executes(context -> {
                             ServerPlayer player = EntityArgument.getPlayer(context, "player");
+                            // Review finding 5: on a dead player, end gives everything back at the respawn.
+                            boolean dead = !player.isAlive() && RentalStash.record(player) != null;
                             boolean ended = RentalStash.end(player);
-                            context.getSource().sendSuccess(() -> Component.translatable(ended
-                                    ? "message.eden_ld.rental.ended" : "message.eden_ld.rental.none",
+                            context.getSource().sendSuccess(() -> Component.translatable(!ended
+                                    ? "message.eden_ld.rental.none" : dead
+                                    ? "message.eden_ld.rental.ended_on_respawn" : "message.eden_ld.rental.ended",
                                     player.getDisplayName()), true);
                             return ended ? 1 : 0;
                         })))

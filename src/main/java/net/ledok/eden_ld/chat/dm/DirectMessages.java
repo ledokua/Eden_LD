@@ -15,6 +15,7 @@ import net.ledok.eden_ld.hub.IgnoreList;
 import net.ledok.eden_ld.hub.moderation.ChatRecall;
 import net.ledok.eden_ld.util.OnServerThread;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -51,6 +52,19 @@ public final class DirectMessages {
 
     /** The conversations each online player's client knows (sent since they joined): others come with a line. */
     private static final Map<UUID, Set<String>> KNOWN = new HashMap<>();
+    /**
+     * Repeat «Написати» within this long is dropped (review finding 39): each open built the whole history on the
+     * server thread, and a modified client could send them at packet rate.
+     */
+    private static final long OPEN_COOLDOWN_MS = 500;
+    /**
+     * A group is renamed at most this often per owner (review finding 26): every rename is a line to every member, on
+     * top of the chat's own rate limit.
+     */
+    private static final long RENAME_COOLDOWN_MS = 2_000;
+    /** When each online player last opened a DM and renamed a group ({@link Util#getMillis}; server thread). */
+    private static final Map<UUID, Long> LAST_OPEN = new HashMap<>();
+    private static final Map<UUID, Long> LAST_RENAME = new HashMap<>();
 
     private DirectMessages() {
     }
@@ -70,13 +84,17 @@ public final class DirectMessages {
                 sync(server, player);
             }
         }));
+        // DISCONNECT fires on the server thread while the player is still in the list (server.execute would run at
+        // once, and the check below kept everything): forget them in a queued task, unless they're back already.
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             UUID id = handler.getPlayer().getUUID();
-            server.execute(() -> {
+            server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
                 if (server.getPlayerList().getPlayer(id) == null) {
                     KNOWN.remove(id);
+                    LAST_OPEN.remove(id);
+                    LAST_RENAME.remove(id);
                 }
-            });
+            }));
         });
     }
 
@@ -147,11 +165,16 @@ public final class DirectMessages {
     /**
      * A line as {@code viewer}'s chat shows it: the DM markers, a pink tag — {@code [PM]}, {@code [PM → Name]} on the
      * writer's own copy, the group's name — then the writer's name as chat showed it and the text. A DM's tag
-     * suggests {@code /msg Name } on a click (clients without Eden answer that way).
+     * suggests {@code /msg Name } on a click (clients without Eden answer that way). The stored JSON is parsed once per
+     * line and kept on it (review finding 39); each use gets a copy, so nothing downstream can change the kept one.
      */
     private static Component lineFor(MinecraftServer server, Conversation conv, Conversation.Line line, UUID viewer) {
-        Component name = parse(server, line.nameJson());
-        Component body = parse(server, line.bodyJson());
+        if (line.name == null || line.body == null) {
+            line.name = parse(server, line.nameJson());
+            line.body = parse(server, line.bodyJson());
+        }
+        Component name = line.name.copy();
+        Component body = line.body.copy();
         return ChatMarker.markDm(Component.empty().append(tag(conv, line.sender(), viewer)).append(" ").append(name)
                 .append(LegacyText.parse(EdenLD.CONFIG.chat.separator)).append(body), conv.id, line.sender());
     }
@@ -198,13 +221,41 @@ public final class DirectMessages {
                 DmRules.GROUP_PARTNER);
     }
 
-    private static void noteAll(MinecraftServer server, Conversation conv, Component text) {
+    /**
+     * A note to every online member, except those who ignore {@code actor} (review finding 26: ignoring a group's
+     * owner stops their renames and invites reaching you as lines, as it stops their messages).
+     */
+    private static void noteAll(MinecraftServer server, Conversation conv, Component text, UUID actor) {
         for (UUID member : conv.members.keySet()) {
             ServerPlayer online = server.getPlayerList().getPlayer(member);
-            if (online != null) {
+            if (online != null && (member.equals(actor) || !IgnoreList.ignores(server, member, actor))) {
                 note(online, conv, text);
             }
         }
+    }
+
+    /** Shows a {@link ChatGuard} refusal (an empty one means a closing connection: nothing to show). */
+    private static void guardNote(ServerPlayer player, @Nullable Conversation conv, Component guard) {
+        if (guard.getString().isEmpty()) {
+            return;
+        }
+        if (conv == null) {
+            error(player, guard);
+        } else {
+            note(player, conv, guard.copy().withStyle(ChatFormatting.RED));
+        }
+    }
+
+    /**
+     * The player's client drops the conversation; it's no longer known to it either, so a later open sends it whole
+     * (opens of a known one send no lines: review finding 39).
+     */
+    private static void gone(ServerPlayer player, String id) {
+        Set<String> known = KNOWN.get(player.getUUID());
+        if (known != null) {
+            known.remove(id);
+        }
+        ServerPlayNetworking.send(player, new HubPayloads.ConvGone(id));
     }
 
     private static void error(ServerPlayer player, Component text) {
@@ -236,6 +287,12 @@ public final class DirectMessages {
         if (server == null || target.equals(player.getUUID())) {
             return;
         }
+        long now = Util.getMillis();
+        Long last = LAST_OPEN.get(player.getUUID());
+        if (last != null && now - last < OPEN_COOLDOWN_MS) {
+            return;
+        }
+        LAST_OPEN.put(player.getUUID(), now);
         String targetName = nameOf(server, target);
         if (targetName == null) {
             return;
@@ -247,7 +304,8 @@ public final class DirectMessages {
             error(player, refused);
             return;
         }
-        if (conv == null) {
+        boolean created = conv == null;
+        if (created) {
             conv = newDm(store, player, target, targetName);
         }
         Conversation.Member self = conv.member(player.getUUID());
@@ -255,8 +313,12 @@ public final class DirectMessages {
             self.hidden = false;
             store.changed();
         }
-        ServerPlayNetworking.send(player, data(server, conv, player.getUUID(), true, true));
-        KNOWN.computeIfAbsent(player.getUUID(), k -> new HashSet<>()).add(conv.id);
+        // A client that has the conversation already keeps its lines (closing a tab keeps them): only the tab's state
+        // and the focus go (review finding 39). A new DM may reuse an expired one's id, so it always goes whole.
+        Set<String> known = KNOWN.computeIfAbsent(player.getUUID(), k -> new HashSet<>());
+        boolean full = created || !known.contains(conv.id);
+        ServerPlayNetworking.send(player, data(server, conv, player.getUUID(), true, full));
+        known.add(conv.id);
     }
 
     private static Conversation newDm(ConversationStore store, ServerPlayer player, UUID target, String targetName) {
@@ -331,7 +393,7 @@ public final class DirectMessages {
         ConversationStore store = ConversationStore.get(server);
         Conversation conv = store.get(id);
         if (conv == null || conv.member(player.getUUID()) == null) {
-            ServerPlayNetworking.send(player, new HubPayloads.ConvGone(id));
+            gone(player, id);
             return;
         }
         if (!conv.group) {
@@ -413,7 +475,7 @@ public final class DirectMessages {
         Conversation conv = store.get(action.conv());
         Conversation.Member self = conv == null ? null : conv.member(player.getUUID());
         if (conv == null || self == null) {
-            ServerPlayNetworking.send(player, new HubPayloads.ConvGone(action.conv()));
+            gone(player, action.conv());
             return;
         }
         switch (action.action()) {
@@ -457,6 +519,13 @@ public final class DirectMessages {
             error(player, Component.translatable("message.eden_ld.dm.too_many_groups", DmRules.MAX_GROUPS));
             return;
         }
+        // The name is text every invitee reads (the tab, each line's tag): it passes what a chat line passes — not
+        // while muted, and a rate-limit token (review finding 26).
+        Component guard = ChatGuard.check(player, name);
+        if (guard != null) {
+            guardNote(player, null, guard);
+            return;
+        }
         String id;
         do {
             id = DmRules.groupKey(ThreadLocalRandom.current().nextLong());
@@ -468,10 +537,16 @@ public final class DirectMessages {
         ServerPlayNetworking.send(player, data(server, conv, player.getUUID(), true, true));
         KNOWN.computeIfAbsent(player.getUUID(), k -> new HashSet<>()).add(id);
         note(player, conv, Component.translatable("message.eden_ld.dm.group.created", name));
+        // No more than fit (the packet's list has no cap of its own): the rest would only be "full" notes.
+        int room = DmRules.MAX_MEMBERS - 1;
         for (UUID target : new java.util.LinkedHashSet<>(invite)) {
+            if (room <= 0) {
+                break;
+            }
             ServerPlayer online = server.getPlayerList().getPlayer(target);
             if (online != null) {
                 add(server, store, conv, player, online);
+                room--;
             }
         }
     }
@@ -479,6 +554,11 @@ public final class DirectMessages {
     private static void invite(MinecraftServer server, ConversationStore store, Conversation conv, ServerPlayer player,
                                String name) {
         if (!conv.group) {
+            return;
+        }
+        // Each invite is a line to every member (and re-adds someone who left): it takes a chat token (review finding 26).
+        if (!ChatGuard.take(player.getUUID())) {
+            note(player, conv, Component.translatable("message.eden_ld.chat.rate_limited").withStyle(ChatFormatting.RED));
             return;
         }
         ServerPlayer target = server.getPlayerList().getPlayerByName(name);
@@ -511,7 +591,7 @@ public final class DirectMessages {
         store.addMember(conv, target.getUUID(), targetName, System.currentTimeMillis());
         pushMeta(server, conv);
         noteAll(server, conv, Component.translatable("message.eden_ld.dm.group.added",
-                by.getGameProfile().getName(), targetName));
+                by.getGameProfile().getName(), targetName), by.getUUID());
     }
 
     private static void leave(MinecraftServer server, ConversationStore store, Conversation conv, ServerPlayer player) {
@@ -539,7 +619,8 @@ public final class DirectMessages {
         }
         conv.touched = System.currentTimeMillis();
         pushMeta(server, conv);
-        noteAll(server, conv, Component.translatable("message.eden_ld.dm.group.left", player.getGameProfile().getName()));
+        noteAll(server, conv, Component.translatable("message.eden_ld.dm.group.left", player.getGameProfile().getName()),
+                player.getUUID());
     }
 
     private static void rename(MinecraftServer server, ConversationStore store, Conversation conv, ServerPlayer player,
@@ -548,11 +629,25 @@ public final class DirectMessages {
         if (!conv.group || name == null || !conv.owner.equals(player.getUUID()) || name.equals(conv.name)) {
             return;
         }
+        // A rename is text every member reads, as a line and as the tab's title (review finding 26): not while muted,
+        // within the chat's rate limit, and at most once per RENAME_COOLDOWN_MS.
+        long now = Util.getMillis();
+        Long last = LAST_RENAME.get(player.getUUID());
+        if (last != null && now - last < RENAME_COOLDOWN_MS) {
+            note(player, conv, Component.translatable("message.eden_ld.chat.rate_limited").withStyle(ChatFormatting.RED));
+            return;
+        }
+        Component guard = ChatGuard.check(player, name);
+        if (guard != null) {
+            guardNote(player, conv, guard);
+            return;
+        }
+        LAST_RENAME.put(player.getUUID(), now);
         conv.name = name;
         conv.touched = System.currentTimeMillis();
         store.changed();
         pushMeta(server, conv);
         noteAll(server, conv, Component.translatable("message.eden_ld.dm.group.renamed",
-                player.getGameProfile().getName(), name));
+                player.getGameProfile().getName(), name), player.getUUID());
     }
 }

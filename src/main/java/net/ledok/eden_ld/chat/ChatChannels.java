@@ -257,7 +257,7 @@ public final class ChatChannels {
             return;
         }
         java.util.concurrent.CompletableFuture<Void> guests =
-                net.ledok.eden_ld.chat.emoji.EmojiRegistry.fetchGuests(server, text);
+                net.ledok.eden_ld.chat.emoji.EmojiRegistry.fetchGuests(server, text, sender.getUUID());
         java.util.concurrent.CompletableFuture<Void> previous = WAITING.get(sender.getUUID());
         boolean behind = previous != null && !previous.isDone();
         if (!behind && guests.isDone()) {

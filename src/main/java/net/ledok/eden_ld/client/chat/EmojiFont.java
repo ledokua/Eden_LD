@@ -67,8 +67,13 @@ public final class EmojiFont {
 
     /** The server's list for this player (listed emojis + favorited guests), in its order. */
     private static List<HubPayloads.EmojiRef> base = List.of();
-    /** Guest emojis that arrived from Discord this session (on top of {@link #base}). */
+    /**
+     * Guest emojis that arrived from Discord this session (on top of {@link #base}), least recently announced first.
+     * At most {@link #MAX_GUESTS}: the oldest go, with their images (review finding 40).
+     */
     private static final Map<String, HubPayloads.EmojiRef> GUESTS = new LinkedHashMap<>();
+    /** The server keeps this many guests; a client keeping more holds images for emojis nobody can send any more. */
+    private static final int MAX_GUESTS = 500;
     /** Both, as the font sees them. */
     private static List<HubPayloads.EmojiRef> list = List.of();
     private static List<String> favorites = List.of();
@@ -447,11 +452,41 @@ public final class EmojiFont {
 
     /** Guests that just arrived from Discord: into the font (images from the cache or requested). */
     public static void onGuests(HubPayloads.EmojiGuests received) {
-        received.emojis().forEach(ref -> GUESTS.put(ref.id(), ref));
+        List<NativeImage> dropped = new ArrayList<>();
+        Set<String> inBase = new HashSet<>();
+        base.forEach(ref -> inBase.add(ref.id()));
+        for (HubPayloads.EmojiRef ref : received.emojis()) {
+            // The server hands an evicted guest's character to the next new one: the old guest (and its image) goes,
+            // or the character kept showing the old picture.
+            GUESTS.values().removeIf(old -> {
+                if (old.codepoint() != ref.codepoint() || old.id().equals(ref.id())) {
+                    return false;
+                }
+                NativeImage image = inBase.contains(old.id()) ? null : IMAGES.remove(old.id());
+                if (image != null) {
+                    dropped.add(image);
+                }
+                return true;
+            });
+            // Re-inserted: the order is least recently announced first.
+            GUESTS.remove(ref.id());
+            GUESTS.put(ref.id(), ref);
+        }
+        if (GUESTS.size() > MAX_GUESTS) {
+            var oldest = GUESTS.keySet().iterator();
+            while (GUESTS.size() > MAX_GUESTS && oldest.hasNext()) {
+                String id = oldest.next();
+                oldest.remove();
+                NativeImage image = inBase.contains(id) ? null : IMAGES.remove(id);
+                if (image != null) {
+                    dropped.add(image);
+                }
+            }
+        }
         refreshList();
         List<String> missing = new ArrayList<>();
         for (HubPayloads.EmojiRef ref : received.emojis()) {
-            if (validId(ref.id()) && !IMAGES.containsKey(ref.id())) {
+            if (validId(ref.id()) && GUESTS.containsKey(ref.id()) && !IMAGES.containsKey(ref.id())) {
                 NativeImage cached = readCached(ref);
                 if (cached != null) {
                     IMAGES.put(ref.id(), cached);
@@ -461,6 +496,8 @@ public final class EmojiFont {
             }
         }
         rebuild();
+        // Only after the new font stopped using them.
+        dropped.forEach(NativeImage::close);
         if (!missing.isEmpty() && ClientPlayNetworking.canSend(HubPayloads.EmojiRequest.TYPE)) {
             ClientPlayNetworking.send(new HubPayloads.EmojiRequest(missing));
         }

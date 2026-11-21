@@ -3,6 +3,7 @@ package net.ledok.eden_ld.chat.dm;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -36,8 +37,44 @@ final class Conversation {
         }
     }
 
-    /** A line: when, by whom, their name as chat showed it and the text as chat styled it (both JSON components). */
-    record Line(long time, UUID sender, String nameJson, String bodyJson) {
+    /**
+     * A line: when, by whom, their name as chat showed it and the text as chat styled it (both JSON components). The
+     * two parsed components are kept on it once made ({@code DirectMessages.lineFor}, server thread; never saved):
+     * the history goes out on every join and open, and parsing every line's JSON each time cost the server thread
+     * (review finding 39).
+     */
+    static final class Line {
+        private final long time;
+        private final UUID sender;
+        private final String nameJson;
+        private final String bodyJson;
+        @Nullable
+        Component name;
+        @Nullable
+        Component body;
+
+        Line(long time, UUID sender, String nameJson, String bodyJson) {
+            this.time = time;
+            this.sender = sender;
+            this.nameJson = nameJson;
+            this.bodyJson = bodyJson;
+        }
+
+        long time() {
+            return time;
+        }
+
+        UUID sender() {
+            return sender;
+        }
+
+        String nameJson() {
+            return nameJson;
+        }
+
+        String bodyJson() {
+            return bodyJson;
+        }
     }
 
     final String id;

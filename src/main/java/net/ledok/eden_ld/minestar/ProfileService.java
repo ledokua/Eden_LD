@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import ua.com.minestar.model.UserProfile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,10 +28,25 @@ final class ProfileService {
 
     private static final long OTHERS_TTL_MS = 5 * 60_000L;
     private static final Map<UUID, Timed> OTHERS = new ConcurrentHashMap<>();
+    /**
+     * Review finding 36: a fetch already running for a player collects later askers instead of starting another HTTP
+     * call, and a player the platform didn't answer for is not asked again for {@value #FAILED_TTL_MS} ms.
+     */
+    private static final long FAILED_TTL_MS = 45_000L;
+    /** A call older than this is treated as lost (the platform client has no timeout): the next asker starts one. */
+    private static final long IN_FLIGHT_STALE_MS = 30_000L;
+    private static final Map<UUID, InFlight> WAITING = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> FAILED = new ConcurrentHashMap<>();
     private static final List<BiConsumer<MinecraftServer, UUID>> LISTENERS = new CopyOnWriteArrayList<>();
     private static long ticks;
 
     private record Timed(ProfileSnapshot snapshot, long at) {
+    }
+
+    /** One running fetch and who waits for it (changed only inside {@code WAITING.compute}). */
+    private static final class InFlight {
+        final long started = System.currentTimeMillis();
+        final List<Consumer<ProfileSnapshot>> waiters = new ArrayList<>();
     }
 
     private ProfileService() {
@@ -44,6 +60,7 @@ final class ProfileService {
     static void store(MinecraftServer server, UserProfile profile) {
         ProfileCache.put(profile);
         OTHERS.remove(profile.uuid());
+        FAILED.remove(profile.uuid());
         UUID uuid = profile.uuid();
         server.execute(() -> LISTENERS.forEach(listener -> listener.accept(server, uuid)));
     }
@@ -56,7 +73,8 @@ final class ProfileService {
     /**
      * Any player's profile: an online player's from the cache, anyone else's fetched (and kept
      * {@value #OTHERS_TTL_MS} ms). Answers once, on the server thread; null when the platform
-     * doesn't know the player or can't be reached.
+     * doesn't know the player or can't be reached (remembered {@value #FAILED_TTL_MS} ms). One HTTP call per player
+     * at a time, however many ask (review finding 36).
      */
     static void fetch(MinecraftServer server, UUID uuid, Consumer<ProfileSnapshot> onDone) {
         ProfileSnapshot online = cached(uuid);
@@ -69,16 +87,56 @@ final class ProfileService {
             onDone.accept(other.snapshot());
             return;
         }
-        minestar.getUserProfileByProfileUuid(uuid)
-                .onSuccess(profile -> {
-                    ProfileSnapshot snapshot = ProfileCache.snapshot(profile);
-                    OTHERS.put(uuid, new Timed(snapshot, System.currentTimeMillis()));
-                    server.execute(() -> onDone.accept(snapshot));
-                })
-                .onFailure(cause -> {
-                    EdenLD.LOGGER.debug("[Minestar] No profile for {}: {}", uuid, cause.toString());
-                    server.execute(() -> onDone.accept(null));
-                });
+        Long failedAt = FAILED.get(uuid);
+        if (failedAt != null && System.currentTimeMillis() - failedAt < FAILED_TTL_MS) {
+            onDone.accept(null);
+            return;
+        }
+        boolean[] first = {false};
+        WAITING.compute(uuid, (key, flight) -> {
+            if (flight == null || System.currentTimeMillis() - flight.started > IN_FLIGHT_STALE_MS) {
+                InFlight fresh = new InFlight();
+                if (flight != null) {
+                    fresh.waiters.addAll(flight.waiters);
+                }
+                fresh.waiters.add(onDone);
+                first[0] = true;
+                return fresh;
+            }
+            flight.waiters.add(onDone);
+            return flight;
+        });
+        if (!first[0]) {
+            return;
+        }
+        try {
+            minestar.getUserProfileByProfileUuid(uuid)
+                    .onSuccess(profile -> {
+                        ProfileSnapshot snapshot = ProfileCache.snapshot(profile);
+                        OTHERS.put(uuid, new Timed(snapshot, System.currentTimeMillis()));
+                        FAILED.remove(uuid);
+                        answer(server, uuid, snapshot);
+                    })
+                    .onFailure(cause -> {
+                        EdenLD.LOGGER.debug("[Minestar] No profile for {}: {}", uuid, cause.toString());
+                        FAILED.put(uuid, System.currentTimeMillis());
+                        answer(server, uuid, null);
+                    });
+        } catch (RuntimeException e) {
+            // Never leave askers waiting on a call that didn't start.
+            EdenLD.LOGGER.debug("[Minestar] Profile fetch for {} didn't start: {}", uuid, e.toString());
+            FAILED.put(uuid, System.currentTimeMillis());
+            answer(server, uuid, null);
+        }
+    }
+
+    /** Every asker of an in-flight fetch, on the server thread (none once it stopped: execute would run them here). */
+    private static void answer(MinecraftServer server, UUID uuid, @Nullable ProfileSnapshot snapshot) {
+        InFlight flight = WAITING.remove(uuid);
+        if (flight == null || server.isStopped()) {
+            return;
+        }
+        server.execute(() -> flight.waiters.forEach(waiter -> waiter.accept(snapshot)));
     }
 
     /** Server tick: every {@code profile.refresh_minutes}, online players' profiles are fetched again. */
@@ -94,5 +152,6 @@ final class ProfileService {
                             player.getGameProfile().getName(), cause.toString()));
         }
         OTHERS.values().removeIf(timed -> System.currentTimeMillis() - timed.at() > OTHERS_TTL_MS);
+        FAILED.values().removeIf(at -> System.currentTimeMillis() - at > FAILED_TTL_MS);
     }
 }

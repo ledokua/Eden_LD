@@ -408,7 +408,11 @@ public final class GuildManager extends SavedData {
 
     // ---------------------------------------------------------------- membership
 
-    /** A leader with other members must transfer first; a leader alone disbands the guild. */
+    /**
+     * A leader with other members must transfer first; a leader alone disbands the guild with the same bank check and
+     * land warning as {@link #disband} (review finding 55: leaving used to delete the guild with no word about the land
+     * over the leader's own limit); the warning tells them to press Leave again.
+     */
     @Nullable
     public Component leave(MinecraftServer server, ServerPlayer player) {
         Guild guild = guildOf(player.getUUID());
@@ -421,6 +425,10 @@ public final class GuildManager extends SavedData {
             }
             if (GuildBankService.holdsAnything(guild)) {
                 return error("bank_not_empty");
+            }
+            Component landWarning = landWarning(server, guild, player.getUUID(), true);
+            if (landWarning != null) {
+                return landWarning;
             }
             delete(server, guild);
             return null;
@@ -495,11 +503,59 @@ public final class GuildManager extends SavedData {
         if (guild == null || guild.rank(actor) != GuildRank.LEADER || !guild.isMember(target) || actor.equals(target)) {
             return error("no_permission");
         }
+        Component overLimit = transferOverLimit(server, guild, target);
+        if (overLimit != null) {
+            return overLimit;
+        }
         guild.members.put(actor, GuildRank.VICE_LEADER);
         guild.members.put(target, GuildRank.LEADER);
         setDirty();
         notifyMembers(server, guild, "new_leader", guild.memberNames.getOrDefault(target, "?"));
         return null;
+    }
+
+    /**
+     * Refuses a leadership move that would put the new leader over their claim limit (review finding 11). The move takes
+     * every chunk of the old leader to the new one through OPAC's raw claim, which checks no limit; over it, OPAC's
+     * over-limit rule then throttles every member's block actions on all guild land. Null when it fits or without guild
+     * claims. Which land moves stays as documented (all of it): keeping the old leader's own share is the owner's call.
+     */
+    @Nullable
+    private static Component transferOverLimit(MinecraftServer server, Guild guild, UUID target) {
+        OpacCompat.ClaimsInfo after = overLimitAfter(server, guild, target);
+        if (after == null) {
+            return null;
+        }
+        int excess = after.used() - after.limit();
+        return Component.translatableWithFallback("message.eden_ld.guild.transfer_over_limit",
+                "%1$s can't take over the guild's land: with it they would hold %2$s claimed chunks, %3$s over their "
+                + "claim limit of %4$s. Unclaim %3$s chunks (or buy claim upgrades) first, then try again.",
+                guild.memberNames.getOrDefault(target, "?"), after.used(), excess, after.limit());
+    }
+
+    /** What {@code target} would hold and may hold as leader, only when it's over the limit; null otherwise. */
+    @Nullable
+    private static OpacCompat.ClaimsInfo overLimitAfter(MinecraftServer server, Guild guild, UUID target) {
+        OpacCompat.ClaimsInfo after = OpacCompat.afterTransfer(server, guild, target);
+        return after == null || after.used() <= after.limit() ? null : after;
+    }
+
+    /**
+     * For staff after {@link #staffTransfer} (call it before the next guild sync, which moves the land): a note saying
+     * the new leader will be over their claim limit with the guild's land, or null when the land fits (review finding 11
+     * follow-up: staff aren't refused, but told).
+     */
+    @Nullable
+    public static Component staffTransferNote(MinecraftServer server, Guild guild, UUID target) {
+        OpacCompat.ClaimsInfo over = overLimitAfter(server, guild, target);
+        if (over == null) {
+            return null;
+        }
+        return Component.translatableWithFallback("message.eden_ld.moderation.guild.transfer_over_limit",
+                "Note: with the guild's land, %1$s holds %2$s claimed chunks, %3$s over their claim limit of %4$s. "
+                + "Until chunks are unclaimed or claim upgrades bought, OPAC restricts what members can do on the "
+                + "guild's land.",
+                guild.memberNames.getOrDefault(target, "?"), over.used(), over.used() - over.limit(), over.limit());
     }
 
     @Nullable
@@ -541,6 +597,12 @@ public final class GuildManager extends SavedData {
      */
     @Nullable
     public static Component landWarning(MinecraftServer server, Guild guild, UUID actor) {
+        return landWarning(server, guild, actor, false);
+    }
+
+    /** As {@link #landWarning(MinecraftServer, Guild, UUID)}; {@code leaving}: a sole leader's Leave, worded for it. */
+    @Nullable
+    private static Component landWarning(MinecraftServer server, Guild guild, UUID actor, boolean leaving) {
         int excess = OpacCompat.disbandExcess(server, guild);
         if (excess <= 0) {
             return null;
@@ -552,6 +614,13 @@ public final class GuildManager extends SavedData {
             return null;
         }
         LAND_WARNED.put(actor, Map.entry(guild.id, now + LAND_CONFIRM_MILLIS));
+        if (leaving) {
+            return Component.translatableWithFallback("message.eden_ld.guild.leave_frees_land",
+                    "You're the only member, so leaving disbands the guild: %1$s chunks over your own claim limit "
+                    + "(%2$s) will become free land, and anyone can claim them. Unclaim the ones you can spare first. "
+                    + "To leave anyway, press Leave again within %3$s seconds.",
+                    excess, Math.max(0, OpacCompat.ownLimit(server, guild)), LAND_CONFIRM_MILLIS / 1000);
+        }
         return Component.translatableWithFallback("message.eden_ld.guild.disband_frees_land",
                 "After the disband, %1$s chunks over your own claim limit (%2$s) will become free land, "
                 + "and anyone can claim them. Unclaim the ones you can spare first. To disband anyway, "
@@ -704,6 +773,14 @@ public final class GuildManager extends SavedData {
         UUID leader = guild.leader();
         if (target.equals(leader)) {
             return error("staff_already_leader");
+        }
+        // Staff may move leadership over the new leader's limit (review finding 11 follow-up); it is logged, and
+        // staffTransferNote tells the staff member.
+        OpacCompat.ClaimsInfo over = overLimitAfter(server, guild, target);
+        if (over != null) {
+            EdenLD.LOGGER.warn("[Guilds] Staff made {} the leader of [{}] {} over their claim limit: {} claimed chunks "
+                            + "after the move, {} over their limit of {}.", guild.memberNames.getOrDefault(target, "?"),
+                    guild.tag, guild.name, over.used(), over.used() - over.limit(), over.limit());
         }
         if (leader != null) {
             guild.members.put(leader, GuildRank.VICE_LEADER);

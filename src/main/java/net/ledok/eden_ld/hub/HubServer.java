@@ -48,8 +48,13 @@ public final class HubServer {
         // disband) runs before the sync handlers below build their payloads.
         PartyManager.initialize();
         HubPayloads.register();
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.HomeDataRequest.TYPE,
-                (payload, context) -> sendHomeData(context.player()));
+        HubRateLimit.initialize();
+        // Review finding 37: a flood of Home requests is dropped past the bucket (the tab keeps its last data).
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.HomeDataRequest.TYPE, (payload, context) -> {
+            if (HubRateLimit.HOME_REQUEST.tryAcquire(context.player())) {
+                sendHomeData(context.player());
+            }
+        });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.PartyDataRequest.TYPE,
                 (payload, context) -> sendPartyData(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.PartyAction.TYPE,
@@ -58,6 +63,17 @@ public final class HubServer {
                 (payload, context) -> sendFriendsData(context.player(), false, null));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.FriendAction.TYPE,
                 (payload, context) -> handleFriendAction(context.player(), payload));
+        // Review findings 41 and 45: syncParties only marks the parties dirty; the rebuild runs here, once a tick.
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(HubServer::flushParties);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(HubServer::flushHomePushes);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
+            partiesDirty = false;
+            lastPartyData = new java.util.HashMap<>();
+            lastFriendsData = new java.util.HashMap<>();
+            SHOP_COUNTS.clear();
+            HOME_PUSHES.clear();
+            REQUEST_NOTICES.clear();
+        });
         IgnoreList.initialize();
         net.ledok.eden_ld.hub.activity.ActivityServer.initialize();
         net.ledok.eden_ld.hub.duels.DuelsHub.initialize();
@@ -147,6 +163,9 @@ public final class HubServer {
                 }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 server.execute(() -> {
+                    UUID gone = handler.getPlayer().getUUID();
+                    SHOP_COUNTS.remove(gone);
+                    REQUEST_NOTICES.remove(gone);
                     syncParties(server);
                     syncNameStyles(server);
                 }));
@@ -158,13 +177,9 @@ public final class HubServer {
         // No damage between friends (party, guild, run team) or players who ignore each other (PvP off, a duel
         // outsider — docs/PLAN-pvp-toggle.md) — players and their pets alike: they can't hurt each other or each
         // other's pets, and pets can't hurt them. With no damage landing, pets never get a reason to retaliate either.
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
-            if (source.getEntity() == null || source.getEntity() == entity) {
-                return true;
-            }
-            CombatTeamsCompat.Relation relation = CombatTeamsCompat.resolve(source.getEntity(), entity);
-            return relation == null || relation.friendlyFire();
-        });
+        // The gate lives in PvpIgnore, which also covers bed and anchor blasts a player set off (review finding 58).
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+                net.ledok.eden_ld.combat.PvpIgnore.allowsDamage(entity, source));
     }
 
     public static void openHub(ServerPlayer player) {
@@ -215,6 +230,8 @@ public final class HubServer {
     }
 
     private static void sendHomeData(ServerPlayer player) {
+        // Fresh after any forgetShopCount (the count cache is gone), so no separate push is needed.
+        HOME_PUSHES.remove(player.getUUID());
         String group = MinestarHook.platformGroup(player.getUUID()).orElse("");
         boolean prime = MinestarHook.isPrime(player.getUUID());
         long playtimeTicks = player.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME));
@@ -233,7 +250,7 @@ public final class HubServer {
                 : HubSettings.background(server, player.getUUID());
 
         EconomyCompat.fetchBalance(player, (hasEconomy, balance) ->
-                MinestarHook.fetchPendingShopCount(player, shopPending -> {
+                fetchShopCount(player, shopPending -> {
                     if (player.hasDisconnected()) {
                         return;
                     }
@@ -251,20 +268,137 @@ public final class HubServer {
                 }));
     }
 
-    // ---------------------------------------------------------------- party
+    /**
+     * How long a pending-purchase count is reused for Home (review finding 37: every Home request asked the website
+     * for the pending list, one HTTP call per packet). A count a few seconds old is fine for the Home badge; the Mail
+     * tab and claims still ask the website themselves.
+     */
+    private static final long SHOP_COUNT_FRESH_MS = 5_000;
+    /** Per player: the last count and when, or the callbacks waiting on the fetch in flight. Server thread. */
+    private static final Map<UUID, ShopCount> SHOP_COUNTS = new java.util.HashMap<>();
 
-    private static void sendPartyData(ServerPlayer player) {
-        ServerPlayNetworking.send(player, buildPartyData(player));
+    private static final class ShopCount {
+        int count;
+        long at;
+        /** Non-null while the website call is in flight: everyone asking meanwhile shares its answer. */
+        @Nullable
+        List<java.util.function.IntConsumer> waiting = new ArrayList<>();
+    }
+
+    /** The pending-purchase count, shared with a call in flight or reused while fresh; answers on the server thread. */
+    private static void fetchShopCount(ServerPlayer player, java.util.function.IntConsumer onCount) {
+        UUID uuid = player.getUUID();
+        ShopCount entry = SHOP_COUNTS.get(uuid);
+        if (entry != null) {
+            if (entry.waiting != null) {
+                entry.waiting.add(onCount);
+                return;
+            }
+            if (System.currentTimeMillis() - entry.at < SHOP_COUNT_FRESH_MS) {
+                onCount.accept(entry.count);
+                return;
+            }
+        }
+        ShopCount fetch = new ShopCount();
+        fetch.waiting.add(onCount);
+        SHOP_COUNTS.put(uuid, fetch);
+        // Answers exactly once on the server thread (after 3 s at most), so the waiters always hear back.
+        MinestarHook.fetchPendingShopCount(player, count -> {
+            List<java.util.function.IntConsumer> waiting = fetch.waiting;
+            fetch.waiting = null;
+            fetch.count = count;
+            fetch.at = System.currentTimeMillis();
+            if (waiting != null) {
+                waiting.forEach(callback -> callback.accept(count));
+            }
+        });
     }
 
     /**
-     * Pushes fresh party data to every online player (party actions are rare and small),
-     * and cached friends data — its party-invite buttons follow the same party state.
+     * Forgets the player's cached pending-purchase count, so the next Home asks the website again. For a website
+     * purchase delivery to call (review finding 37: the cache is invalidated after a claim).
+     */
+    public static void forgetShopCount(UUID player) {
+        MinecraftServer server = currentServer;
+        if (server == null) {
+            return;
+        }
+        net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+            SHOP_COUNTS.remove(player);
+            // The Home card shows the new count without waiting for the player to ask (a request right after the
+            // claim may have read the old count); sent at the end of the tick unless a Home goes out before then.
+            HOME_PUSHES.add(player);
+        });
+    }
+
+    /** Players owed a fresh Home after {@link #forgetShopCount}; any Home sent to them meanwhile settles it. */
+    private static final java.util.Set<UUID> HOME_PUSHES = new java.util.HashSet<>();
+
+    private static void flushHomePushes(MinecraftServer server) {
+        if (HOME_PUSHES.isEmpty()) {
+            return;
+        }
+        List<UUID> owed = List.copyOf(HOME_PUSHES);
+        HOME_PUSHES.clear();
+        for (UUID uuid : owed) {
+            ServerPlayer online = server.getPlayerList().getPlayer(uuid);
+            if (online != null) {
+                sendHomeData(online);
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- party
+
+    private static void sendPartyData(ServerPlayer player) {
+        HubPayloads.PartyData data = buildPartyData(player);
+        ServerPlayNetworking.send(player, data);
+        remember(lastPartyData, player, data);
+    }
+
+    /** Set by {@link #syncParties}; the end of the tick rebuilds once (review findings 41 and 45). */
+    private static volatile boolean partiesDirty;
+    /**
+     * What each online player was last sent, so the once-a-tick rebuild only sends what changed (review finding 41:
+     * every sync sent about 3N payloads of O(N) size). Keyed by uuid, checked against the player object, so a
+     * reconnect or respawn always gets a fresh copy; replaced every flush, so it only holds online players. Server
+     * thread.
+     */
+    private static Map<UUID, Sent<HubPayloads.PartyData>> lastPartyData = new java.util.HashMap<>();
+    private static Map<UUID, Sent<HubPayloads.FriendsData>> lastFriendsData = new java.util.HashMap<>();
+
+    private record Sent<T>(ServerPlayer player, T data) {
+    }
+
+    private static <T> void remember(Map<UUID, Sent<T>> sent, ServerPlayer player, T data) {
+        sent.put(player.getUUID(), new Sent<>(player, data));
+    }
+
+    /**
+     * Party data (and the cached friends data, whose party-invite buttons follow the same party state) goes out to
+     * everyone at the end of this tick. Review findings 41 and 45: this used to rebuild every player's data on the
+     * spot, an O(N²) pass on every party or friend packet; now any number of calls in one tick cost one rebuild, and
+     * players whose data didn't change get nothing. Any thread (it only sets a flag).
      */
     public static void syncParties(MinecraftServer server) {
-        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
-            ServerPlayNetworking.send(online, buildPartyData(online));
+        partiesDirty = true;
+    }
+
+    private static void flushParties(MinecraftServer server) {
+        if (!partiesDirty) {
+            return;
         }
+        partiesDirty = false;
+        Map<UUID, Sent<HubPayloads.PartyData>> sent = new java.util.HashMap<>();
+        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+            HubPayloads.PartyData data = buildPartyData(online);
+            Sent<HubPayloads.PartyData> last = lastPartyData.get(online.getUUID());
+            if (last == null || last.player() != online || !last.data().equals(data)) {
+                ServerPlayNetworking.send(online, data);
+            }
+            sent.put(online.getUUID(), new Sent<>(online, data));
+        }
+        lastPartyData = sent;
         // Joining or leaving a party opens or closes the PARTY chat channel.
         ChatChannels.pushStateAll(server);
         pushCachedFriends(server);
@@ -380,8 +514,10 @@ public final class HubServer {
             PartyManager manager, ServerPlayer player, Party party) {
         java.util.Set<UUID> friends = MinestarHook.friendUuids(player.getUUID());
         List<HubPayloads.PartyMember> candidates = new ArrayList<>();
+        // The inviter's side once, not once per online player (review finding 41).
+        PartyManager.InviterView view = manager.inviterView(player);
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
-            if (online != player && manager.inviteState(player, online) == PartyManager.InviteState.OK) {
+            if (online != player && view.stateFor(online) == PartyManager.InviteState.OK) {
                 candidates.add(new HubPayloads.PartyMember(online.getUUID(),
                         online.getGameProfile().getName(), 0, true, "",
                         friends.contains(online.getUUID())));
@@ -390,9 +526,19 @@ public final class HubServer {
         return candidates;
     }
 
-    /** {@link PartyManager#inviteState} plus the BusyLib gate the invite action applies. */
-    private static PartyManager.InviteState inviteState(PartyManager manager, ServerPlayer inviter, ServerPlayer target) {
-        return BusyState.isBusy(inviter) ? PartyManager.InviteState.BUSY : manager.inviteState(inviter, target);
+    /**
+     * {@link PartyManager#inviteState} plus the BusyLib gate the invite action applies, for one inviter and many
+     * targets: the inviter's side is worked out once (review finding 41). Null view (no server): always IN_PARTY.
+     */
+    private static java.util.function.Function<ServerPlayer, PartyManager.InviteState> inviteStates(
+            @Nullable PartyManager manager, ServerPlayer inviter) {
+        if (manager == null) {
+            return target -> PartyManager.InviteState.IN_PARTY;
+        }
+        if (BusyState.isBusy(inviter)) {
+            return target -> PartyManager.InviteState.BUSY;
+        }
+        return manager.inviterView(inviter)::stateFor;
     }
 
     private static HubPayloads.PartyData emptyPartyData(boolean busy) {
@@ -409,6 +555,14 @@ public final class HubServer {
         Party party = manager.partyOf(player.getUUID());
         HubPayloads.PartyAction.Action kind = action.kind();
 
+        // Review finding 41: a flood of party actions is cut to the bucket's rate (chat has its own guard).
+        if (kind != HubPayloads.PartyAction.Action.CHAT && !HubRateLimit.PARTY_ACTION.tryAcquire(player)) {
+            if (HubRateLimit.PARTY_ACTION.warnNow(player)) {
+                fail(player, Component.translatable("message.eden_ld.hub.too_fast"));
+            }
+            return;
+        }
+
         // Busy players may not grow a party (send invites, accept invites, join);
         // leaving/kicking/settings stay available.
         boolean growsParty = switch (kind) {
@@ -420,6 +574,9 @@ public final class HubServer {
             return;
         }
 
+        // Review finding 41: only a real change resyncs everyone; a no-op (cancelling or declining an invite that
+        // isn't there, a party setting while in no party) or a refusal only answers the actor.
+        boolean changed = true;
         Component result = switch (kind) {
             case INVITE -> {
                 // Solo players invite too — the party is created on acceptance.
@@ -434,12 +591,12 @@ public final class HubServer {
                 yield err;
             }
             case CANCEL_INVITE -> {
-                manager.cancelInvite(player.getUUID(), action.target());
+                changed = manager.cancelInvite(player.getUUID(), action.target());
                 yield null;
             }
             case ACCEPT_INVITE -> manager.acceptInvite(player, action.target());
             case DECLINE_INVITE -> {
-                manager.declineInvite(player.getUUID(), action.target());
+                changed = manager.declineInvite(player.getUUID(), action.target());
                 yield null;
             }
             case JOIN -> manager.joinDirect(player, action.target());
@@ -460,7 +617,17 @@ public final class HubServer {
         if (result != null) {
             fail(player, result);
         }
-        if (kind != HubPayloads.PartyAction.Action.CHAT) {
+        if (kind == HubPayloads.PartyAction.Action.CHAT) {
+            return;
+        }
+        boolean needsParty = switch (kind) {
+            case KICK, PROMOTE, DEMOTE, TRANSFER, DISBAND, RENAME, SET_INVITE_POLICY, SET_JOIN_POLICY -> true;
+            default -> false;
+        };
+        // The actor always hears back at once (their tab resets after a refusal); everyone else at the end of the
+        // tick, and only when something changed.
+        sendPartyData(player);
+        if (result == null && changed && !(needsParty && party == null)) {
             syncParties(server);
         }
     }
@@ -764,7 +931,7 @@ public final class HubServer {
             if (player.hasDisconnected()) {
                 return;
             }
-            ServerPlayNetworking.send(player, buildFriendsData(player, snapshot));
+            sendFriends(player, snapshot);
             if (then != null) {
                 then.run();
             }
@@ -779,17 +946,33 @@ public final class HubServer {
         if (!MinestarHook.social()) {
             return;
         }
+        Map<UUID, Sent<HubPayloads.FriendsData>> sent = new java.util.HashMap<>();
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             FriendSnapshot snapshot = MinestarHook.cachedFriends(online.getUUID());
             if (snapshot != null) {
-                ServerPlayNetworking.send(online, buildFriendsData(online, snapshot));
+                HubPayloads.FriendsData data = buildFriendsData(online, snapshot);
+                // Review finding 41: unchanged data isn't sent again.
+                Sent<HubPayloads.FriendsData> last = lastFriendsData.get(online.getUUID());
+                if (last == null || last.player() != online || !last.data().equals(data)) {
+                    ServerPlayNetworking.send(online, data);
+                }
+                sent.put(online.getUUID(), new Sent<>(online, data));
             }
         }
+        lastFriendsData = sent;
+    }
+
+    /** Friends data straight to one player (a request or their own change), remembered for the next flush. */
+    private static void sendFriends(ServerPlayer player, @Nullable FriendSnapshot snapshot) {
+        HubPayloads.FriendsData data = buildFriendsData(player, snapshot);
+        ServerPlayNetworking.send(player, data);
+        remember(lastFriendsData, player, data);
     }
 
     private static HubPayloads.FriendsData buildFriendsData(ServerPlayer player, @Nullable FriendSnapshot snapshot) {
         MinecraftServer server = player.getServer();
         PartyManager manager = server == null ? null : PartyManager.get(server);
+        java.util.function.Function<ServerPlayer, PartyManager.InviteState> inviteState = inviteStates(manager, player);
         List<HubPayloads.FriendEntry> friends = new ArrayList<>();
         List<HubPayloads.RequestEntry> incoming = new ArrayList<>();
         List<HubPayloads.RequestEntry> outgoing = new ArrayList<>();
@@ -806,7 +989,7 @@ public final class HubServer {
                 friends.add(new HubPayloads.FriendEntry(friend.uuid(), friend.nickname(), presence,
                         friend.lastSeenMillis(), String.join(", ", friend.playing()), packSearch,
                         inGame != null ? inGame.level().dimension().location().toString() : "",
-                        inGame != null ? inviteState(manager, player, inGame).ordinal()
+                        inGame != null ? inviteState.apply(inGame).ordinal()
                                 : PartyManager.InviteState.IN_PARTY.ordinal(),
                         server != null && net.ledok.eden_ld.hub.profile.ProfileServer.mayView(
                                 server, player.getUUID(), friend.uuid(), true),
@@ -834,7 +1017,7 @@ public final class HubServer {
                     int relation = relations.getOrDefault(online.getUUID(), HubPayloads.ServerPlayerEntry.NONE);
                     players.add(new HubPayloads.ServerPlayerEntry(online.getUUID(),
                             online.getGameProfile().getName(), relation,
-                            inviteState(manager, player, online).ordinal(),
+                            inviteState.apply(online).ordinal(),
                             net.ledok.eden_ld.hub.profile.ProfileServer.mayView(server, player.getUUID(),
                                     online.getUUID(), relation == HubPayloads.ServerPlayerEntry.FRIEND),
                             // The card shows their background whatever their privacy setting (that guards the page).
@@ -852,20 +1035,32 @@ public final class HubServer {
         if (server == null || !MinestarHook.social() || target.equals(player.getUUID())) {
             return;
         }
+        // Review findings 37 and 45: a cooldown in every mode (local actions used to run unthrottled).
+        if (!HubRateLimit.FRIEND_ACTION.tryAcquire(player)) {
+            if (HubRateLimit.FRIEND_ACTION.warnNow(player)) {
+                fail(player, Component.translatable("message.eden_ld.friends.rate_limited"));
+            }
+            return;
+        }
         String targetName = friendName(server, player, target);
         HubPayloads.FriendAction.Action kind = action.kind();
 
         MinestarHook.FriendCallback done = (error, accepted) -> {
             if (error != null) {
                 fail(player, error);
-            } else {
-                player.sendSystemMessage(friendMessage(kind, accepted, targetName)
-                        .withStyle(ChatFormatting.GREEN));
-                ServerPlayer other = server.getPlayerList().getPlayer(target);
-                if (other != null && (kind == HubPayloads.FriendAction.Action.ADD
-                        || kind == HubPayloads.FriendAction.Action.ACCEPT)) {
-                    notifyFriendTarget(other, player, accepted);
+                // Review findings 37 and 45: a refusal changed nothing, so no forced platform re-fetch for both
+                // sides and no resync; the actor's tab is re-sent from the throttled fetch so its buttons reset.
+                if (!player.hasDisconnected()) {
+                    sendFriendsData(player, false, null);
                 }
+                return;
+            }
+            player.sendSystemMessage(friendMessage(kind, accepted, targetName)
+                    .withStyle(ChatFormatting.GREEN));
+            ServerPlayer other = server.getPlayerList().getPlayer(target);
+            if (other != null && (kind == HubPayloads.FriendAction.Action.ADD
+                    || kind == HubPayloads.FriendAction.Action.ACCEPT)) {
+                notifyFriendTarget(other, player, accepted);
             }
             refreshAfterFriendChange(server, player, target);
         };
@@ -899,6 +1094,13 @@ public final class HubServer {
                     .withStyle(ChatFormatting.GREEN));
             return;
         }
+        // Review finding 45: an ADD/CANCEL loop used to put a request line in the target's chat every time.
+        Map<UUID, Long> heard = REQUEST_NOTICES.computeIfAbsent(target.getUUID(), uuid -> new java.util.HashMap<>());
+        long now = System.currentTimeMillis();
+        heard.values().removeIf(at -> now - at >= REQUEST_NOTICE_GAP_MS);
+        if (heard.putIfAbsent(actor.getUUID(), now) != null) {
+            return;
+        }
         target.sendSystemMessage(Component.translatable("message.eden_ld.friends.incoming", actorName)
                 .withStyle(ChatFormatting.GOLD)
                 .append(Component.translatable("message.eden_ld.party.invited_open")
@@ -908,15 +1110,34 @@ public final class HubServer {
     }
 
     /**
-     * Both sides re-fetch (the change lands in both profiles) and get fresh tab data; party
-     * data follows, since friend flags drive invite sorting and the friends-only join mode.
+     * A friend request notice goes to the same target from the same sender at most this often (review finding 45).
+     * Target → (sender → when they last heard); a target's entry goes when they leave. Server thread.
+     */
+    private static final long REQUEST_NOTICE_GAP_MS = 60_000;
+    private static final Map<UUID, Map<UUID, Long>> REQUEST_NOTICES = new java.util.HashMap<>();
+
+    /**
+     * Both sides re-fetch (the change lands in both profiles) and get fresh tab data; party data follows, since friend
+     * flags drive invite sorting, the friends-only invite and join modes and profile buttons. All of those are about
+     * this pair only, so only the two players get new party data (review finding 45: each friend action used to run
+     * two server-wide syncParties); each side's fetch re-sends both, so whichever answers last leaves both views
+     * built from both fresh friend lists.
      */
     private static void refreshAfterFriendChange(MinecraftServer server, ServerPlayer player, UUID target) {
-        sendFriendsData(player, true, () -> syncParties(server));
+        Runnable pair = () -> {
+            if (!player.hasDisconnected()) {
+                sendPartyData(player);
+            }
+            ServerPlayer other = server.getPlayerList().getPlayer(target);
+            if (other != null) {
+                sendPartyData(other);
+            }
+        };
+        sendFriendsData(player, true, pair);
         ServerPlayer other = server.getPlayerList().getPlayer(target);
         if (other != null) {
             // Their "friends only" invite setting may have just flipped for this pair.
-            sendFriendsData(other, true, () -> syncParties(server));
+            sendFriendsData(other, true, pair);
         }
     }
 

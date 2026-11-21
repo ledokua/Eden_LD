@@ -33,6 +33,28 @@ public final class WagersHub {
     private static final int ANNOUNCEMENTS = 0, MINE = 1, HISTORY = 2;
     /** Well under the client's 1 MiB limit for a custom payload. */
     private static final int MAX_BYTES = 768 * 1024;
+    /**
+     * One announcement bigger than this (encoded) is left off the Announcements page (review finding 44): a stake of
+     * nine full writable books made a single listing of megabytes, which used to empty the page for everyone.
+     */
+    private static final int MAX_LISTING_BYTES = 128 * 1024;
+    /**
+     * A player's {@link WagerAction.Action#VIEW} pushes their page at most this often; a VIEW sooner is answered once
+     * the time is up (review finding 44: a modified client sent VIEW every tick, and every push was built anew).
+     */
+    private static final long VIEW_INTERVAL_MS = 500;
+    /** When each player's next VIEW may push ({@link net.minecraft.Util#getMillis}), and who's waiting for it. */
+    private static final Map<UUID, Long> NEXT_VIEW = new ConcurrentHashMap<>();
+    private static final java.util.Set<UUID> VIEW_LATER = ConcurrentHashMap.newKeySet();
+    /**
+     * Encoded sizes of the page's parts, measured once and kept until Duels reports any wager change (review finding
+     * 44: pages were encoded on the server thread just to measure them, again on every push). Keys: {@code l:<number>}
+     * an announcement, {@code m:<player>} a player's My duels, {@code h:<player>:<number>} a history row.
+     */
+    private static final Map<String, Integer> SIZES = new ConcurrentHashMap<>();
+    private static final int MAX_SIZES = 4096;
+    /** Whether leaving parts out was logged since the sizes were last cleared (once per change, not per push). */
+    private static volatile boolean warned;
     /** Who has a wager page open → which one. */
     private static final Map<UUID, Integer> VIEWERS = new ConcurrentHashMap<>();
     /** Players owed a push → the parts ({@link WagerData#LISTINGS} …; 0 = the header alone), sent at the tick's end. */
@@ -55,6 +77,8 @@ public final class WagersHub {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             VIEWERS.remove(handler.getPlayer().getUUID());
             PENDING.remove(handler.getPlayer().getUUID());
+            NEXT_VIEW.remove(handler.getPlayer().getUUID());
+            VIEW_LATER.remove(handler.getPlayer().getUUID());
         }));
         ServerTickEvents.END_SERVER_TICK.register(WagersHub::tick);
     }
@@ -65,9 +89,21 @@ public final class WagersHub {
             case VIEW -> {
                 int page = Math.max(ANNOUNCEMENTS, Math.min(HISTORY, action.id()));
                 VIEWERS.put(uuid, page);
-                queue(uuid, parts(page));
+                long now = net.minecraft.Util.getMillis();
+                Long next = NEXT_VIEW.get(uuid);
+                if (next == null || now >= next) {
+                    NEXT_VIEW.put(uuid, now + VIEW_INTERVAL_MS);
+                    VIEW_LATER.remove(uuid);
+                    queue(uuid, parts(page));
+                } else {
+                    // Too soon: the page (the last one asked for) goes when the interval is up (tick).
+                    VIEW_LATER.add(uuid);
+                }
             }
-            case LEAVE -> VIEWERS.remove(uuid);
+            case LEAVE -> {
+                VIEWERS.remove(uuid);
+                VIEW_LATER.remove(uuid);
+            }
             default -> {
                 HubPayloads.HubNotice notice;
                 try {
@@ -103,6 +139,7 @@ public final class WagersHub {
 
     /** A player's wagers changed: their open page follows (Announcements too — their own announcement is pinned there). */
     private static void playerChanged(UUID player) {
+        clearSizes();
         Integer page = VIEWERS.get(player);
         if (page != null) {
             queue(player, parts(page));
@@ -110,6 +147,7 @@ public final class WagersHub {
     }
 
     private static void listingsChanged() {
+        clearSizes();
         VIEWERS.forEach((player, page) -> {
             if (page == ANNOUNCEMENTS) {
                 queue(player, WagerData.LISTINGS);
@@ -117,21 +155,94 @@ public final class WagersHub {
         });
     }
 
+    /** Any wager changed: the measured sizes may be stale (a stake, an offer, a new history row). */
+    private static void clearSizes() {
+        SIZES.clear();
+        warned = false;
+    }
+
     /**
-     * Stacks travel whole (their tooltips are shown), and a packet over the client's limit would kick the player: a
-     * page that big (many announcements or a long history of heavy items) loses its tail halves until it fits.
+     * Stacks travel whole (their tooltips are shown), and a packet over the client's limit would kick the player: the
+     * page is filled in order within {@link #MAX_BYTES}, leaving out each announcement or history row that doesn't fit
+     * (an announcement over {@link #MAX_LISTING_BYTES} never does) and, should even that not do, My duels. Each part's
+     * size is measured once per wager change ({@link #SIZES}), not by encoding the whole page again and again on the
+     * server thread, and one heavy listing no longer cuts the ones after it (review finding 44).
      */
-    private static WagerData fit(MinecraftServer server, WagerData data) {
-        WagerData out = data;
-        for (int i = 0; i < 10 && size(server, out) > MAX_BYTES; i++) {
-            out = new WagerData(out.parts(), out.enabled(), out.actions(), out.skipLossWarning(), out.wins(), out.losses(),
-                    out.draws(), half(out.listings()), out.mine(), half(out.history()));
+    private static WagerData fit(MinecraftServer server, UUID viewer, WagerData data) {
+        int total = size(server, new WagerData(0, data.enabled(), data.actions(), data.skipLossWarning(), data.wins(),
+                data.losses(), data.draws(), List.of(), HubPayloads.WagerMineView.EMPTY, List.of()));
+        HubPayloads.WagerMineView mine = data.mine();
+        boolean cut = false;
+        if (data.has(WagerData.MINE)) {
+            int bytes = measured("m:" + viewer, () -> partSize(server, WagerData.MINE, List.of(), data.mine(), List.of()));
+            if (total + bytes > MAX_BYTES) {
+                mine = HubPayloads.WagerMineView.EMPTY;
+                cut = true;
+            } else {
+                total += bytes;
+            }
         }
-        if (out != data) {
-            EdenLD.LOGGER.warn("[Duels] The wager pages were too big to send whole: {} of {} announcements, {} of {} history rows.",
-                    out.listings().size(), data.listings().size(), out.history().size(), data.history().size());
+        List<HubPayloads.WagerListingView> listings = data.listings();
+        if (data.has(WagerData.LISTINGS)) {
+            listings = new java.util.ArrayList<>();
+            for (HubPayloads.WagerListingView listing : data.listings()) {
+                int bytes = measured("l:" + listing.number(),
+                        () -> partSize(server, WagerData.LISTINGS, List.of(listing), HubPayloads.WagerMineView.EMPTY, List.of()));
+                if (bytes > MAX_LISTING_BYTES || total + bytes > MAX_BYTES) {
+                    cut = true;
+                    continue;
+                }
+                total += bytes;
+                listings.add(listing);
+            }
         }
-        return out;
+        List<HubPayloads.WagerRecordView> history = data.history();
+        if (data.has(WagerData.HISTORY)) {
+            history = new java.util.ArrayList<>();
+            for (HubPayloads.WagerRecordView row : data.history()) {
+                int bytes = measured("h:" + viewer + ":" + row.number(),
+                        () -> partSize(server, WagerData.HISTORY, List.of(), HubPayloads.WagerMineView.EMPTY, List.of(row)));
+                if (total + bytes > MAX_BYTES) {
+                    cut = true;
+                    continue;
+                }
+                total += bytes;
+                history.add(row);
+            }
+        }
+        if (!cut) {
+            return data;
+        }
+        if (!warned) {
+            warned = true;
+            EdenLD.LOGGER.warn("[Duels] The wager pages were too big to send whole: {} of {} announcements, {} of {} history rows{}.",
+                    listings.size(), data.listings().size(), history.size(), data.history().size(),
+                    mine != data.mine() ? ", My duels left out" : "");
+        }
+        return new WagerData(data.parts(), data.enabled(), data.actions(), data.skipLossWarning(), data.wins(),
+                data.losses(), data.draws(), List.copyOf(listings), mine, List.copyOf(history));
+    }
+
+    /** A size from {@link #SIZES}, measured now when it isn't there. */
+    private static int measured(String key, java.util.function.IntSupplier measure) {
+        Integer known = SIZES.get(key);
+        if (known != null) {
+            return known;
+        }
+        int bytes = measure.getAsInt();
+        if (SIZES.size() >= MAX_SIZES) {
+            SIZES.clear();
+        }
+        SIZES.put(key, bytes);
+        return bytes;
+    }
+
+    /** What one part's content adds to a page: the page with only it, less the same page with it empty. */
+    private static int partSize(MinecraftServer server, int part, List<HubPayloads.WagerListingView> listings,
+                                HubPayloads.WagerMineView mine, List<HubPayloads.WagerRecordView> history) {
+        WagerData with = new WagerData(part, false, 0, false, 0, 0, 0, listings, mine, history);
+        WagerData without = new WagerData(part, false, 0, false, 0, 0, 0, List.of(), HubPayloads.WagerMineView.EMPTY, List.of());
+        return Math.max(0, size(server, with) - size(server, without));
     }
 
     private static int size(MinecraftServer server, WagerData data) {
@@ -145,11 +256,22 @@ public final class WagersHub {
         }
     }
 
-    private static <T> List<T> half(List<T> list) {
-        return list.size() <= 1 ? List.of() : List.copyOf(list.subList(0, list.size() / 2));
-    }
-
     private static void tick(MinecraftServer server) {
+        if (!VIEW_LATER.isEmpty()) {
+            long now = net.minecraft.Util.getMillis();
+            VIEW_LATER.removeIf(uuid -> {
+                Long next = NEXT_VIEW.get(uuid);
+                if (next != null && now < next) {
+                    return false;
+                }
+                Integer page = VIEWERS.get(uuid);
+                if (page != null) {
+                    NEXT_VIEW.put(uuid, now + VIEW_INTERVAL_MS);
+                    queue(uuid, parts(page));
+                }
+                return true;
+            });
+        }
         if (server.getTickCount() % REFRESH_TICKS == 0) {
             VIEWERS.forEach((player, page) -> {
                 if (page == MINE) {
@@ -173,7 +295,7 @@ public final class WagersHub {
             try {
                 WagerData data = DuelsHook.wagerData(player, parts);
                 if (data != null) {
-                    ServerPlayNetworking.send(player, fit(server, data));
+                    ServerPlayNetworking.send(player, fit(server, uuid, data));
                 }
             } catch (RuntimeException e) {
                 // A Duels_LD fault must not break the tick (or the next player's push).

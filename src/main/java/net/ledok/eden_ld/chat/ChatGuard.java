@@ -19,8 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * What text Eden sends on a channel for a player ({@link ChatChannels#send}: the hub's party and guild chat, {@code /p},
  * {@code /g}, {@code /l}) is checked against — what typed chat gets from vanilla and BanHammer: no {@code §} or control
  * characters, at most 256 characters, not while muted, and a rate limit ({@code chat.rate_limit_messages} in a row,
- * as many again every {@code chat.rate_limit_seconds}). Other player-written text (guild names and MOTD, party names,
- * bank tab names, gift notes) uses {@link #allowedText} and {@link #mutedNow}.
+ * as many again every {@code chat.rate_limit_seconds}). Private group-chat names go through {@link #check} too, since
+ * every member reads them (review finding 26). Other player-written text (guild names and MOTD, party names, bank tab
+ * names, gift notes) uses {@link #allowedText} and {@link #mutedNow}.
  * <p>
  * Mutes come from BanHammer, whose database is never read on the server thread:
  * <ul>
@@ -176,8 +177,12 @@ public final class ChatGuard {
         });
     }
 
-    /** A token from the player's bucket; false when they've sent too much too fast. */
-    private static boolean take(UUID id) {
+    /**
+     * A token from the player's bucket; false when they've sent too much too fast. Public for actions that put no text
+     * of the player's in front of others but still reach them (a group-chat invite: review finding 26), so they share
+     * the chat's pace.
+     */
+    public static boolean take(UUID id) {
         int capacity = EdenLD.CONFIG.chat.rate_limit_messages;
         int seconds = EdenLD.CONFIG.chat.rate_limit_seconds;
         if (capacity <= 0 || seconds <= 0) {

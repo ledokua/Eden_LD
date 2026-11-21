@@ -1,14 +1,38 @@
 package net.ledok.eden_ld.compat;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.ledok.eden_ld.EdenLD;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.OptionalInt;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /** Optional LuckPerms reads; everything answers "nothing" without the mod. */
 public final class LuckPermsCompat {
 
     private static final boolean LOADED = FabricLoader.getInstance().isModLoaded("luckperms");
+
+    // Recalculation fan-out (review finding 42): one LuckPerms subscription for all of Eden. Changed users are
+    // collected on LuckPerms' threads and handled once per server task batch, and only users who are online count:
+    // loading an offline user (GuildMemberClaims' check, PrimeSync) recalculates them too, and each such event used
+    // to refresh every online player in six subscribers.
+    private static final Set<UUID> CHANGED = ConcurrentHashMap.newKeySet();
+    private static final AtomicBoolean DRAIN_QUEUED = new AtomicBoolean();
+    private static final AtomicBoolean LIFECYCLE_HOOKED = new AtomicBoolean();
+    private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
+    private static final List<Consumer<ServerPlayer>> PLAYER_LISTENERS = new CopyOnWriteArrayList<>();
+    /** The live LuckPerms subscription (an {@code EventSubscription}), closed when the server stops. */
+    private static volatile AutoCloseable subscription;
 
     private LuckPermsCompat() {
     }
@@ -104,12 +128,97 @@ public final class LuckPermsCompat {
     }
 
     /**
-     * Runs {@code onChange} (on LuckPerms' thread) whenever a user's data is recalculated —
-     * group, prefix, or meta edits. Call once the server started (the API is up then).
+     * Runs {@code onChange} on the server thread after an online player's data was recalculated — group, prefix, or
+     * meta edits — once for a whole burst of recalculations; users who aren't online are ignored (review finding 42).
+     * Call once the server started (the API is up then); listeners are dropped when the server stops.
      */
     public static void onUserDataChange(Runnable onChange) {
         if (LOADED) {
-            Hook.subscribe(onChange);
+            LISTENERS.add(onChange);
+            subscribe();
+        }
+    }
+
+    /**
+     * As {@link #onUserDataChange(Runnable)}, but per player: {@code onChange} runs on the server thread for each
+     * online player whose data was recalculated, once per burst (review finding 42).
+     */
+    public static void onPlayerDataChange(Consumer<ServerPlayer> onChange) {
+        if (LOADED) {
+            PLAYER_LISTENERS.add(onChange);
+            subscribe();
+        }
+    }
+
+    private static void subscribe() {
+        if (LIFECYCLE_HOOKED.compareAndSet(false, true)) {
+            // Singleplayer: the next world gets a fresh LuckPerms and fresh listeners (they register on SERVER_STARTED).
+            ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
+                AutoCloseable live = subscription;
+                subscription = null;
+                if (live != null) {
+                    try {
+                        live.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+                LISTENERS.clear();
+                PLAYER_LISTENERS.clear();
+                CHANGED.clear();
+                DRAIN_QUEUED.set(false);
+            });
+        }
+        if (subscription == null) {
+            synchronized (LuckPermsCompat.class) {
+                if (subscription == null) {
+                    subscription = Hook.subscribe(LuckPermsCompat::recalculated);
+                }
+            }
+        }
+    }
+
+    /** LuckPerms' thread: remember the user and queue one drain on the server thread. */
+    private static void recalculated(UUID user) {
+        CHANGED.add(user);
+        MinecraftServer server = EdenLD.server();
+        // Once stopping, server.execute would run the drain right here on LuckPerms' thread (review finding 33).
+        if (server == null || !server.isRunning() || server.isStopped()) {
+            return;
+        }
+        if (DRAIN_QUEUED.compareAndSet(false, true)) {
+            server.execute(() -> drain(server));
+        }
+    }
+
+    /** Server thread: the listeners, once, when any changed user is online (review finding 42). */
+    private static void drain(MinecraftServer server) {
+        DRAIN_QUEUED.set(false);
+        List<ServerPlayer> online = new ArrayList<>();
+        for (Iterator<UUID> it = CHANGED.iterator(); it.hasNext(); ) {
+            ServerPlayer player = server.getPlayerList().getPlayer(it.next());
+            it.remove();
+            if (player != null) {
+                online.add(player);
+            }
+        }
+        if (online.isEmpty()) {
+            return;
+        }
+        for (Runnable listener : LISTENERS) {
+            try {
+                listener.run();
+            } catch (RuntimeException e) {
+                EdenLD.LOGGER.warn("LuckPerms change listener failed", e);
+            }
+        }
+        for (Consumer<ServerPlayer> listener : PLAYER_LISTENERS) {
+            for (ServerPlayer player : online) {
+                try {
+                    listener.accept(player);
+                } catch (RuntimeException e) {
+                    EdenLD.LOGGER.warn("LuckPerms change listener failed", e);
+                }
+            }
         }
     }
 
@@ -185,12 +294,15 @@ public final class LuckPermsCompat {
             }
         }
 
-        static void subscribe(Runnable onChange) {
+        /** The subscription, or null when LuckPerms isn't enabled (names stay plain). */
+        @org.jetbrains.annotations.Nullable
+        static AutoCloseable subscribe(Consumer<UUID> onChange) {
             try {
-                net.luckperms.api.LuckPermsProvider.get().getEventBus().subscribe(
-                        net.luckperms.api.event.user.UserDataRecalculateEvent.class, event -> onChange.run());
+                return net.luckperms.api.LuckPermsProvider.get().getEventBus().subscribe(
+                        net.luckperms.api.event.user.UserDataRecalculateEvent.class,
+                        event -> onChange.accept(event.getUser().getUniqueId()));
             } catch (IllegalStateException e) {
-                // LuckPerms not enabled; names stay plain.
+                return null;
             }
         }
 

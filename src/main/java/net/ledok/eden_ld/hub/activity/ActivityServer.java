@@ -331,7 +331,9 @@ public final class ActivityServer {
                         modifier.conflicts()));
             }
         }
-        String dropsFor = request.difficulty();
+        // Only a difficulty the activity really offers reaches the source (review finding 24): the string comes from the
+        // client, and Arenas keys a once-only log set by it, so random strings grew that set and the log without limit.
+        String dropsFor = difficulties.contains(request.difficulty()) ? request.difficulty() : "";
         // Off by default (LeDok 2026-11-16, until Arenas_LD reads the gear tables): no lookup, a total of -1 hides it.
         boolean showDrops = EdenLD.CONFIG.activities.show_possible_drops;
         List<net.minecraft.world.item.ItemStack> drops = source == null || !showDrops ? List.of()

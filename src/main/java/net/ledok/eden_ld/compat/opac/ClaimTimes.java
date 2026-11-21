@@ -55,9 +55,51 @@ final class ClaimTimes extends SavedData {
         if (old != null && old.owner().equals(owner)) {
             return;
         }
-        long time = keepTimes && old != null ? old.time() : System.currentTimeMillis();
+        // A chunk Eden re-owns itself (leadership move) keeps its time; one with no recorded time stays "unknown = oldest"
+        // (0) instead of becoming the newest, so a later trim no longer releases the guild's old base first (review
+        // finding 13).
+        long time = keepTimes ? (old != null ? old.time() : 0L) : System.currentTimeMillis();
         chunks.put(key, new Entry(owner, time));
         setDirty();
+    }
+
+    /**
+     * Once per server start (review finding 13): OPAC loads its claims from disk without telling listeners, so chunks
+     * claimed before Eden listened (or whose entry was lost) get {@code (owner, 0)} — "unknown = oldest" — and entries
+     * for chunks OPAC no longer has claimed are dropped. With every claimed chunk known, a same-owner re-claim (forceload
+     * toggle, sub-config change) hits the same-owner early return in {@link #onChange} instead of being stamped "now".
+     */
+    void seed(java.util.stream.Stream<xaero.pac.common.server.claims.player.api.IServerPlayerClaimInfoAPI> owners) {
+        Map<ResourceLocation, java.util.Set<Long>> claimed = new HashMap<>();
+        int[] added = {0};
+        owners.forEach(info -> {
+            UUID owner = info.getPlayerId();
+            info.getStream().forEach(dimension -> {
+                Map<Long, Entry> chunks = byDimension.computeIfAbsent(dimension.getKey(), d -> new HashMap<>());
+                java.util.Set<Long> seen = claimed.computeIfAbsent(dimension.getKey(), d -> new java.util.HashSet<>());
+                dimension.getValue().getStream().forEach(posList -> posList.getStream().forEach(pos -> {
+                    long key = key(pos.x, pos.z);
+                    seen.add(key);
+                    Entry old = chunks.get(key);
+                    if (old == null || !old.owner().equals(owner)) {
+                        chunks.put(key, new Entry(owner, 0L));
+                        added[0]++;
+                    }
+                }));
+            });
+        });
+        int[] dropped = {0};
+        byDimension.forEach((dimension, chunks) -> {
+            java.util.Set<Long> seen = claimed.getOrDefault(dimension, java.util.Set.of());
+            int before = chunks.size();
+            chunks.keySet().removeIf(key -> !seen.contains(key));
+            dropped[0] += before - chunks.size();
+        });
+        if (added[0] > 0 || dropped[0] > 0) {
+            setDirty();
+            net.ledok.eden_ld.EdenLD.LOGGER.info("[Claims] Claim times: {} claimed chunks with no recorded time counted "
+                    + "as the oldest; {} stale entries dropped.", added[0], dropped[0]);
+        }
     }
 
     /** When {@code owner} claimed the chunk; 0 (oldest) when unknown. */

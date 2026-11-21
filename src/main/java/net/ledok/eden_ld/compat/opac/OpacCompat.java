@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.compat.opac;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.hub.guild.Guild;
@@ -44,8 +45,20 @@ public final class OpacCompat {
             return;
         }
         OpacHook.register();
-        // OPAC picks its primary party system while the server starts; settle guilds after that.
-        ServerLifecycleEvents.SERVER_STARTED.register(OpacCompat::reconcile);
+        // OPAC picks its primary party system while the server starts; settle guilds after that. First, claim times for
+        // chunks OPAC loaded from disk and OPAC bonuses put back in line with Eden's saved records (review findings 12, 13).
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            guarded(() -> OpacGuildClaims.startup(server));
+            reconcile(server);
+        });
+        // Bonus changes made outside Eden (admins, NPCs_LD) are adopted once a minute and at a clean stop, so a restore
+        // after a hard stop reverts at most a minute of them (finding 12).
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTickCount() % OpacGuildClaims.PERIODIC_TICKS == 0) {
+                guarded(() -> OpacGuildClaims.periodic(server));
+            }
+        });
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> guarded(() -> OpacGuildClaims.stopping(server)));
     }
 
     /**
@@ -89,6 +102,24 @@ public final class OpacCompat {
         } catch (RuntimeException | LinkageError e) {
             EdenLD.LOGGER.warn("Open Parties and Claims compat failed", e);
             return 0;
+        }
+    }
+
+    /**
+     * Claims {@code target} would hold, and their claim limit, if they led the guild now (a leadership move takes every
+     * chunk of the current claim owner along); null without guild claims or when the check fails. Review finding 11:
+     * transfers that would put the new leader over their limit are refused.
+     */
+    @Nullable
+    public static ClaimsInfo afterTransfer(MinecraftServer server, Guild guild, java.util.UUID target) {
+        if (!LOADED) {
+            return null;
+        }
+        try {
+            return OpacGuildClaims.afterTransfer(server, guild, target);
+        } catch (RuntimeException | LinkageError e) {
+            EdenLD.LOGGER.warn("Open Parties and Claims compat failed", e);
+            return null;
         }
     }
 

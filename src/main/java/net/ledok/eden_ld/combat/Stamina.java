@@ -103,6 +103,14 @@ public final class Stamina {
         }
         StaminaRolls.register();
         ServerTickEvents.END_SERVER_TICK.register(Stamina::tick);
+        // Review finding 60: the respawned player is a new entity whose attributes only copied base values, while the
+        // state still remembers the type the dead one had; forget it so the next tick puts the modifiers back.
+        net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            State state = STATES.get(newPlayer.getUUID());
+            if (state != null) {
+                state.type = null;
+            }
+        });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 net.ledok.eden_ld.util.OnServerThread.run(server, () -> STATES.remove(handler.player.getUUID())));
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> STATES.clear());
@@ -176,17 +184,40 @@ public final class Stamina {
         }
     }
 
+    /**
+     * Puts the dodge type's modifiers on the player when the type changed, or when the live modifiers no longer match its
+     * numbers (review finding 60: a respawned player lost them although the type stayed the same; a combat.json reload
+     * changed the numbers).
+     */
     private static void applyType(ServerPlayer player, State state) {
         DodgeType type = type(player);
-        if (type == state.type) {
+        EdenConfig.Combat.RollType numbers = numbers(type);
+        if (type == state.type && applied(player, numbers)) {
             return;
         }
         state.type = type;
-        EdenConfig.Combat.RollType numbers = numbers(type);
         modify(player, ROLL_COST, numbers.cost);
         modify(player, STAMINA_REGEN, numbers.regen);
         modify(player, EXHAUSTION_DELAY, numbers.exhaustion_delay);
         BuiltInRegistries.ATTRIBUTE.getHolder(ROLL_DISTANCE).ifPresent(distance -> modify(player, distance, numbers.distance));
+    }
+
+    /** Whether the player's live modifiers are the ones {@code numbers} asks for. */
+    private static boolean applied(Player player, EdenConfig.Combat.RollType numbers) {
+        return applied(player, ROLL_COST, numbers.cost)
+                && applied(player, STAMINA_REGEN, numbers.regen)
+                && applied(player, EXHAUSTION_DELAY, numbers.exhaustion_delay)
+                && BuiltInRegistries.ATTRIBUTE.getHolder(ROLL_DISTANCE)
+                        .map(distance -> applied(player, distance, numbers.distance)).orElse(true);
+    }
+
+    private static boolean applied(Player player, Holder<Attribute> attribute, double amount) {
+        AttributeInstance instance = player.getAttribute(attribute);
+        if (instance == null) {
+            return true;
+        }
+        AttributeModifier modifier = instance.getModifier(TYPE_MODIFIER);
+        return amount == 0 ? modifier == null : modifier != null && modifier.amount() == amount;
     }
 
     private static void modify(Player player, Holder<Attribute> attribute, double amount) {

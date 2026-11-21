@@ -7,10 +7,12 @@ import net.ledok.eden_ld.compat.EconomyCompat;
 import net.ledok.eden_ld.compat.opac.OpacCompat;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -27,6 +29,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class GuildBankServer {
 
     private static final int LOG_SENT = 60;
+    /**
+     * Encoded bytes of tab contents sent in one BankData (review finding 25), like the staff vault's budget; well
+     * under the 2 MB compressed frame limit with the rest of the payload.
+     */
+    private static final int CONTENTS_BUDGET = 512 * 1024;
 
     /** Viewer → tab they look at (-1 = bank overview without a tab). */
     private static final Map<UUID, Integer> VIEWERS = new ConcurrentHashMap<>();
@@ -41,11 +48,17 @@ public final class GuildBankServer {
                 VIEWERS.remove(player.getUUID());
             } else {
                 VIEWERS.put(player.getUUID(), payload.tab());
-                send(player);
+                // Each view encodes a tab for this player: limited like bank actions (review finding 25 follow-up).
+                if (net.ledok.eden_ld.hub.HubRateLimit.BANK_ACTION.allow(player)) {
+                    send(player);
+                }
             }
         });
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.BankAction.TYPE,
-                (payload, context) -> handle(context.player(), payload));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.BankAction.TYPE, (payload, context) -> {
+            if (net.ledok.eden_ld.hub.HubRateLimit.BANK_ACTION.allow(context.player())) {
+                handle(context.player(), payload);
+            }
+        });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 net.ledok.eden_ld.util.OnServerThread.run(server, () -> VIEWERS.remove(handler.getPlayer().getUUID())));
     }
@@ -93,7 +106,7 @@ public final class GuildBankServer {
         }
         int wanted = VIEWERS.getOrDefault(me, -1);
         int viewTab = wanted >= 0 && wanted < bank.tabs.size() && GuildBankService.canView(guild, me, wanted) ? wanted : -1;
-        List<ItemStack> contents = viewTab < 0 ? List.of() : List.copyOf(bank.tabs.get(viewTab));
+        List<ItemStack> contents = viewTab < 0 ? List.of() : budgeted(player, bank.tabs.get(viewTab));
 
         List<HubPayloads.RankRightsView> rights = new ArrayList<>();
         if (rank.manages()) {
@@ -130,8 +143,11 @@ public final class GuildBankServer {
                     amount = Math.abs(amount);
                 }
             }
+            // Item, count and name only: the row shows nothing else, and full stacks here made the packet unbounded
+            // (review finding 25).
             log.add(new HubPayloads.BankLog(entry.time(), entry.name(), type.ordinal(), entry.tab(),
-                    entry.stack(), amount, detail.length() > 32 ? detail.substring(0, 32) : detail));
+                    GuildBankService.lightCopy(entry.stack()), amount,
+                    detail.length() > 32 ? detail.substring(0, 32) : detail));
         }
 
         // The viewer's own LC (for the deposit box) comes from Economy_LD asynchronously.
@@ -154,6 +170,66 @@ public final class GuildBankServer {
                         freeze == null ? 0 : freeze.since(), notes));
             }
         });
+    }
+
+    /**
+     * Copies of a tab's 54 slots within {@link #CONTENTS_BUDGET} encoded bytes (review finding 25): past the budget a
+     * stack goes as item, count and name with a "too large to show" lore line. Withdrawing works by slot, so the
+     * placeholder still hands out the real item. Copies, since the send waits for the viewer's LC balance.
+     */
+    private static List<ItemStack> budgeted(ServerPlayer player, List<ItemStack> slots) {
+        List<ItemStack> sent = new ArrayList<>(slots.size());
+        int used = 0;
+        Component note = null;
+        for (ItemStack stack : slots) {
+            if (stack.isEmpty()) {
+                sent.add(ItemStack.EMPTY);
+                continue;
+            }
+            if (stack.getComponentsPatch().isEmpty()) {
+                // A plain stack: a few bytes, nothing to measure.
+                used += 16;
+                sent.add(stack.copy());
+                continue;
+            }
+            // Once the budget is spent, the rest goes light without being encoded at all.
+            if (used < CONTENTS_BUDGET) {
+                int size = measured(stack, player);
+                if (size <= CONTENTS_BUDGET - used) {
+                    used += size;
+                    sent.add(stack.copy());
+                    continue;
+                }
+            }
+            if (note == null) {
+                note = net.ledok.eden_ld.hub.lang.ServerLang.localize(player,
+                        Component.translatable("message.eden_ld.guild.bank.trimmed")).copy()
+                        .withStyle(ChatFormatting.GRAY);
+            }
+            ItemStack light = GuildBankService.lightCopy(stack);
+            light.set(DataComponents.LORE, new ItemLore(List.of(note)));
+            used += 256;
+            sent.add(light);
+        }
+        return sent;
+    }
+
+    /**
+     * A stored stack's encoded size, measured once per stack object (review finding 25 follow-up): sends re-measured
+     * every slot, so 54 heavy books cost megabytes of encoding per BankView packet and per push. Bank stacks only
+     * change count after they're stored (a varint byte or two), so the first measure stays good. Weak keys: a stack
+     * that left the bank drops out. ItemStack has no equals/hashCode, so the map is by identity. Server thread only.
+     */
+    private static final Map<ItemStack, Integer> MEASURED = new java.util.WeakHashMap<>();
+
+    private static int measured(ItemStack stack, ServerPlayer player) {
+        Integer known = MEASURED.get(stack);
+        if (known != null) {
+            return known;
+        }
+        int size = GuildBankService.encodedSize(stack, player.registryAccess());
+        MEASURED.put(stack, size);
+        return size;
     }
 
     private static String clip(String value, int max) {
@@ -205,7 +281,7 @@ public final class GuildBankServer {
             case DEPOSIT_LC -> {
                 GuildBankService.depositLc(manager, player, action.amount(), result -> {
                     fail(player, result);
-                    after(server, player, false);
+                    after(server, player, false, result == null);
                 });
                 yield null;
             }
@@ -222,21 +298,28 @@ public final class GuildBankServer {
         fail(player, error);
         if (action.kind() != HubPayloads.BankAction.Action.DEPOSIT_LC) {
             after(server, player, action.kind() == HubPayloads.BankAction.Action.BUY_MEMBERS
-                    || action.kind() == HubPayloads.BankAction.Action.BUY_CLAIMS);
+                    || action.kind() == HubPayloads.BankAction.Action.BUY_CLAIMS, error == null);
         }
     }
 
     /**
      * Bank viewers see the change; member-limit upgrades also change the guild's directory row,
-     * and claim upgrades reach OPAC through the guild sync.
+     * and claim upgrades reach OPAC through the guild sync. A refused action changed nothing: only the actor's view
+     * refreshes, and no guild sync runs (review finding 38; the guild sync is coalesced to once per tick).
      */
-    private static void after(MinecraftServer server, ServerPlayer player, boolean limitChanged) {
+    private static void after(MinecraftServer server, ServerPlayer player, boolean limitChanged, boolean succeeded) {
+        if (!succeeded) {
+            if (VIEWERS.containsKey(player.getUUID())) {
+                send(player);
+            }
+            return;
+        }
         Guild guild = GuildManager.get(server).guildOf(player.getUUID());
         if (guild != null) {
             pushToViewers(server, guild);
         }
         if (limitChanged) {
-            GuildServer.syncAll(server);
+            GuildServer.scheduleSync(false);
         }
     }
 

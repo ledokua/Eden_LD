@@ -50,6 +50,27 @@ public final class LocalSocial extends SavedData {
     private final Map<UUID, Set<UUID>> friends = new HashMap<>();
     /** Requests waiting: target → (sender → sent at). */
     private final Map<UUID, Map<UUID, Long>> requests = new HashMap<>();
+    /**
+     * The same requests by sender: sender → targets. Not saved (rebuilt in {@link #load}); kept so a snapshot reads
+     * the player's own requests instead of scanning every request on the server (review finding 23).
+     */
+    private final Map<UUID, Set<UUID>> outgoing = new HashMap<>();
+    /** How many requests are waiting in all (review finding 23). */
+    private int requestCount;
+
+    /**
+     * Review finding 23: a modified client could send ADD for any number of random uuids, each one a permanent request
+     * saved to local_social.dat and scanned by every friends snapshot. A player may have this many requests waiting
+     * at once (they can cancel some, or wait for answers).
+     */
+    private static final int MAX_OUTGOING_REQUESTS = 50;
+    /** Review finding 23: past this many requests waiting on the whole server, new ones are refused. */
+    private static final int MAX_REQUESTS_TOTAL = 10_000;
+    /** Review finding 23: a request nobody answered goes after this long (checked hourly and at load). */
+    private static final long REQUEST_EXPIRY_MS = 30L * 24 * 60 * 60 * 1000;
+    private static final int EXPIRY_SWEEP_TICKS = 20 * 60 * 60;
+    /** When the "too many requests on the server" warning was last logged (once a minute at most). */
+    private static long requestsFullLogged;
     /** What we know of each player: name, first and last seen, level and playtime when they last left. */
     private final Map<UUID, Known> known = new HashMap<>();
 
@@ -77,6 +98,9 @@ public final class LocalSocial extends SavedData {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server,
                 () -> get(server).seen(handler.getPlayer(), true)));
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTickCount() % EXPIRY_SWEEP_TICKS == 0 && get(server).expireRequests()) {
+                get(server).setDirty();
+            }
             int minutes = EdenLD.CONFIG.profile.refresh_minutes;
             if (minutes > 0 && server.getTickCount() % (minutes * 60 * 20) == 0) {
                 for (ServerPlayer online : server.getPlayerList().getPlayers()) {
@@ -131,12 +155,12 @@ public final class LocalSocial extends SavedData {
         data.requests.getOrDefault(player, Map.of()).forEach((from, at) ->
                 incoming.add(new FriendSnapshot.Request(from, data.name(server, from), at)));
         List<FriendSnapshot.Request> outgoing = new ArrayList<>();
-        data.requests.forEach((to, from) -> {
-            Long at = from.get(player);
+        for (UUID to : data.outgoing.getOrDefault(player, Set.of())) {
+            Long at = data.requests.getOrDefault(to, Map.of()).get(player);
             if (at != null) {
                 outgoing.add(new FriendSnapshot.Request(to, data.name(server, to), at));
             }
-        });
+        }
         return new FriendSnapshot(list, incoming, outgoing);
     }
 
@@ -152,33 +176,103 @@ public final class LocalSocial extends SavedData {
             onDone.done(Component.translatable("message.eden_ld.friends.already_friends", targetName), false);
             return;
         }
-        Map<UUID, Long> mine = data.requests.get(self);
-        if (mine != null && mine.remove(target) != null) {
-            // They asked first: this accepts.
-            if (mine.isEmpty()) {
-                data.requests.remove(self);
-            }
+        if (data.requests.getOrDefault(self, Map.of()).containsKey(target)) {
+            // They asked first: this accepts. The limit is checked before the request is used up, so a full list
+            // leaves it waiting.
             int limit = EdenLD.CONFIG.minestar.local_friend_limit;
             if (limit > 0 && (data.friends.getOrDefault(self, Set.of()).size() >= limit
                     || data.friends.getOrDefault(target, Set.of()).size() >= limit)) {
                 onDone.done(Component.translatable("message.eden_ld.friends.limit", limit), false);
                 return;
             }
+            data.removeRequest(self, target);
             data.friends.computeIfAbsent(self, k -> new LinkedHashSet<>()).add(target);
             data.friends.computeIfAbsent(target, k -> new LinkedHashSet<>()).add(self);
             data.setDirty();
             onDone.done(null, true);
             return;
         }
-        Map<UUID, Long> theirs = data.requests.computeIfAbsent(target, k -> new LinkedHashMap<>());
-        if (theirs.containsKey(self)) {
+        if (data.requests.getOrDefault(target, Map.of()).containsKey(self)) {
             onDone.done(Component.translatable("message.eden_ld.friends.already_pending", targetName), false);
             return;
         }
-        theirs.put(self, System.currentTimeMillis());
-        data.known.computeIfAbsent(target, k -> new Known()).name = targetName;
+        // Review finding 23: only someone this server knows (online, seen here, or in the server's profile cache, all
+        // without a web call), so random uuids can't fill the file; their name isn't taken from the request.
+        if (!data.knows(server, target)) {
+            onDone.done(Component.translatable("message.eden_ld.friends.invalid", targetName), false);
+            return;
+        }
+        if (data.outgoing.getOrDefault(self, Set.of()).size() >= MAX_OUTGOING_REQUESTS) {
+            // Their own old requests may have run out since the last sweep.
+            if (data.expireRequests()) {
+                data.setDirty();
+            }
+            if (data.outgoing.getOrDefault(self, Set.of()).size() >= MAX_OUTGOING_REQUESTS) {
+                onDone.done(Component.translatable("message.eden_ld.friends.too_many_requests",
+                        MAX_OUTGOING_REQUESTS), false);
+                return;
+            }
+        }
+        if (data.requestCount >= MAX_REQUESTS_TOTAL) {
+            long now = System.currentTimeMillis();
+            if (now - requestsFullLogged >= 60_000) {
+                requestsFullLogged = now;
+                EdenLD.LOGGER.warn("[Minestar] Local mode: {} friend requests are waiting on this server; refusing new "
+                        + "ones until some are answered or expire.", data.requestCount);
+            }
+            onDone.done(Component.translatable("message.eden_ld.friends.requests_full"), false);
+            return;
+        }
+        data.putRequest(target, self, System.currentTimeMillis());
         data.setDirty();
         onDone.done(null, false);
+    }
+
+    /** Online, seen on this server under a name, or in the server's profile cache (memory only, no web lookup). */
+    private boolean knows(MinecraftServer server, UUID uuid) {
+        if (server.getPlayerList().getPlayer(uuid) != null) {
+            return true;
+        }
+        Known entry = known.get(uuid);
+        if (entry != null && !entry.name.isEmpty()) {
+            return true;
+        }
+        return server.getProfileCache() != null && server.getProfileCache().get(uuid).isPresent();
+    }
+
+    private void putRequest(UUID to, UUID from, long at) {
+        if (requests.computeIfAbsent(to, k -> new LinkedHashMap<>()).put(from, at) == null) {
+            requestCount++;
+        }
+        outgoing.computeIfAbsent(from, k -> new LinkedHashSet<>()).add(to);
+    }
+
+    private boolean removeRequest(UUID to, UUID from) {
+        Map<UUID, Long> inner = requests.get(to);
+        if (inner == null || inner.remove(from) == null) {
+            return false;
+        }
+        if (inner.isEmpty()) {
+            requests.remove(to);
+        }
+        requestCount--;
+        removeFrom(outgoing, from, to);
+        return true;
+    }
+
+    /** Drops requests older than {@link #REQUEST_EXPIRY_MS}; true when any went. */
+    private boolean expireRequests() {
+        long cutoff = System.currentTimeMillis() - REQUEST_EXPIRY_MS;
+        List<UUID[]> old = new ArrayList<>();
+        requests.forEach((to, from) -> from.forEach((sender, at) -> {
+            if (at < cutoff) {
+                old.add(new UUID[]{to, sender});
+            }
+        }));
+        for (UUID[] pair : old) {
+            removeRequest(pair[0], pair[1]);
+        }
+        return !old.isEmpty();
     }
 
     /** Removes a friend, or declines or cancels a request in either direction. */
@@ -190,7 +284,7 @@ public final class LocalSocial extends SavedData {
         LocalSocial data = get(server);
         UUID self = player.getUUID();
         boolean changed = removeFrom(data.friends, self, target) | removeFrom(data.friends, target, self);
-        changed |= removeRequest(data.requests, self, target) | removeRequest(data.requests, target, self);
+        changed |= data.removeRequest(self, target) | data.removeRequest(target, self);
         if (changed) {
             data.setDirty();
         }
@@ -204,17 +298,6 @@ public final class LocalSocial extends SavedData {
         }
         if (set.isEmpty()) {
             map.remove(owner);
-        }
-        return true;
-    }
-
-    private static boolean removeRequest(Map<UUID, Map<UUID, Long>> map, UUID to, UUID from) {
-        Map<UUID, Long> inner = map.get(to);
-        if (inner == null || inner.remove(from) == null) {
-            return false;
-        }
-        if (inner.isEmpty()) {
-            map.remove(to);
         }
         return true;
     }
@@ -323,8 +406,7 @@ public final class LocalSocial extends SavedData {
         for (Tag t : tag.getList("requests", Tag.TAG_COMPOUND)) {
             CompoundTag request = (CompoundTag) t;
             if (request.hasUUID("to") && request.hasUUID("from")) {
-                data.requests.computeIfAbsent(request.getUUID("to"), k -> new LinkedHashMap<>())
-                        .put(request.getUUID("from"), request.getLong("at"));
+                data.putRequest(request.getUUID("to"), request.getUUID("from"), request.getLong("at"));
             }
         }
         for (Tag t : tag.getList("known", Tag.TAG_COMPOUND)) {
@@ -338,6 +420,10 @@ public final class LocalSocial extends SavedData {
                 entry.playtimeSeconds = k.getLong("playtime");
                 data.known.put(k.getUUID("uuid"), entry);
             }
+        }
+        // Review finding 23: requests nobody answered in time go (saved without them at the next save).
+        if (data.expireRequests()) {
+            data.setDirty();
         }
         return data;
     }

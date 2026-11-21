@@ -1,9 +1,15 @@
 package net.ledok.eden_ld.hub.guild;
 
+import io.netty.buffer.Unpooled;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.compat.EconomyCompat;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -71,7 +77,73 @@ public final class GuildBankService {
 
     private static void log(Guild guild, ServerPlayer player, GuildBank.LogType type, int tab, ItemStack stack,
                             long amount, String detail) {
-        log(guild, player.getUUID(), player.getGameProfile().getName(), type, tab, stack, amount, detail);
+        log(guild, player.getUUID(), player.getGameProfile().getName(), type, tab,
+                forLog(stack, player.registryAccess()), amount, detail);
+    }
+
+    // ---------------------------------------------------------------- heavy stacks (review finding 25)
+
+    /**
+     * Encoded size above which a stack is logged, and sent in the log, as item, count and name only. A log row only
+     * shows an icon and a name, and full copies of heavy items (big books, filled shulkers) made guilds.dat and the
+     * bank packet grow without limit (review finding 25).
+     */
+    static final int HEAVY_STACK_BYTES = 8 * 1024;
+    /**
+     * One deposited stack may not encode larger than this (review finding 25): a few such items used to push the
+     * bank packet past the network limit and kick every member who opened it. A full vanilla book in Cyrillic stays
+     * under it.
+     */
+    static final int MAX_DEPOSIT_BYTES = 256 * 1024;
+
+    /**
+     * The stack's size on the wire ({@link ItemStack#OPTIONAL_STREAM_CODEC}); a stack without component changes is
+     * counted as small without encoding it. {@link Integer#MAX_VALUE} when it can't be encoded at all.
+     */
+    static int encodedSize(ItemStack stack, RegistryAccess registries) {
+        if (stack.isEmpty() || stack.getComponentsPatch().isEmpty()) {
+            return 16;
+        }
+        RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), registries);
+        try {
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, stack);
+            return buf.readableBytes();
+        } catch (RuntimeException e) {
+            return Integer.MAX_VALUE;
+        } finally {
+            buf.release();
+        }
+    }
+
+    /**
+     * Item, count and display name only, nothing else of the stack (review finding 25). A plain translated name
+     * (potions, tipped arrows) stays translatable so it reads in the viewer's language; anything else becomes a
+     * short literal in the name's color.
+     */
+    static ItemStack lightCopy(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack light = new ItemStack(stack.getItem(), stack.getCount());
+        Component name = stack.getHoverName();
+        if (!name.equals(light.getHoverName())) {
+            Component kept;
+            if (name.getContents() instanceof TranslatableContents translatable && translatable.getArgs().length == 0
+                    && name.getSiblings().isEmpty() && translatable.getKey().length() <= 128) {
+                kept = Component.translatable(translatable.getKey());
+            } else {
+                String text = name.getString();
+                kept = Component.literal(text.length() > 64 ? text.substring(0, 64) : text);
+            }
+            light.set(DataComponents.CUSTOM_NAME,
+                    kept.copy().withStyle(Style.EMPTY.withColor(name.getStyle().getColor())));
+        }
+        return light;
+    }
+
+    /** What the log keeps of a moved stack: the stack itself, or {@link #lightCopy} when it is heavy. */
+    private static ItemStack forLog(ItemStack stack, RegistryAccess registries) {
+        return encodedSize(stack, registries) <= HEAVY_STACK_BYTES ? stack : lightCopy(stack);
     }
 
     private static void log(Guild guild, UUID player, String name, GuildBank.LogType type, int tab, ItemStack stack,
@@ -112,6 +184,9 @@ public final class GuildBankService {
         ItemStack source = player.getInventory().items.get(inventorySlot);
         if (source.isEmpty()) {
             return null;
+        }
+        if (encodedSize(source, player.registryAccess()) > MAX_DEPOSIT_BYTES) {
+            return error("too_large");
         }
         ItemStack moving = source.copyWithCount(count <= 0 ? source.getCount() : Math.min(count, source.getCount()));
         int wanted = moving.getCount();

@@ -2,6 +2,7 @@ package net.ledok.eden_ld.rental;
 
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -91,6 +92,12 @@ public final class RentalStash {
     private static int ticks;
     /** While a renter dies: anything dropped on the ground then (by any mod) is removed. */
     private static int dying;
+    /** While {@link #begin} closes the player's open menu: who, and where their dropped items go (see onDrop). */
+    @Nullable
+    private static Closing closing;
+
+    private record Closing(ServerPlayer player, Consumer<ItemStack> into) {
+    }
 
     private RentalStash() {
     }
@@ -99,6 +106,14 @@ public final class RentalStash {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 net.ledok.eden_ld.util.OnServerThread.run(server, () -> onJoin(handler.getPlayer())));
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> LIVE.clear());
+        // Review finding 5: a session that ended while they were dead (see end) ends here, on the living player: the
+        // respawn without keepInventory throws away whatever the dead entity held, so nothing is given back before it.
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            CompoundTag record = newPlayer.getAttached(STASH);
+            if (record != null && !record.getString("session").equals(LIVE.get(newPlayer.getUUID()))) {
+                end(newPlayer);
+            }
+        });
         // Once a second: rental items only ever stay with their renter (anything that slipped past the guards goes).
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             ++ticks;
@@ -165,7 +180,20 @@ public final class RentalStash {
                 || !player.isAlive()) {
             return false;
         }
-        player.closeContainer();
+        // Review finding 4: the cursor and the 2x2 grid go into the stash before the menu closes. Closing first put
+        // them back into the inventory, and with no room there they dropped as items the renter (about to be one)
+        // can't pick up, lost for good. Another menu's input slots (a crafting table's grid, an anvil) still go back
+        // into the inventory on the close (and so into the stash's inventory); what doesn't fit goes into the stash's
+        // extra instead of the ground (see onDrop).
+        ListTag extra = new ListTag();
+        Consumer<ItemStack> intoExtra = stack -> extra.add(stack.save(player.registryAccess()));
+        takeLoose(player, intoExtra);
+        closing = new Closing(player, intoExtra);
+        try {
+            player.closeContainer();
+        } finally {
+            closing = null;
+        }
         // The record first, then the changes (one tick: a save of the player sees all of it or none).
         CompoundTag record = new CompoundTag();
         record.putString("session", session);
@@ -185,8 +213,6 @@ public final class RentalStash {
         if (asideSkills) {
             record.put("skills", RentalSkills.save(player));
         }
-        ListTag extra = new ListTag();
-        takeLoose(player, stack -> extra.add(stack.save(player.registryAccess())));
         record.put("extra", extra);
         writeCopy(player, record);
         player.setAttached(STASH, record);
@@ -231,16 +257,39 @@ public final class RentalStash {
      * Ends the player's rental: every rental item goes (inventory, armor, offhand, Trinkets, cursor, crafting grid,
      * inside shulker boxes and bundles), their own items and skill tree come back exactly, and anything else they got
      * meanwhile (loot from chests, rewards) is kept: into free slots, or dropped at their feet. False when they
-     * weren't renting.
+     * weren't renting. On a dead player the session ends now, but the items come back at the respawn (review
+     * finding 5).
      */
     public static boolean end(ServerPlayer player) {
+        if (!player.isAlive()) {
+            // A stale entity of a player who has respawned since: the living one.
+            ServerPlayer current = player.server.getPlayerList().getPlayer(player.getUUID());
+            if (current != null && current != player && current.isAlive()) {
+                return end(current);
+            }
+        }
         CompoundTag record = player.getAttached(STASH);
         String live = LIVE.remove(player.getUUID());
         if (record == null) {
             return live != null;
         }
         String session = record.getString("session");
-        if (live == null) {
+        if (!player.isAlive()) {
+            // Review finding 5: items given to a dead entity are thrown away by the respawn (vanilla copies the
+            // inventory and XP only with keepInventory; Trinkets likewise), and with the stash removed, copyOnDeath had
+            // nothing left to carry. So the stash stays (it goes with the respawn) and the AFTER_RESPAWN listener (or,
+            // after a logout, the next login) ends the session on the living player.
+            if (live != null) {
+                record.putBoolean("owner_ended", true);
+                player.setAttached(STASH, record);
+            }
+            EdenLD.LOGGER.info("[Rental] {} ended rental session {} while dead: own items come back at the respawn.",
+                    player.getGameProfile().getName(), session);
+            return true;
+        }
+        // Ended by its owner while they were dead (above): as if it ended now.
+        boolean ownerEnded = live != null || record.getBoolean("owner_ended");
+        if (!ownerEnded) {
             // Ended without its owner (a restart or crash; or it ended while they were away): the rental items as they
             // are now (or as they were at a death not yet re-equipped), for the same session's begin (1.3.121).
             CompoundTag resume = new CompoundTag();
@@ -302,7 +351,7 @@ public final class RentalStash {
         player.inventoryMenu.broadcastChanges();
         EdenLD.LOGGER.info("[Rental] {} ended rental session {}{}: {} rental items removed, own items back, {} other "
                         + "stacks kept ({} dropped at their feet: no room).", player.getGameProfile().getName(), session,
-                live == null ? " (after a restart, crash or end while offline)" : "", removed[0], kept.size(), dropped);
+                ownerEnded ? "" : " (after a restart, crash or end while offline)", removed[0], kept.size(), dropped);
         return true;
     }
 
@@ -402,6 +451,17 @@ public final class RentalStash {
     public static boolean onDrop(ServerPlayer player, ItemStack stack) {
         String session = RentalItems.sessionOf(stack);
         if (session == null) {
+            Closing now = closing;
+            if (now != null && now.player() == player) {
+                // Review finding 4: an own item that didn't fit back while begin closes their menu: into the stash
+                // (saved at once, then emptied so no caller can keep a copy), not onto the ground where the renter
+                // couldn't pick it up.
+                if (!stack.isEmpty()) {
+                    now.into().accept(stack);
+                    stack.setCount(0);
+                }
+                return true;
+            }
             return false;
         }
         if (session.equals(LIVE.get(player.getUUID()))) {
@@ -619,7 +679,8 @@ public final class RentalStash {
     private static void onJoin(ServerPlayer player) {
         CompoundTag record = player.getAttached(STASH);
         if (record != null && !record.getString("session").equals(LIVE.get(player.getUUID()))) {
-            // A stash with no running session: a crash or restart during it, or it ended while they were away.
+            // A stash with no running session: a crash or restart during it, or it ended while they were away. Joining
+            // on the death screen, end waits for the respawn (review finding 5).
             end(player);
         } else if (record == null) {
             LIVE.remove(player.getUUID());
@@ -689,6 +750,10 @@ public final class RentalStash {
                 taken.accept(stack);
             }
         }
+        // removeItemNoUpdate leaves the result slot as it was: a stale result (9 diamonds from a block now in the
+        // stash, or one crafted from rental items) could still be taken. The grid's update recomputes it (empty now)
+        // and sends it to the client (review follow-up to finding 4; begin, end and onDeath all come through here).
+        player.inventoryMenu.slotsChanged(grid);
     }
 
     /** Marks everything the player holds as the session's; how many stacks. */

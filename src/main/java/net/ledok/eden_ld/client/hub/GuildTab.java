@@ -607,7 +607,20 @@ final class GuildTab {
             }
             card.item(actions);
         } else {
-            Button leave = new Button(inner, 13, tr("leave"), () -> send(GuildAction.of(Action.LEAVE)));
+            // The last member leaving ends the guild (level, upgrades, quest board, log): confirm first, like a disband
+            // (review finding 55). Still sent as LEAVE: if someone joined meanwhile, the server refuses instead of
+            // disbanding a guild that has members again.
+            boolean last = leader && data.members().size() == 1;
+            Button leave = new Button(inner, 13, tr("leave"), () -> {
+                if (last) {
+                    confirm(screen, Component.translatableWithFallback("gui.eden_ld.hub.guild.confirm_leave_last",
+                                    "You're the only member: leaving disbands %s for good, with its level, upgrades "
+                                    + "and quest board. This can't be undone.", data.guild().name()),
+                            tr("leave"), () -> send(GuildAction.of(Action.LEAVE)));
+                } else {
+                    send(GuildAction.of(Action.LEAVE));
+                }
+            });
             if (leader && data.members().size() > 1) {
                 leave.enabled(false);
                 leave.tooltip(tr("leave_transfer_first"));

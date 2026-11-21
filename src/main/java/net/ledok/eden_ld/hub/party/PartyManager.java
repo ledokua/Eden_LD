@@ -180,6 +180,10 @@ public class PartyManager {
             }
             return memberIndex.containsKey(invite.inviter);
         });
+        if (waiting.isEmpty()) {
+            // Review finding 41: no empty outer entries left behind for every invitee since the last restart.
+            invites.remove(player);
+        }
         return waiting;
     }
 
@@ -265,38 +269,69 @@ public class PartyManager {
     }
 
     public InviteState inviteState(ServerPlayer inviter, ServerPlayer target) {
-        if (inviter == target || partyOf(target.getUUID()) != null) {
-            return InviteState.IN_PARTY;
+        return inviterView(inviter).stateFor(target);
+    }
+
+    /**
+     * The inviter's side of {@link #inviteState} worked out once, for asking about many targets in a row: the hub
+     * asks it for every online player in every player's party and friends data, and the inviter's "taken" count
+     * scans the whole invite map (review finding 41: per-target values once per sync, not once per pair). Use it
+     * right away; it doesn't follow later changes.
+     */
+    public InviterView inviterView(ServerPlayer inviter) {
+        return new InviterView(inviter);
+    }
+
+    public final class InviterView {
+        private final ServerPlayer inviter;
+        @Nullable
+        private final UUID partyId;
+        private final boolean noRank;
+        /** Seats taken (members or the solo inviter, plus their open invites); computed on first need. */
+        private int taken = -1;
+
+        private InviterView(ServerPlayer inviter) {
+            this.inviter = inviter;
+            Party party = partyOf(inviter.getUUID());
+            this.partyId = party == null ? null : party.id;
+            this.noRank = party != null && !party.mayInvite(inviter.getUUID());
         }
-        Party party = partyOf(inviter.getUUID());
-        if (party != null && !party.mayInvite(inviter.getUUID())) {
-            return InviteState.NO_RANK;
-        }
-        UUID partyId = party == null ? null : party.id;
-        boolean duplicate = invitesFor(target.getUUID()).values().stream().anyMatch(existing ->
-                partyId != null ? partyId.equals(existing.partyId)
-                        : existing.inviter.equals(inviter.getUUID()));
-        if (duplicate) {
-            return InviteState.PENDING;
-        }
-        MinecraftServer server = inviter.getServer();
-        if (server != null) {
-            HubSettings.InvitesFrom accepts = HubSettings.partyInvitesFrom(server, target.getUUID());
-            // Someone the target ignores reads the same as their privacy setting: not accepting invites from you.
-            if (accepts == HubSettings.InvitesFrom.NOBODY
-                    || accepts == HubSettings.InvitesFrom.FRIENDS
-                    && !MinestarHook.friendUuids(target.getUUID()).contains(inviter.getUUID())
-                    || net.ledok.eden_ld.hub.IgnoreList.ignores(server, target.getUUID(), inviter.getUUID())) {
-                return InviteState.BLOCKED;
+
+        public InviteState stateFor(ServerPlayer target) {
+            if (inviter == target || partyOf(target.getUUID()) != null) {
+                return InviteState.IN_PARTY;
             }
+            if (noRank) {
+                return InviteState.NO_RANK;
+            }
+            boolean duplicate = invitesFor(target.getUUID()).values().stream().anyMatch(existing ->
+                    partyId != null ? partyId.equals(existing.partyId)
+                            : existing.inviter.equals(inviter.getUUID()));
+            if (duplicate) {
+                return InviteState.PENDING;
+            }
+            MinecraftServer server = inviter.getServer();
+            if (server != null) {
+                HubSettings.InvitesFrom accepts = HubSettings.partyInvitesFrom(server, target.getUUID());
+                // Someone the target ignores reads the same as their privacy setting: not accepting invites from you.
+                if (accepts == HubSettings.InvitesFrom.NOBODY
+                        || accepts == HubSettings.InvitesFrom.FRIENDS
+                        && !MinestarHook.friendUuids(target.getUUID()).contains(inviter.getUUID())
+                        || net.ledok.eden_ld.hub.IgnoreList.ignores(server, target.getUUID(), inviter.getUUID())) {
+                    return InviteState.BLOCKED;
+                }
+            }
+            if (taken < 0) {
+                Party party = partyId == null ? null : parties.get(partyId);
+                taken = party != null
+                        ? party.members.size() + outgoingInvites(party.id).size()
+                        : 1 + soloOutgoingInvites(inviter.getUUID()).size();
+            }
+            if (taken >= maxSize()) {
+                return InviteState.FULL;
+            }
+            return InviteState.OK;
         }
-        int taken = party != null
-                ? party.members.size() + outgoingInvites(party.id).size()
-                : 1 + soloOutgoingInvites(inviter.getUUID()).size();
-        if (taken >= maxSize()) {
-            return InviteState.FULL;
-        }
-        return InviteState.OK;
     }
 
     /**
@@ -334,15 +369,22 @@ public class PartyManager {
         return null;
     }
 
-    /** Removes invites to {@code target} the actor is entitled to cancel. */
-    public void cancelInvite(UUID actor, UUID target) {
+    /**
+     * Removes invites to {@code target} the actor is entitled to cancel. True when one was removed, so the hub resyncs
+     * only on a real change (review finding 41: a cancel of an unknown uuid used to resync everyone).
+     */
+    public boolean cancelInvite(UUID actor, UUID target) {
         Map<UUID, Invite> waiting = invites.get(target);
         if (waiting == null) {
-            return;
+            return false;
         }
         Party party = partyOf(actor);
-        waiting.values().removeIf(invite -> invite.inviter.equals(actor)
+        boolean removed = waiting.values().removeIf(invite -> invite.inviter.equals(actor)
                 || (party != null && party.id.equals(invite.partyId) && party.mayInvite(actor)));
+        if (waiting.isEmpty()) {
+            invites.remove(target);
+        }
+        return removed;
     }
 
     /** Accepts the invite sent by {@code inviter}; creates the party if the inviter is still solo. */
@@ -376,11 +418,17 @@ public class PartyManager {
         return null;
     }
 
-    public void declineInvite(UUID player, UUID inviter) {
+    /** True when an invite was removed (review finding 41: the hub resyncs only on a real change). */
+    public boolean declineInvite(UUID player, UUID inviter) {
         Map<UUID, Invite> waiting = invites.get(player);
-        if (waiting != null) {
-            waiting.remove(inviter);
+        if (waiting == null) {
+            return false;
         }
+        boolean removed = waiting.remove(inviter) != null;
+        if (waiting.isEmpty()) {
+            invites.remove(player);
+        }
+        return removed;
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -595,6 +643,9 @@ public class PartyManager {
     private void tick(MinecraftServer server) {
         try {
             expireOffline(server);
+            // Review finding 41: expired invites and emptied invitee entries don't pile up between restarts.
+            invites.values().forEach(waiting -> waiting.values().removeIf(Invite::expired));
+            invites.values().removeIf(Map::isEmpty);
         } catch (RuntimeException e) {
             long now = System.currentTimeMillis();
             if (now - tickFailureLogged >= 60_000) {

@@ -28,6 +28,15 @@ public record GifStrip(byte[] png, List<Integer> delays) {
     private static final int MAX_FRAMES = 64;
     /** Browsers (and Discord) play delays of 10 ms or less as 100 ms. */
     private static final int FAST_DELAY = 100;
+    /**
+     * Largest side and area of the GIF's canvas (its logical screen) and of any frame, checked against the header
+     * before anything is allocated (review finding 63: a few-KB GIF claiming 16384 x 16384, or a 46000 x 46000 frame,
+     * made the decoder allocate gigabytes). Real chat GIFs are well under a thousand pixels a side.
+     */
+    public static final int MAX_SIDE_PIXELS = 4096;
+    public static final long MAX_AREA = 8L * 1024 * 1024;
+    /** Pixels of the composed frames kept, all together; a GIF past it is cut there, like past {@code maxFrames}. */
+    private static final long MAX_KEPT_PIXELS = 16L * 1024 * 1024;
 
     /** A GIF's frames, each fully composed (disposal rules applied), with their delays in ms. */
     public record Frames(List<BufferedImage> images, List<Integer> delays) {
@@ -64,24 +73,32 @@ public record GifStrip(byte[] png, List<Integer> delays) {
             if (count < 1) {
                 throw new IOException("no frames");
             }
-            BufferedImage first = reader.read(0);
-            int width = first.getWidth();
-            int height = first.getHeight();
-            // The logical screen can be larger than the first frame.
+            // Sizes come from the headers (no pixels decoded yet): each frame's, and the logical screen, which can be
+            // larger than the first frame.
+            checkSize(reader.getWidth(0), reader.getHeight(0));
+            int width = reader.getWidth(0);
+            int height = reader.getHeight(0);
             Node screen = child(reader.getStreamMetadata() == null ? null
                     : reader.getStreamMetadata().getAsTree("javax_imageio_gif_stream_1.0"), "LogicalScreenDescriptor");
             if (screen != null) {
                 width = Math.max(width, intAttr(screen, "logicalScreenWidth", width));
                 height = Math.max(height, intAttr(screen, "logicalScreenHeight", height));
             }
+            checkSize(width, height);
             BufferedImage canvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             double scale = Math.min(1.0, (double) maxSide / Math.max(width, height));
             int outWidth = Math.max(1, (int) Math.round(width * scale));
             int outHeight = Math.max(1, (int) Math.round(height * scale));
             List<BufferedImage> images = new ArrayList<>();
             List<Integer> delays = new ArrayList<>();
+            long kept = 0;
             for (int i = 0; i < count; i++) {
-                BufferedImage frame = i == 0 ? first : reader.read(i);
+                kept += (long) outWidth * outHeight;
+                if (i > 0 && kept > MAX_KEPT_PIXELS) {
+                    break;
+                }
+                checkSize(reader.getWidth(i), reader.getHeight(i));
+                BufferedImage frame = reader.read(i);
                 IIOMetadata metadata = reader.getImageMetadata(i);
                 Node root = metadata.getAsTree("javax_imageio_gif_image_1.0");
                 Node descriptor = child(root, "ImageDescriptor");
@@ -92,7 +109,13 @@ public record GifStrip(byte[] png, List<Integer> delays) {
                 int delay = control == null ? 0 : intAttr(control, "delayTime", 0) * 10;
                 delays.add(delay <= 10 ? FAST_DELAY : delay);
 
-                BufferedImage before = "restoreToPrevious".equals(disposal) ? copy(canvas) : null;
+                // restoreToPrevious keeps only what this frame covers (clipped to the canvas), not a whole copy.
+                int x0 = Math.max(0, left);
+                int y0 = Math.max(0, top);
+                int x1 = Math.min(canvas.getWidth(), left + frame.getWidth());
+                int y1 = Math.min(canvas.getHeight(), top + frame.getHeight());
+                BufferedImage before = "restoreToPrevious".equals(disposal) && x1 > x0 && y1 > y0
+                        ? copy(canvas.getSubimage(x0, y0, x1 - x0, y1 - y0)) : null;
                 Graphics2D g = canvas.createGraphics();
                 g.drawImage(frame, left, top, null);
                 g.dispose();
@@ -103,12 +126,25 @@ public record GifStrip(byte[] png, List<Integer> delays) {
                     clear.fillRect(left, top, frame.getWidth(), frame.getHeight());
                     clear.dispose();
                 } else if (before != null) {
-                    canvas = before;
+                    Graphics2D restore = canvas.createGraphics();
+                    restore.setComposite(AlphaComposite.Src);
+                    restore.drawImage(before, x0, y0, null);
+                    restore.dispose();
                 }
             }
             return new Frames(images, List.copyOf(delays));
         } finally {
             reader.dispose();
+        }
+    }
+
+    /**
+     * Refuses an image whose header claims more than {@link #MAX_SIDE_PIXELS} a side or {@link #MAX_AREA} pixels, before
+     * its pixels are allocated (review finding 63).
+     */
+    public static void checkSize(long width, long height) throws IOException {
+        if (width < 1 || height < 1 || width > MAX_SIDE_PIXELS || height > MAX_SIDE_PIXELS || width * height > MAX_AREA) {
+            throw new IOException("image too large (" + width + "x" + height + ")");
         }
     }
 

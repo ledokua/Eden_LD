@@ -1,5 +1,7 @@
 package net.ledok.eden_ld.hub.guild;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.ledok.eden_ld.compat.opac.OpacCompat;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Server side of the Guild tab: payload receivers, tab data, and syncing. Guild changes are
@@ -31,6 +34,15 @@ public final class GuildServer {
 
     private static final Set<UUID> CREATING = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+    /**
+     * Coalesced syncs (review finding 38): actions only raise these, and {@link #drain} runs the server-wide
+     * fan-out at most once per tick, however many packets arrived. {@link #SELF_PENDING}: actors whose action
+     * changed nothing get only their own data back (once per tick), so the client's view still refreshes.
+     */
+    private static final AtomicBoolean SYNC_PENDING = new AtomicBoolean();
+    private static final AtomicBoolean MEMBERSHIP_PENDING = new AtomicBoolean();
+    private static final Set<UUID> SELF_PENDING = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private GuildServer() {
     }
 
@@ -39,14 +51,59 @@ public final class GuildServer {
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.GuildDataRequest.TYPE,
                 (payload, context) -> send(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.GuildAction.TYPE,
-                (payload, context) -> handle(context.player(), payload));
+                (payload, context) -> {
+                    if (payload.kind() == HubPayloads.GuildAction.Action.CHAT
+                            || net.ledok.eden_ld.hub.HubRateLimit.GUILD_ACTION.allow(context.player())) {
+                        handle(context.player(), payload);
+                    }
+                });
         // Deferred a tick: JOIN fires before the player is in the list (see HubServer).
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> {
             GuildManager.get(server).onJoin(handler.getPlayer());
-            syncAll(server);
+            scheduleSync(false);
         }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                server.execute(() -> syncAll(server)));
+                server.execute(() -> scheduleSync(false)));
+        ServerTickEvents.END_SERVER_TICK.register(GuildServer::drain);
+        ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
+            SYNC_PENDING.set(false);
+            MEMBERSHIP_PENDING.set(false);
+            SELF_PENDING.clear();
+        });
+    }
+
+    /**
+     * Guild data to everyone online at the end of this tick, once (review finding 38). With {@code membership} the
+     * open banks and waystones follow too (ranks decide bank rights, membership whose waystones are shared).
+     * Thread-safe: it only raises flags.
+     */
+    public static void scheduleSync(boolean membership) {
+        if (membership) {
+            MEMBERSHIP_PENDING.set(true);
+        }
+        SYNC_PENDING.set(true);
+    }
+
+    /** Runs what {@link #scheduleSync} and failed actions asked for this tick (review finding 38). */
+    private static void drain(MinecraftServer server) {
+        boolean all = SYNC_PENDING.getAndSet(false);
+        boolean membership = MEMBERSHIP_PENDING.getAndSet(false);
+        if (all) {
+            SELF_PENDING.clear();
+            syncAll(server);
+        } else if (!SELF_PENDING.isEmpty()) {
+            for (java.util.Iterator<UUID> it = SELF_PENDING.iterator(); it.hasNext(); ) {
+                ServerPlayer online = server.getPlayerList().getPlayer(it.next());
+                it.remove();
+                if (online != null) {
+                    send(online);
+                }
+            }
+        }
+        if (membership) {
+            GuildBankServer.pushAll(server);
+            net.ledok.eden_ld.hub.HubServer.refreshWaystones(server);
+        }
     }
 
     /** Guild data to everyone online. */
@@ -189,6 +246,21 @@ public final class GuildServer {
             create(server, player, action.text(), action.text2(), action.value());
             return;
         }
+        // Whether the void mutators below will change anything, asked before they run (review finding 38): a refused
+        // or empty action must not cost a server-wide resync.
+        Guild mine = manager.guildOf(me);
+        boolean officer = mine != null && mine.rank(me).atLeast(GuildRank.OFFICER);
+        boolean willChange = switch (action.kind()) {
+            case CANCEL_INVITE -> officer && manager.invitesFor(target).containsKey(mine.id);
+            case DECLINE_INVITE -> manager.invitesFor(me).containsKey(target);
+            case CANCEL_APPLICATION -> {
+                Guild applied = manager.byId(target);
+                yield applied != null && applied.applications.containsKey(me);
+            }
+            // Accepting also drops an application whose applicant joined another guild meanwhile (an error result).
+            case DECLINE_APPLICATION, ACCEPT_APPLICATION -> officer && mine.applications.containsKey(target);
+            default -> false;
+        };
         Component result = switch (action.kind()) {
             case INVITE -> {
                 ServerPlayer invitee = server.getPlayerList().getPlayer(target);
@@ -233,12 +305,21 @@ public final class GuildServer {
         if (result != null) {
             fail(player, result);
         }
-        if (action.kind() != HubPayloads.GuildAction.Action.CHAT) {
-            syncAll(server);
-            // Ranks decide bank rights: open banks follow promotions, kicks, and disbanding.
-            GuildBankServer.pushAll(server);
-            // Membership decides who sees whose guild waystones.
-            net.ledok.eden_ld.hub.HubServer.refreshWaystones(server);
+        if (action.kind() == HubPayloads.GuildAction.Action.CHAT) {
+            return;
+        }
+        boolean changed = switch (action.kind()) {
+            case CANCEL_INVITE, DECLINE_INVITE, CANCEL_APPLICATION, DECLINE_APPLICATION, ACCEPT_APPLICATION ->
+                    willChange;
+            default -> result == null;
+        };
+        if (changed) {
+            // Ranks decide bank rights (open banks follow promotions, kicks, and disbanding); membership decides who
+            // sees whose guild waystones. Once per tick, however many actions came in (review finding 38).
+            scheduleSync(true);
+        } else {
+            // Nothing changed: only the actor's own view refreshes (review finding 38).
+            SELF_PENDING.add(me);
         }
     }
 
@@ -277,7 +358,7 @@ public final class GuildServer {
             }
             player.sendSystemMessage(Component.translatable("message.eden_ld.guild.created", name.trim())
                     .withStyle(ChatFormatting.GREEN));
-            syncAll(server);
+            scheduleSync(false);
         });
     }
 

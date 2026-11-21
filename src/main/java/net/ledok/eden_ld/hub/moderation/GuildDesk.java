@@ -553,11 +553,16 @@ public final class GuildDesk {
                 UUID leader = guild.leader();
                 String old = leader == null ? "?" : guild.memberNames.getOrDefault(leader, "?");
                 error = manager.staffTransfer(server, guild, target);
+                // Over the new leader's claim limit: staff may still transfer, and are told the excess (finding 11).
+                Component landNote = error == null ? GuildManager.staffTransferNote(server, guild, target) : null;
                 if (error == null) {
                     logStaff(admin, guild, "transfer", reason, name, old);
                     EdenLD.LOGGER.info("[Guilds] {} made {} the leader of {} (was {}): {}", staff, name, label, old, reason);
                 }
                 done = Component.translatable("message.eden_ld.moderation.guild.transferred", name);
+                if (landNote != null) {
+                    done = done.copy().append(" ").append(landNote);
+                }
             }
         }
         if (error != null) {

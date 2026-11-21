@@ -84,7 +84,11 @@ final class MailTab {
         }
         List<MailView> shown = new ArrayList<>();
         for (MailView mail : data.mails()) {
-            if (filter == Filter.UNREAD && mail.read() || filter == Filter.ITEMS && !mail.hasUnclaimed()) {
+            // The open mail stays in the list when opening it made it read (or Claim took its items): otherwise the
+            // Unread filter moved on to the next unread mail and opened that too, and so on through the whole mailbox
+            // (review finding 59). It was picked under this filter: a filter change clears the pick.
+            if ((filter == Filter.UNREAD && mail.read() || filter == Filter.ITEMS && !mail.hasUnclaimed())
+                    && mail.id() != selected) {
                 continue;
             }
             shown.add(mail);
@@ -93,6 +97,9 @@ final class MailTab {
         List<HubPayloads.ShopPurchase> purchases = data.purchases();
         boolean valid = isShop(selected) ? purchases.stream().anyMatch(p -> shopKey(p.id()) == selected)
                 : shown.stream().anyMatch(m -> m.id() == selected);
+        // Only a first pick (nothing picked yet, or the filter just changed) opens the mail by itself; one picked
+        // because the open mail went (deleted, expired, claimed purchase) shows without counting as read.
+        boolean firstPick = selected == Long.MIN_VALUE;
         if (selected == Long.MIN_VALUE || !valid) {
             selected = !purchases.isEmpty() ? shopKey(purchases.get(0).id())
                     : shown.isEmpty() ? Long.MIN_VALUE : shown.get(0).id();
@@ -145,7 +152,7 @@ final class MailTab {
         if (isShop(selected)) {
             purchases.stream().filter(p -> shopKey(p.id()) == selected).findFirst()
                     .ifPresent(purchase -> shopDetail(detail, purchase, purchases.size(), detailWidth));
-        } else if (shown.stream().anyMatch(m -> m.id() == selected && !m.read()) && OPENED.add(selected)) {
+        } else if (firstPick && shown.stream().anyMatch(m -> m.id() == selected && !m.read()) && OPENED.add(selected)) {
             // Shown first (not clicked): it counts as opened too.
             send(MailAction.Action.OPEN, selected);
             shown.stream().filter(m -> m.id() == selected).findFirst().ifPresent(mail -> mailDetail(detail, mail, detailWidth));
@@ -230,6 +237,10 @@ final class MailTab {
         header.item(EdenParchment.text(tr("title", data.mails().size()), EdenParchment.INK_MID));
         var filters = EdenParchment.tabs(List.of(Filter.values()),
                 candidate -> tr("filter." + candidate.name().toLowerCase(Locale.ROOT)), filter, candidate -> {
+                    if (filter != candidate) {
+                        // The next build picks (and opens) the first mail this filter shows.
+                        selected = Long.MIN_VALUE;
+                    }
                     filter = candidate;
                     screen.onMailData();
                 }, 30, "mail/filter");

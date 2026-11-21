@@ -6,8 +6,10 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.ledok.eden_ld.EdenLD;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -885,11 +887,22 @@ public class EdenConfig {
      * Everything Eden_LD reads lives in {@code config/eden_ld/}: one file per section of this
      * class, named after it ({@code chat.json}, {@code hub.json}, {@code tab_list.json}, …), next
      * to emoji.json, daily_quests/ and lang/. A missing file or setting gets its default (and is
-     * written back); an unreadable file keeps its defaults and says so in the log.
+     * written back); an unreadable file keeps its defaults and says so in the log, and is left
+     * untouched on disk so the admin can fix it.
      */
     private static final Path FOLDER = FabricLoader.getInstance().getConfigDir().resolve(EdenLD.MOD_ID);
     /** Where all sections used to be; no longer read. */
     private static final Path OLD_FILE = FOLDER.resolve(EdenLD.MOD_ID + ".json");
+    /** The commands section as last read well (review finding 6 follow-up), used when commands.json can't be read. */
+    private static final String COMMANDS_LAST_GOOD = "commands.json.last-good";
+
+    /**
+     * Sections whose file exists but couldn't be parsed at load (review finding 6): {@link #save()} skips them, so one
+     * typo no longer overwrites a hand-tuned file (Discord token, op-only list…) with defaults. A section leaves this set
+     * once its file reads again (/reload) or staff save it on purpose (then the bad file is kept as a backup first).
+     * Not a public field, so {@link #sections()} doesn't see it.
+     */
+    private final transient java.util.Set<String> unreadable = new java.util.HashSet<>();
 
     public static EdenConfig load() {
         EdenConfig config = new EdenConfig();
@@ -908,7 +921,12 @@ public class EdenConfig {
                     field.set(config, section);
                 }
             } catch (Exception e) {
-                EdenLD.LOGGER.error("[Config] Can't read {}, using its defaults.", file.getFileName(), e);
+                config.unreadable.add(field.getName());
+                EdenLD.LOGGER.error("[Config] Can't read {}, using its defaults until it is fixed; the file is left "
+                        + "as it is (not rewritten).", file.getFileName(), e);
+                if (field.getName().equals("commands")) {
+                    config.commands = lastGoodCommands();
+                }
             }
         }
         if (config.chat.discord_bot_token == null) config.chat.discord_bot_token = "";
@@ -933,7 +951,45 @@ public class EdenConfig {
         config.chat_system_only.fillMissing();
         config.rental.fillMissing();
         config.save();
+        if (!config.unreadable.contains("commands")) {
+            config.saveLastGoodCommands();
+        }
         return config;
+    }
+
+    /**
+     * The commands section from {@code commands.json.last-good}, for a commands.json that can't be read (review finding
+     * 6 follow-up): its defaults would unlock every command the owner had made op-only, so the copy saved after the last
+     * good read is used instead. Defaults only when that copy is missing or unreadable too.
+     */
+    private static Commands lastGoodCommands() {
+        Path file = FOLDER.resolve(COMMANDS_LAST_GOOD);
+        try {
+            Commands section = Files.exists(file) ? GSON.fromJson(Files.readString(file), Commands.class) : null;
+            if (section != null) {
+                if (section.op_only == null) section.op_only = new ArrayList<>();
+                if (section.busy_blocked == null) section.busy_blocked = new ArrayList<>();
+                EdenLD.LOGGER.error("[Config] commands.json can't be read: using {} (the op-only list as last read) "
+                        + "until commands.json is fixed.", COMMANDS_LAST_GOOD);
+                return section;
+            }
+        } catch (Exception e) {
+            EdenLD.LOGGER.error("[Config] Can't read {} either.", COMMANDS_LAST_GOOD, e);
+        }
+        EdenLD.LOGGER.error("[Config] commands.json can't be read and there is no usable {}: the op-only list is back to "
+                + "its defaults, so commands locked there may be usable by everyone until commands.json is fixed.",
+                COMMANDS_LAST_GOOD);
+        return new Commands();
+    }
+
+    /** Copies the commands section as read now to {@code commands.json.last-good} (see {@link #lastGoodCommands}). */
+    private void saveLastGoodCommands() {
+        try {
+            Files.createDirectories(FOLDER);
+            write(FOLDER.resolve(COMMANDS_LAST_GOOD), GSON.toJson(commands));
+        } catch (IOException e) {
+            EdenLD.LOGGER.error("[Config] Failed to save {}.", COMMANDS_LAST_GOOD, e);
+        }
     }
 
     /** Re-reads {@code commands.json} into this config (the op-only list follows /reload). */
@@ -952,6 +1008,8 @@ public class EdenConfig {
                     section.busy_blocked = new ArrayList<>();
                 }
                 commands = section;
+                unreadable.remove("commands");
+                saveLastGoodCommands();
             }
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous list.", file.getFileName(), e);
@@ -970,6 +1028,7 @@ public class EdenConfig {
             if (section != null) {
                 section.fillMissing();
                 tutorial = section;
+                unreadable.remove("tutorial");
             }
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous values.", file.getFileName(), e);
@@ -996,6 +1055,7 @@ public class EdenConfig {
                 if (section.roll_heavy == null) section.roll_heavy = defaults.roll_heavy;
                 if (section.pvp_regen == null) section.pvp_regen = defaults.pvp_regen;
                 combat = section;
+                unreadable.remove("combat");
                 EdenLD.LOGGER.info("[Config] combat.json reloaded.");
             }
         } catch (Exception e) {
@@ -1013,6 +1073,7 @@ public class EdenConfig {
             if (section != null) {
                 section.fillMissing();
                 hazards = section;
+                unreadable.remove("hazards");
             }
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous values.", file.getFileName(), e);
@@ -1030,6 +1091,7 @@ public class EdenConfig {
             if (section != null) {
                 section.fillMissing();
                 chat_system_only = section;
+                unreadable.remove("chat_system_only");
             }
         } catch (Exception e) {
             EdenLD.LOGGER.error("[Config] Can't read {}, keeping the previous lists.", file.getFileName(), e);
@@ -1038,33 +1100,68 @@ public class EdenConfig {
 
     /** Writes {@code commands.json} only (the Moderation window edits the op-only list). */
     public void saveCommands() {
-        try {
-            Files.createDirectories(FOLDER);
-            Files.writeString(FOLDER.resolve("commands.json"), GSON.toJson(commands));
-        } catch (IOException e) {
-            EdenLD.LOGGER.error("[Config] Failed to save commands.json.", e);
-        }
+        saveSection("commands", commands);
     }
 
     /** Writes {@code flight.json} only (Moderation → World settings edits the flight lists). */
     public void saveFlight() {
+        saveSection("flight", flight);
+    }
+
+    /**
+     * A section staff changed on purpose. If its file couldn't be read at load, the bad file is kept as
+     * {@code <name>.json.broken-<millis>} first (review finding 6), so whatever else was in it can still be copied back.
+     */
+    private void saveSection(String name, Object section) {
         try {
             Files.createDirectories(FOLDER);
-            Files.writeString(FOLDER.resolve("flight.json"), GSON.toJson(flight));
+            Path file = FOLDER.resolve(name + ".json");
+            if (unreadable.remove(name) && Files.exists(file)) {
+                Path backup = FOLDER.resolve(name + ".json.broken-" + System.currentTimeMillis());
+                Files.copy(file, backup);
+                EdenLD.LOGGER.warn("[Config] {} couldn't be read at startup; kept it as {} before saving the new values.",
+                        file.getFileName(), backup.getFileName());
+            }
+            write(file, GSON.toJson(section));
+            if (name.equals("commands")) {
+                saveLastGoodCommands();
+            }
         } catch (IOException e) {
-            EdenLD.LOGGER.error("[Config] Failed to save flight.json.", e);
+            EdenLD.LOGGER.error("[Config] Failed to save {}.json.", name, e);
         }
     }
 
-    /** Writes every section to its file (new settings appear with their defaults). */
+    /**
+     * Writes every section to its file (new settings appear with their defaults) — except sections whose file couldn't be
+     * parsed at load (review finding 6): those keep the admin's file untouched instead of being reset to defaults.
+     */
     public void save() {
         try {
             Files.createDirectories(FOLDER);
             for (java.lang.reflect.Field field : sections()) {
-                Files.writeString(FOLDER.resolve(field.getName() + ".json"), GSON.toJson(field.get(this)));
+                if (unreadable.contains(field.getName())) {
+                    EdenLD.LOGGER.warn("[Config] Not rewriting {}.json: it couldn't be read. Fix it and restart.",
+                            field.getName());
+                    continue;
+                }
+                write(FOLDER.resolve(field.getName() + ".json"), GSON.toJson(field.get(this)));
             }
         } catch (IOException | IllegalAccessException e) {
             EdenLD.LOGGER.error("[Config] Failed to save config.", e);
+        }
+    }
+
+    /**
+     * Writes through a temp file and an atomic rename (review finding 6), so a crash or full disk mid-write never leaves a
+     * half-written config (which the next start couldn't parse).
+     */
+    private static void write(Path file, String json) throws IOException {
+        Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+        Files.writeString(temp, json);
+        try {
+            Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

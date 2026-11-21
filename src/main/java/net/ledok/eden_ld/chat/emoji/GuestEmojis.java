@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Guest emojis: custom emojis that came in from Discord but aren't in emoji.json (other servers'
@@ -72,9 +73,11 @@ final class GuestEmojis {
 
     /**
      * Registers a new guest (or refreshes a known one), making room when full — never evicting
-     * one in {@code keep} (favorites). Null when there's no room.
+     * one in {@code keep} (favorites). Null when there's no room. The guest that made room goes to
+     * {@code evicted} (under this store's lock: keep it quick), so its image and cached file go too
+     * — before, the 500-guest cap bounded only this list (review finding 40).
      */
-    synchronized Guest add(String id, String name, boolean animated, Set<String> keep) {
+    synchronized Guest add(String id, String name, boolean animated, Set<String> keep, Consumer<Guest> evicted) {
         long now = System.currentTimeMillis();
         Guest known = byId.get(id);
         if (known != null) {
@@ -85,7 +88,10 @@ final class GuestEmojis {
         if (byId.size() >= MAX_GUESTS) {
             byId.values().stream().filter(guest -> !keep.contains(guest.id()))
                     .min(Comparator.comparingLong(Guest::seen))
-                    .ifPresent(oldest -> byId.remove(oldest.id()));
+                    .ifPresent(oldest -> {
+                        byId.remove(oldest.id());
+                        evicted.accept(oldest);
+                    });
         }
         BitSet used = new BitSet();
         byId.values().forEach(guest -> used.set(guest.codepoint() - FIRST_CODEPOINT));

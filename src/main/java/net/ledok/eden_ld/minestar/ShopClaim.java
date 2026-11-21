@@ -225,6 +225,10 @@ final class ShopClaim {
                     .withStyle(ChatFormatting.GREEN));
         }
         Set<Long> delivered = deliver(server, player, fresh);
+        if (!delivered.isEmpty()) {
+            // The Home badge's cached count is stale now.
+            net.ledok.eden_ld.hub.HubServer.forgetShopCount(uuid);
+        }
         if (!delivered.isEmpty() || changed) {
             unconfirmed.addAll(delivered);
             storeUnconfirmed(server, uuid, unconfirmed);

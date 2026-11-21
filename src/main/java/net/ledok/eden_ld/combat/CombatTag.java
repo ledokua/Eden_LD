@@ -8,12 +8,15 @@ import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.api.flight.EdenFlightApi;
 import net.ledok.eden_ld.api.flight.FlightRule;
 import net.ledok.eden_ld.api.flight.FlightVerdict;
+import net.ledok.eden_ld.compat.CombatTeamsCompat;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
@@ -23,8 +26,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * PvP combat tag: when damage from one player lands on another, both are tagged for
- * {@code combat.pvp_tag_seconds}. Tagged players can't use hub waystone teleports and,
+ * PvP combat tag: when damage from one player's side lands on another's, both players are tagged for
+ * {@code combat.pvp_tag_seconds}. A side is a player with their pets, summons and ridden dragons
+ * (review finding 27), so a summoner's or dragon rider's hits tag them and their target, and hits on
+ * a player's pet tag its owner. Tagged players can't use hub waystone teleports and,
  * with {@code pvp_tag_blocks_flight}, can't fly. Only landed damage counts (AFTER_DAMAGE),
  * so hits Eden cancels between partymates never tag anyone; projectiles count through
  * their shooter. The tagged player's client is told how long, so flight is refused
@@ -43,12 +48,8 @@ public final class CombatTag {
         PayloadTypeRegistry.playS2C().register(Sync.TYPE, Sync.CODEC);
 
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, damage, blocked) -> {
-            if (entity instanceof ServerPlayer victim
-                    && source.getEntity() instanceof ServerPlayer attacker
-                    && attacker != victim
-                    && damage > 0) {
-                tag(victim);
-                tag(attacker);
+            if (damage > 0 && source.getEntity() != null) {
+                tagSides(entity, source.getEntity());
             }
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> TAGGED_UNTIL.clear());
@@ -67,6 +68,29 @@ public final class CombatTag {
                         return Component.translatable("message.eden_ld.combat.no_flight");
                     }
                 });
+    }
+
+    /**
+     * Tags both sides of a hit that landed: each side is a player or, for pets, summons and ridden dragons, their owner
+     * ({@link CombatTeamsCompat#sideOf}), as for parties (review finding 27: hits by owned entities tagged nobody). Hits
+     * on a player's pet tag its owner too: it's their side under attack, and switching PvP off would shield it.
+     * Both sides must be online players: a modded entity owned by a mob (a non-player owner uuid) never makes PvE a PvP
+     * fight, and an offline owner's side tags nobody. Damage that got here passed the PvP gate, so friends and ignored
+     * pairs never tag each other.
+     */
+    private static void tagSides(LivingEntity victim, Entity attacker) {
+        UUID attackerSide = CombatTeamsCompat.sideOf(attacker);
+        UUID victimSide = CombatTeamsCompat.sideOf(victim);
+        MinecraftServer server = victim.getServer();
+        if (attackerSide == null || victimSide == null || attackerSide.equals(victimSide) || server == null) {
+            return;
+        }
+        ServerPlayer victimPlayer = server.getPlayerList().getPlayer(victimSide);
+        ServerPlayer attackerPlayer = server.getPlayerList().getPlayer(attackerSide);
+        if (victimPlayer != null && attackerPlayer != null) {
+            tag(victimPlayer);
+            tag(attackerPlayer);
+        }
     }
 
     private static void tag(ServerPlayer player) {
