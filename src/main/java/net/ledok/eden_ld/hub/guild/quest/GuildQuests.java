@@ -283,6 +283,16 @@ public final class GuildQuests {
                 GuildQuestDefinition quest = GuildQuestRegistry.get(ResourceLocation.tryParse(slot.getString("quest")));
                 int goal = slot.getInt("goal");
                 int progress = slot.getInt("progress");
+                if (quest != null && !slot.getBoolean("done")) {
+                    // Review finding 10: the goal grows with the guild during the period and never shrinks, so
+                    // members can't leave before the draw and rejoin to small goals.
+                    int now = quest.goal(guild.members.size());
+                    if (now > goal) {
+                        goal = now;
+                        slot.putInt("goal", goal);
+                        changed = true;
+                    }
+                }
                 if (quest == null || slot.getBoolean("done") || !quest.objective().equals(type) || progress >= goal
                         || quest.target().isPresent() && !matcher.test(quest.target().get())
                         || !net.ledok.eden_ld.hub.daily.QuestConditions.inDimension(player, quest.dimension())
@@ -308,13 +318,71 @@ public final class GuildQuests {
         }
     }
 
+    /** Per-player hub data: guild quests paid this day and week, in any guild (review finding 3). */
+    private static final String PAID = "guild_quests_paid";
+
+    /**
+     * The members this finished quest may still pay: each player is paid each guild quest at most once per day (daily
+     * quests) or week (weekly ones), and at most a full board's worth, whatever guild they are in. Without it, one
+     * player founding a new guild (free) got a fresh board each time and farmed its rewards without limit (review
+     * finding 3, 1.3.130). Counts them as paid.
+     */
+    private static List<UUID> payable(MinecraftServer server, Guild guild, GuildQuestDefinition quest) {
+        boolean daily = quest.period() == GuildQuestDefinition.Period.DAILY;
+        long current = daily ? DailyQuests.today() : thisWeek();
+        String periodKey = daily ? "day" : "week";
+        String listKey = daily ? "daily" : "weekly";
+        String id = quest.id().toString();
+        int cap = Math.max(1, wanted(guild, quest.period()));
+        net.ledok.eden_ld.hub.HubData data = net.ledok.eden_ld.hub.HubData.get(server);
+        List<UUID> payable = new ArrayList<>();
+        for (UUID member : guild.members.keySet()) {
+            CompoundTag paid = data.peek(member).getCompound(PAID);
+            ListTag ids = paid.getLong(periodKey) == current ? paid.getList(listKey, Tag.TAG_STRING) : new ListTag();
+            boolean already = false;
+            for (int i = 0; i < ids.size(); i++) {
+                already |= ids.getString(i).equals(id);
+            }
+            if (already || ids.size() >= cap) {
+                continue;
+            }
+            payable.add(member);
+            ids.add(net.minecraft.nbt.StringTag.valueOf(id));
+            CompoundTag tag = data.player(member);
+            CompoundTag write = tag.getCompound(PAID);
+            write.putLong(periodKey, current);
+            write.put(listKey, ids);
+            tag.put(PAID, write);
+        }
+        return payable;
+    }
+
     /** A finished quest: XP, bank LC, member mail, and the news to whoever is online. */
     private static void complete(MinecraftServer server, Guild guild, GuildQuestDefinition quest, int goal) {
         GuildQuestDefinition.Rewards rewards = quest.rewards();
-        if (rewards.lc() > 0) {
-            guild.bank.balance += rewards.lc();
+        List<UUID> payable = payable(server, guild, quest);
+        if (payable.isEmpty()) {
+            // Everyone here already had a full board's rewards this period (in this guild or another).
+            EdenLD.LOGGER.info("[Guild quests] {} finished {}, but every member was already paid for it (or for a full board) this {}; "
+                    + "no rewards.", guild.name, quest.id(), quest.period() == GuildQuestDefinition.Period.DAILY ? "day" : "week");
+            for (UUID member : guild.members.keySet()) {
+                ServerPlayer online = server.getPlayerList().getPlayer(member);
+                if (online != null) {
+                    online.sendSystemMessage(Component.translatable("message.eden_ld.guild.quest_done_unpaid",
+                            ServerLang.localize(online, quest.title(goal))).withStyle(ChatFormatting.GRAY));
+                }
+            }
+            return;
+        }
+        // The bank's LC and the guild XP in proportion to the members still payable: a member already paid this
+        // quest elsewhere brings no extra share.
+        double share = guild.members.isEmpty() ? 1 : (double) payable.size() / guild.members.size();
+        long lc = Math.round(rewards.lc() * share);
+        int guildXp = (int) Math.round(rewards.guildXp() * share);
+        if (lc > 0) {
+            guild.bank.balance += lc;
             guild.bank.log.add(new GuildBank.LogEntry(System.currentTimeMillis(), new UUID(0L, 0L), "",
-                    GuildBank.LogType.QUEST_REWARD, -1, ItemStack.EMPTY, rewards.lc(), quest.id().toString()));
+                    GuildBank.LogType.QUEST_REWARD, -1, ItemStack.EMPTY, lc, quest.id().toString()));
             while (guild.bank.log.size() > GuildBank.LOG_LIMIT) {
                 guild.bank.log.remove(0);
             }
@@ -322,7 +390,7 @@ public final class GuildQuests {
         }
         if (!rewards.items().isEmpty() && MailHub.LOADED) {
             long expiresAt = (System.currentTimeMillis() + millisUntilReset(quest.period())) / 1000L;
-            Economy.mail(guild, quest.period(), rewards.items(), expiresAt);
+            Economy.mail(guild, quest.period(), rewards.items(), expiresAt, payable);
         }
         for (UUID member : guild.members.keySet()) {
             ServerPlayer online = server.getPlayerList().getPlayer(member);
@@ -339,7 +407,7 @@ public final class GuildQuests {
                                     new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hub")))));
         }
         // XP last: a level-up message follows the quest's.
-        GuildLevels.addXp(server, guild, rewards.guildXp());
+        GuildLevels.addXp(server, guild, guildXp);
     }
 
     /** Guild XP from a member's claimed daily quest. */
@@ -383,7 +451,8 @@ public final class GuildQuests {
                         // Not a member's key: nothing to show for it.
                     }
                 }
-                out.add(new BoardQuest(period, quest, slot.getInt("goal"), slot.getInt("progress"),
+                out.add(new BoardQuest(period, quest, slot.getBoolean("done") ? slot.getInt("goal")
+                        : Math.max(slot.getInt("goal"), quest.goal(guild.members.size())), slot.getInt("progress"),
                         slot.getBoolean("done"), by));
             }
         }
@@ -428,7 +497,9 @@ public final class GuildQuests {
                 if (quest == null) {
                     continue;
                 }
-                int goal = slot.getInt("goal");
+                // The goal grows with the guild (finding 10): shown as it will count, not as last stored.
+                int goal = slot.getBoolean("done") ? slot.getInt("goal")
+                        : Math.max(slot.getInt("goal"), quest.goal(guild.members.size()));
                 CompoundTag by = slot.getCompound("by");
                 String top = "";
                 int topAmount = 0;
@@ -463,14 +534,15 @@ public final class GuildQuests {
 
     /** The only class touching Economy_LD types. */
     private static final class Economy {
-        static void mail(Guild guild, GuildQuestDefinition.Period period, List<ItemStack> items, long expiresAt) {
+        static void mail(Guild guild, GuildQuestDefinition.Period period, List<ItemStack> items, long expiresAt,
+                         List<UUID> to) {
             String kind = period == GuildQuestDefinition.Period.DAILY ? "daily" : "weekly";
             var builder = net.ledok.economy_ld.mail.MailDraft.builder(net.ledok.economy_ld.mail.MailKind.REWARD,
                             net.ledok.economy_ld.mail.MailContent.translated("mail.eden_ld.guild_quest." + kind + ".title",
                                     "mail.eden_ld.guild_quest.body", List.of(guild.name)))
                     .sender(guild.name, null)
                     .expiresAt(expiresAt)
-                    .to(new ArrayList<>(guild.members.keySet()))
+                    .to(new ArrayList<>(to))
                     .audienceNote("guild:" + guild.tag);
             for (ItemStack stack : items) {
                 builder.item(new net.ledok.economy_ld.mail.MailAttachment(stack.copyWithCount(1), stack.getCount()));

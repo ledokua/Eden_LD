@@ -234,13 +234,8 @@ public final class IgnoreList {
         return entries.size();
     }
 
-    /** An online player by name, else one the server has seen (the user cache). */
+    /** An online player by name, else one the server has seen (the user cache); never asks Mojang. */
     private static Optional<GameProfile> profile(MinecraftServer server, String name) {
-        ServerPlayer online = server.getPlayerList().getPlayerByName(name);
-        if (online != null) {
-            return Optional.of(online.getGameProfile());
-        }
-        GameProfileCache cache = server.getProfileCache();
-        return cache == null ? Optional.empty() : cache.get(name);
+        return net.ledok.eden_ld.util.KnownPlayers.byName(server, name);
     }
 }

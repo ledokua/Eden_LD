@@ -1425,6 +1425,7 @@
   "gui.eden_ld.hub.dailies.reward_guild_xp": "%s досв. гільдії",
   "message.eden_ld.guild.level_up": "Ваша гільдія %s досягла %s рівня!",
   "message.eden_ld.guild.level_up_gained": "Нове: %s.",
+  "message.eden_ld.guild.quest_done_unpaid": "Гільдійне завдання виконано: %s. Нагороди за цей період уже видано, тож цього разу їх немає.",
   "message.eden_ld.guild.quest_done": "Гільдійне завдання виконано: %s!",
   "message.eden_ld.guild.admin_quests_reset": "Для %s витягнуто нові гільдійні завдання.",
   "message.eden_ld.guild.admin_xp": "%s тепер має %s досвіду гільдії (рівень %s).",

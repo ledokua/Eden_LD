@@ -49,6 +49,7 @@
     "RentalSlotInsertMixin",
     "RentalSlotMixin",
     "RentalUseOnBlockMixin",
+    "ResultSlotUncraftMixin",
     "SavedDataAsyncMixin",
     "ServerAdvancementsRecipeMixin",
     "ServerPlayerChatRecallMixin",

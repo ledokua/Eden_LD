@@ -116,7 +116,7 @@ public final class DailyProgressHooks {
                 && net.minecraft.stats.Stats.FISH_CAUGHT.equals(stat.getValue())) {
             changed = DailyQuests.report(player, DailyQuests.CATCH_FISH, target -> true, amount);
         } else if (stat.getType() == net.minecraft.stats.Stats.ITEM_CRAFTED
-                && stat.getValue() instanceof net.minecraft.world.item.Item item) {
+                && stat.getValue() instanceof net.minecraft.world.item.Item item && !Uncrafting.awarding()) {
             changed = DailyQuests.report(player, DailyQuests.CRAFT_ITEMS, DailyQuests.itemMatcher(new ItemStack(item)), amount);
         }
         String name = stat.getName();

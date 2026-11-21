@@ -290,9 +290,7 @@ public final class MailStaff {
         Set<UUID> players = new LinkedHashSet<>();
         List<String> unknown = new ArrayList<>();
         for (String name : draft.players()) {
-            ServerPlayer online = server.getPlayerList().getPlayerByName(name);
-            Optional<GameProfile> profile = online != null ? Optional.of(online.getGameProfile())
-                    : server.getProfileCache() == null ? Optional.empty() : server.getProfileCache().get(name);
+            Optional<GameProfile> profile = net.ledok.eden_ld.util.KnownPlayers.byName(server, name);
             if (profile.isPresent()) {
                 players.add(profile.get().getId());
             } else {

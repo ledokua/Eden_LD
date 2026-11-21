@@ -1425,6 +1425,7 @@
   "gui.eden_ld.hub.dailies.reward_guild_xp": "%s guild XP",
   "message.eden_ld.guild.level_up": "Your guild %s reached level %s!",
   "message.eden_ld.guild.level_up_gained": "New: %s.",
+  "message.eden_ld.guild.quest_done_unpaid": "Guild quest complete: %s. Its rewards were already paid out this period, so there are none this time.",
   "message.eden_ld.guild.quest_done": "Guild quest complete: %s!",
   "message.eden_ld.guild.admin_quests_reset": "Drew new guild quests for %s.",
   "message.eden_ld.guild.admin_xp": "%s now has %s guild XP (level %s).",

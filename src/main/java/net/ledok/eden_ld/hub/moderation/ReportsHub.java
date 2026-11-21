@@ -62,10 +62,19 @@ public final class ReportsHub {
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("report")
                 .executes(context -> open(context.getSource(), null))
-                .then(Commands.argument("player", GameProfileArgument.gameProfile())
+                // A plain word, not GameProfileArgument: that looks an unknown name up at Mojang on the server thread
+                // (review finding 22). Online players and anyone who has joined resolve; others are refused.
+                .then(Commands.argument("player", com.mojang.brigadier.arguments.StringArgumentType.word())
+                        .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                context.getSource().getOnlinePlayerNames(), builder))
                         .executes(context -> {
-                            var profiles = GameProfileArgument.getGameProfiles(context, "player");
-                            return open(context.getSource(), profiles.isEmpty() ? null : profiles.iterator().next().getName());
+                            String name = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "player");
+                            var profile = net.ledok.eden_ld.util.KnownPlayers.byName(context.getSource().getServer(), name);
+                            if (profile.isEmpty()) {
+                                context.getSource().sendFailure(Component.translatable("argument.player.unknown"));
+                                return 0;
+                            }
+                            return open(context.getSource(), profile.get().getName());
                         })));
     }
 

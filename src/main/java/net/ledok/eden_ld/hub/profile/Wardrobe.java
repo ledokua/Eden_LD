@@ -84,8 +84,7 @@ public final class Wardrobe {
             notice(giver, Component.translatable("message.eden_ld.gift.not_giftable"), false);
             return;
         }
-        GameProfile recipient = server.getProfileCache() == null ? null
-                : server.getProfileCache().get(gift.recipient().trim()).orElse(null);
+        GameProfile recipient = net.ledok.eden_ld.util.KnownPlayers.byName(server, gift.recipient()).orElse(null);
         if (recipient == null) {
             notice(giver, Component.translatable("message.eden_ld.gift.unknown", gift.recipient()), false);
             return;
