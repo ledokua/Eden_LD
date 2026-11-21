@@ -101,6 +101,12 @@ public abstract class TwoPartBlockResendMixin {
             require = 0)
     private void eden_ld$resendOtherHalfAfterBreak(ServerboundPlayerActionPacket packet, CallbackInfo ci) {
         eden_ld$logOnce();
+        BlockPos pos = packet.getPos();
+        // Vanilla refuses a break out of reach without touching the level; reading the block there would load (or
+        // generate) its chunk on the server thread for any position a client sends (1.3.130).
+        if (!player.canInteractWithBlock(pos, 1.0) || !player.serverLevel().isLoaded(pos)) {
+            return;
+        }
         if (packet.getAction() != ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK) {
             eden_ld$resendOtherHalf(packet.getPos());
             // Still there: refused, or not broken yet; the client may have predicted it gone.
@@ -113,6 +119,9 @@ public abstract class TwoPartBlockResendMixin {
     /** The block (and its other half) again, with block entity data, after the server's answer to the prediction. */
     @Unique
     private void eden_ld$resyncLater(BlockPos pos) {
+        if (!player.serverLevel().isLoaded(pos)) {
+            return;
+        }
         BlockResync.queue(player, pos);
         BlockPos other = eden_ld$otherHalf(player.serverLevel().getBlockState(pos), pos);
         if (other != null) {
@@ -131,6 +140,9 @@ public abstract class TwoPartBlockResendMixin {
 
     @Unique
     private void eden_ld$resendOtherHalf(BlockPos pos) {
+        if (!player.serverLevel().isLoaded(pos)) {
+            return;
+        }
         BlockPos other = eden_ld$otherHalf(player.serverLevel().getBlockState(pos), pos);
         if (other != null) {
             eden_ld$send(other);

@@ -564,6 +564,25 @@ public class EdenConfig {
         public boolean update_old_armor_stats = true;
         /** Healing a player gets while PvP combat-tagged ({@link #pvp_tag_seconds}), as a share: 0.5 = half. 1 = off. */
         public double pvp_healing_received = 0.5;
+        /**
+         * Slower natural regeneration in PvP (LeDok, 2026-11-20): see {@link PvpRegen}. On top of
+         * {@link #pvp_healing_received}, which also halves natural regeneration while the player is combat-tagged.
+         */
+        public PvpRegen pvp_regen = new PvpRegen();
+
+        /**
+         * For {@code window_seconds} after a player last took damage from another player, each natural regeneration
+         * heal (a full hunger bar or saturation) is {@code natural_regen_multiplier} of vanilla's. The heal still
+         * costs vanilla's exhaustion, so food goes as fast for less healing. Every new PvP hit restarts the window.
+         * PvP damage: hit, shot or cast by another player, or a hazard another player caused (their poison or wither,
+         * fire they set, lightning they called, bleeding while they were hitting). Potions, spells, skill-tree heals
+         * and the Regeneration effect are left alone.
+         */
+        public static class PvpRegen {
+            public boolean enabled = true;
+            public int window_seconds = 15;
+            public double natural_regen_multiplier = 0.25;
+        }
 
         /**
          * Attack speed diminishing returns: above {@code attack_speed_soft_cap} only {@code attack_speed_share_above_cap}
@@ -908,6 +927,7 @@ public class EdenConfig {
         if (config.tab_list.footer == null) config.tab_list.footer = new ArrayList<>();
         if (config.commands.op_only == null) config.commands.op_only = new ArrayList<>();
         if (config.commands.busy_blocked == null) config.commands.busy_blocked = new ArrayList<>();
+        if (config.combat.pvp_regen == null) config.combat.pvp_regen = new Combat.PvpRegen();
         config.hazards.fillMissing();
         config.tutorial.fillMissing();
         config.chat_system_only.fillMissing();
@@ -974,6 +994,7 @@ public class EdenConfig {
                 if (section.roll_fast == null) section.roll_fast = defaults.roll_fast;
                 if (section.roll_medium == null) section.roll_medium = defaults.roll_medium;
                 if (section.roll_heavy == null) section.roll_heavy = defaults.roll_heavy;
+                if (section.pvp_regen == null) section.pvp_regen = defaults.pvp_regen;
                 combat = section;
                 EdenLD.LOGGER.info("[Config] combat.json reloaded.");
             }

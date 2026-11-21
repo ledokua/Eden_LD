@@ -166,6 +166,40 @@ public final class Hazards {
 
     // ---------------------------------------------------------------- caused by another player
 
+    /**
+     * Whether damage that landed on a player came from another player: hit, shot or cast by one (the source's
+     * attacker), by an online player's pet or summon (owned entities count as their owner, as for parties), or a
+     * hazard another player caused as the hazard rules see it (rules with {@code "pvp": true}: their poison or wither,
+     * fire they set, lightning they called, bleeding while they were hitting). False for anyone but players, and for a
+     * player's own damage.
+     */
+    public static boolean fromOtherPlayer(LivingEntity target, DamageSource source) {
+        if (!(target instanceof Player)) {
+            return false;
+        }
+        Entity attacker = source.getEntity();
+        if (attacker instanceof Player player) {
+            return player != target;
+        }
+        if (attacker != null && target.getServer() != null) {
+            java.util.UUID owner = net.ledok.eden_ld.compat.CombatTeamsCompat.sideOf(attacker);
+            if (owner != null && !owner.equals(target.getUUID())
+                    && target.getServer().getPlayerList().getPlayer(owner) != null) {
+                return true;
+            }
+        }
+        String tick = TICK.get();
+        if ("poison".equals(tick)) {
+            return byPlayer(target, MobEffects.POISON);
+        }
+        if ("bleed".equals(tick)) {
+            return recentlyHitByPlayer(target);
+        }
+        EdenConfig.Hazards.Rule rule = rule(source);
+        ResourceKey<DamageType> type = source.typeHolder().unwrapKey().orElse(null);
+        return rule != null && rule.pvp && type != null && byPlayer(target, type);
+    }
+
     /** Whether another player caused this player's hazard of {@code type} (always false for others). */
     private static boolean byPlayer(LivingEntity target, ResourceKey<DamageType> type) {
         if (!(target instanceof Player)) {

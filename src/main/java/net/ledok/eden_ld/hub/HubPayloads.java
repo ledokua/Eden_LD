@@ -275,7 +275,7 @@ public final class HubPayloads {
                     List<PartyMember> candidates = readMembers(buf);
                     List<ChatEntry> chat = readChat(buf);
                     int inviteCount = buf.readVarInt();
-                    List<InviteRef> myInvites = new ArrayList<>(inviteCount);
+                    List<InviteRef> myInvites = new ArrayList<>(Math.min(Math.max(inviteCount, 0), PRESIZE));
                     for (int i = 0; i < inviteCount; i++) {
                         myInvites.add(InviteRef.read(buf));
                     }
@@ -4037,10 +4037,27 @@ public final class HubPayloads {
         }
     }
 
+    /** Lists are pre-sized for at most this many entries; longer ones grow as their entries actually arrive. */
+    private static final int PRESIZE = 256;
+
+    /**
+     * A list's length from the wire, refused when negative. Lists are never pre-sized from it beyond {@link #PRESIZE}:
+     * a client could otherwise send a 5-byte count of two billion and make the server allocate gigabytes before any
+     * entry or permission is checked (review finding 21, 1.3.130). Entries still have to arrive, so the payload's size
+     * bounds a list's real length.
+     */
+    private static int listCount(RegistryFriendlyByteBuf buf) {
+        int count = buf.readVarInt();
+        if (count < 0) {
+            throw new io.netty.handler.codec.DecoderException("Negative list length " + count);
+        }
+        return count;
+    }
+
     private static <T> List<T> readList(RegistryFriendlyByteBuf buf,
                                         java.util.function.Function<RegistryFriendlyByteBuf, T> reader) {
-        int count = buf.readVarInt();
-        List<T> list = new ArrayList<>(Math.min(count, 1024));
+        int count = listCount(buf);
+        List<T> list = new ArrayList<>(Math.min(count, PRESIZE));
         for (int i = 0; i < count; i++) {
             list.add(reader.apply(buf));
         }
@@ -4055,8 +4072,8 @@ public final class HubPayloads {
     }
 
     private static List<String> readStrings(RegistryFriendlyByteBuf buf) {
-        int count = buf.readVarInt();
-        List<String> list = new ArrayList<>(count);
+        int count = listCount(buf);
+        List<String> list = new ArrayList<>(Math.min(count, PRESIZE));
         for (int i = 0; i < count; i++) {
             list.add(buf.readUtf());
         }
@@ -4071,8 +4088,8 @@ public final class HubPayloads {
     }
 
     private static List<PartyMember> readMembers(RegistryFriendlyByteBuf buf) {
-        int count = buf.readVarInt();
-        List<PartyMember> list = new ArrayList<>(count);
+        int count = listCount(buf);
+        List<PartyMember> list = new ArrayList<>(Math.min(count, PRESIZE));
         for (int i = 0; i < count; i++) {
             list.add(PartyMember.read(buf));
         }
@@ -4087,8 +4104,8 @@ public final class HubPayloads {
     }
 
     private static List<PartyRef> readRefs(RegistryFriendlyByteBuf buf) {
-        int count = buf.readVarInt();
-        List<PartyRef> list = new ArrayList<>(count);
+        int count = listCount(buf);
+        List<PartyRef> list = new ArrayList<>(Math.min(count, PRESIZE));
         for (int i = 0; i < count; i++) {
             list.add(PartyRef.read(buf));
         }
@@ -4103,8 +4120,8 @@ public final class HubPayloads {
     }
 
     private static List<ChatEntry> readChat(RegistryFriendlyByteBuf buf) {
-        int count = buf.readVarInt();
-        List<ChatEntry> list = new ArrayList<>(count);
+        int count = listCount(buf);
+        List<ChatEntry> list = new ArrayList<>(Math.min(count, PRESIZE));
         for (int i = 0; i < count; i++) {
             list.add(ChatEntry.read(buf));
         }

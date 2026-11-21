@@ -195,12 +195,94 @@ public final class ChatStyle {
         List<ServerPlayer> mentioned = new ArrayList<>();
         List<ChatFormat.Span> spans = ChatFormat.parse(text, formatOptions());
         boolean[] decorated = {base != null || !text.equals(typed) || ChatFormat.changed(spans, text)};
+        int[] items = {0};
         ChatFormat.build(out, spans, (part, run) -> {
-            if (appendTokens(part, run, sender, mentioned)) {
+            if (appendTokens(part, run, sender, mentioned, items)) {
                 decorated[0] = true;
             }
         });
+        if (encodedLength(sender, out) > MAX_LINE_BYTES) {
+            // Never reached with the item caps below; a last guard so no line can disconnect its readers.
+            EdenLD.LOGGER.warn("[Chat] {}'s line was too large once formatted; sent as plain text.",
+                    sender.getGameProfile().getName());
+            return new Content(Component.literal(typed), false, mentioned);
+        }
         return new Content(out, decorated[0], mentioned);
+    }
+
+    /**
+     * A formatted line's size limit, as UTF-8 bytes of its JSON. Lines go to every reader in one packet (vanilla
+     * disconnects at 8 MiB), are replayed on join (ChatHistory) and stored with guilds and DMs as one NBT string, which
+     * can't pass 65,535 bytes (review findings 7, 8 and 34).
+     */
+    private static final int MAX_LINE_BYTES = 48 * 1024;
+    /** An {@code :item:} hover's size limit, as UTF-8 bytes of its JSON; above it the item shows by name only. */
+    private static final int MAX_ITEM_BYTES = 16 * 1024;
+    /** How many {@code :item:} in one line show the item; the rest stay as typed. */
+    private static final int MAX_ITEMS_PER_LINE = 1;
+
+    /** The component's size as UTF-8 JSON (the encoding guild and DM storage use), or MAX_VALUE if it fails. */
+    private static int encodedLength(ServerPlayer sender, Component component) {
+        try {
+            return net.minecraft.network.chat.ComponentSerialization.CODEC
+                    .encodeStart(sender.registryAccess().createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE),
+                            component)
+                    .result().map(json -> json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                    .orElse(Integer.MAX_VALUE);
+        } catch (RuntimeException e) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    /** Components that can make an item's hover huge (shulker contents, book pages); the hover leaves them out. */
+    private static final List<net.minecraft.core.component.DataComponentType<?>> HEAVY = List.of(
+            net.minecraft.core.component.DataComponents.CONTAINER,
+            net.minecraft.core.component.DataComponents.BUNDLE_CONTENTS,
+            net.minecraft.core.component.DataComponents.WRITABLE_BOOK_CONTENT,
+            net.minecraft.core.component.DataComponents.WRITTEN_BOOK_CONTENT,
+            net.minecraft.core.component.DataComponents.CHARGED_PROJECTILES);
+
+    /**
+     * The held item as "[Name]", as vanilla's item links, but its hover shows a trimmed copy: no container or bundle
+     * contents and no book pages; then no custom data if that's still too large; then no hover at all.
+     */
+    private static MutableComponent itemLink(ServerPlayer sender, net.minecraft.world.item.ItemStack stack) {
+        MutableComponent name = Component.empty().append(stack.getHoverName());
+        if (stack.has(net.minecraft.core.component.DataComponents.CUSTOM_NAME)) {
+            name.withStyle(ChatFormatting.ITALIC);
+        }
+        MutableComponent link = net.minecraft.network.chat.ComponentUtils.wrapInSquareBrackets(name)
+                .withStyle(stack.getRarity().color());
+        net.minecraft.world.item.ItemStack shown = stack.copyWithCount(1);
+        boolean trimmed = false;
+        for (net.minecraft.core.component.DataComponentType<?> type : HEAVY) {
+            if (shown.has(type)) {
+                shown.remove(type);
+                trimmed = true;
+            }
+        }
+        net.minecraft.core.component.DataComponentType<?> modded = net.minecraft.core.registries.BuiltInRegistries
+                .DATA_COMPONENT_TYPE.get(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("bundleapi",
+                        "custom_bundle_contents"));
+        if (modded != null && shown.has(modded)) {
+            shown.remove(modded);
+            trimmed = true;
+        }
+        if (trimmed && !shown.getHoverName().equals(stack.getHoverName())) {
+            // A written book's title lives in its pages' component: keep the name the hover shows.
+            shown.set(net.minecraft.core.component.DataComponents.ITEM_NAME, stack.getHoverName());
+        }
+        for (int attempt = 0; attempt < 2; attempt++) {
+            net.minecraft.world.item.ItemStack hover = shown;
+            MutableComponent candidate = link.copy().withStyle(style -> style.withHoverEvent(
+                    new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(hover))));
+            if (encodedLength(sender, candidate) <= MAX_ITEM_BYTES) {
+                return candidate;
+            }
+            shown = shown.copy();
+            shown.remove(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+        }
+        return link;
     }
 
     // ---------------------------------------------------------------- :item: and :pos:
@@ -209,17 +291,18 @@ public final class ChatStyle {
      * {@code :item:} — the held item as "[Name]" (rarity color; hover shows the item, as in
      * vanilla's item links), with "×count" for a stack; {@code :pos:} — the block position,
      * click to copy, dimension on hover. Null for other names, or {@code :item:} with an empty
-     * hand (the text stays).
+     * hand or past the line's first item (the text stays).
      */
     @Nullable
-    private static Component shortcut(String name, ServerPlayer sender) {
+    private static Component shortcut(String name, ServerPlayer sender, int[] items) {
         switch (name.toLowerCase(java.util.Locale.ROOT)) {
             case "item" -> {
                 net.minecraft.world.item.ItemStack stack = sender.getMainHandItem();
-                if (stack.isEmpty()) {
+                if (stack.isEmpty() || items[0] >= MAX_ITEMS_PER_LINE) {
                     return null;
                 }
-                MutableComponent item = Component.empty().append(stack.getDisplayName());
+                items[0]++;
+                MutableComponent item = Component.empty().append(itemLink(sender, stack));
                 if (stack.getCount() > 1) {
                     item.append(Component.literal(" ×" + stack.getCount()).withStyle(ChatFormatting.GRAY));
                 }
@@ -288,7 +371,8 @@ public final class ChatStyle {
     }
 
     /** Links, emojis and mentions in one run of the message; true when any was found. */
-    private static boolean appendTokens(MutableComponent out, String text, ServerPlayer sender, List<ServerPlayer> mentioned) {
+    private static boolean appendTokens(MutableComponent out, String text, ServerPlayer sender, List<ServerPlayer> mentioned,
+                                        int[] items) {
         TextColor mentionColor = LegacyText.color(EdenLD.CONFIG.chat.mention_color);
         MinecraftServer server = sender.getServer();
         boolean decorated = false;
@@ -318,7 +402,7 @@ public final class ChatStyle {
             } else if (matcher.group(8) != null || matcher.group(9) != null) {
                 // ":item:" / ":pos:", ":name:" (the server's emojis, then the standard ones), or an emoji's character
                 // (Eden clients type that in its place; standard emojis arrive as one too).
-                Component emoji = matcher.group(8) != null ? shortcut(matcher.group(8), sender) : null;
+                Component emoji = matcher.group(8) != null ? shortcut(matcher.group(8), sender, items) : null;
                 if (emoji == null) {
                     emoji = matcher.group(8) != null ? EmojiRegistry.glyphForName(matcher.group(8), sender)
                             : EmojiRegistry.glyphForCharacter(matcher.group(9).codePointAt(0), sender);

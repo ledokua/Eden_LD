@@ -32,6 +32,18 @@ public class HubData extends SavedData {
         return players.computeIfAbsent(uuid, id -> new CompoundTag());
     }
 
+    /**
+     * Writes hub.dat now instead of at the next autosave (written off the server thread like any save): for state that
+     * must survive a crash in between, such as a website purchase already delivered.
+     */
+    public static void saveNow(MinecraftServer server) {
+        HubData data = get(server);
+        data.setDirty();
+        java.io.File file = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                .resolve("data").resolve(EdenLD.MOD_ID + "/hub.dat").toFile();
+        data.save(file, server.registryAccess());
+    }
+
     /** Read-only peek that never creates or dirties. */
     public CompoundTag peek(UUID uuid) {
         CompoundTag tag = players.get(uuid);

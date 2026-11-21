@@ -792,6 +792,22 @@ for `combat.pvp_tag_seconds` (default 30). While tagged they can't use hub wayst
 grounded through the flight rules (a player already gliding gets Slow Falling). Hits between
 partymates never land, so they never tag anyone.
 
+While tagged, every heal a player gets is multiplied by `combat.pvp_healing_received` (default 0.5).
+
+**Slower natural regeneration in PvP** (1.3.129, `combat.pvp_regen`). For `window_seconds` (15) after a player last
+took damage from another player, each natural-regeneration heal (from a full hunger bar or saturation, including the
+Saturation effect) is multiplied by `natural_regen_multiplier` (0.25). It still costs the full exhaustion, so food
+drains at the normal rate for a quarter of the healing. With FloraFare's `regenMode "curve"` (the Fallen Eden
+server's), FloraFare's own curve heal is shrunk the same way, and its cost is charged for the heal it meant to give. Every new PvP hit restarts the window. `pvp_healing_received`
+applies on top, so with the defaults a tagged player's natural regeneration is 0.25 × 0.5 = 12.5% of vanilla.
+- **What counts as PvP damage:** a hit, shot or spell from another player, or from their pet or summon. Hazards
+  another player caused count too, as the `hazards.json` rules with `"pvp": true` attribute them: their poison or
+  wither, lightning they called, fire they set (or burning within `hazards.pvp_seconds` of their hit), and freezing
+  or bleeding within `hazards.pvp_seconds` of their hit.
+- **What it leaves alone:** potions, spells, skill-tree heals and the Regeneration effect.
+- **Where:** the server, in all PvP (open world, arenas, duels). The window lives in memory: a relog keeps it, a
+  restart clears it.
+
 ### Mail
 
 An MMO-style mailbox tab (needs [Economy_LD](../Economy_LD) 1.0.2 or newer, which stores the mail; without
@@ -1703,7 +1719,9 @@ changed into the new files, then delete it). Below, each top-level key is the fi
   },
   "combat": {
     "pvp_tag_seconds": 30,
-    "pvp_tag_blocks_flight": true
+    "pvp_tag_blocks_flight": true,
+    "pvp_healing_received": 0.5,
+    "pvp_regen": { "enabled": true, "window_seconds": 15, "natural_regen_multiplier": 0.25 }
   },
   "chat": {
     "local_radius": 100.0,
