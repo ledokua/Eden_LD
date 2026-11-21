@@ -66,8 +66,12 @@ final class TabBookmark extends Widget {
         List<Component> lines = new ArrayList<>();
         lines.add(tab.displayName());
         int count = HubNotifications.count(tab);
+        String newsKey = "gui.eden_ld.hub.tab.news." + tab.name().toLowerCase();
         if (count > 0) {
-            lines.add(Component.translatable("gui.eden_ld.hub.tab.news." + tab.name().toLowerCase(), count));
+            // A tab whose news line has no translation shows no line rather than the raw key (review finding 80).
+            if (net.minecraft.client.resources.language.I18n.exists(newsKey)) {
+                lines.add(Component.translatable(newsKey, count));
+            }
         } else if (HubNotifications.isNew(tab)) {
             lines.add(Component.translatable("gui.eden_ld.hub.tab.new"));
         }

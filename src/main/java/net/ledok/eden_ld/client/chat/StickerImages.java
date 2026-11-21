@@ -22,10 +22,21 @@ import java.util.Map;
  * Sticker images for the pickers' Stickers tab and the hub's chat (shown under the message).
  * Each loads once, on first sight, and stays while recently used (animated ones play); the
  * least recently used go first past {@link #MAX_KEPT}. Cleared on disconnect.
+ * <p>
+ * Review finding 53: images still loading, and images drawn or asked for within
+ * {@link #IN_USE_MS}, are not evicted below {@link #MAX_HELD}, and drawing an image refreshes its
+ * place in the LRU order. Before, a hub chat view with more than {@link #MAX_KEPT} distinct
+ * stickers evicted the very images it was about to ask for, so every rebuild downloaded and
+ * decoded all of them again, and loads evicted mid-flight were thrown away.
  */
 public final class StickerImages {
 
+    /** Past this many, images that aren't in use (see {@link #IN_USE_MS}) are evicted, oldest first. */
     private static final int MAX_KEPT = 32;
+    /** Hard ceiling (native memory): past this many, even images on screen are evicted, oldest first. */
+    private static final int MAX_HELD = 64;
+    /** An image drawn or asked for this recently counts as in use (a live node shows it). */
+    private static final long IN_USE_MS = 5_000;
     private static final int MAX_FRAMES = 60;
     /** Decoded size: plenty for the hub's 64 px preview and the pickers' thumbnails. */
     private static final int MAX_SIDE = 96;
@@ -43,6 +54,9 @@ public final class StickerImages {
         @Nullable
         private DynamicTexture texture;
         private ResourceLocation location;
+        private String key = "";
+        /** When it was last asked for or drawn (review finding 53: in-use images aren't evicted). */
+        private long lastUsed;
         private final List<Runnable> waiting = new ArrayList<>();
 
         public Status status() {
@@ -89,9 +103,13 @@ public final class StickerImages {
         Image image = CACHE.get(key);
         if (image == null) {
             image = new Image();
+            image.key = key;
+            image.lastUsed = Util.getMillis();
             CACHE.put(key, image);
             load(image, sticker);
             evict();
+        } else {
+            image.lastUsed = Util.getMillis();
         }
         if (onReady != null && image.status == Status.LOADING) {
             image.waiting.add(onReady);
@@ -105,6 +123,9 @@ public final class StickerImages {
         if (image.status != Status.READY || image.texture == null) {
             return null;
         }
+        // Drawn now: in use, and most recently used in the access-ordered map (review finding 53).
+        image.lastUsed = Util.getMillis();
+        CACHE.get(image.key);
         int frame = image.frames.size() == 1 ? 0 : MediaLoader.frameAt(image.delays, image.loop, Util.getMillis() - image.started);
         if (frame != image.shown) {
             NativeImage pixels = image.texture.getPixels();
@@ -123,12 +144,23 @@ public final class StickerImages {
         CACHE.clear();
     }
 
+    /**
+     * Past {@link #MAX_KEPT}, frees the least recently used images that are loaded and not in use;
+     * past {@link #MAX_HELD}, in-use ones go too. Loading images are never evicted, so their
+     * download isn't wasted (review finding 53); they are trimmed once they finish.
+     */
     private static void evict() {
+        long now = Util.getMillis();
+        int size = CACHE.size();
         Iterator<Image> it = CACHE.values().iterator();
-        while (CACHE.size() > MAX_KEPT && it.hasNext()) {
+        while (size > MAX_KEPT && it.hasNext()) {
             Image eldest = it.next();
+            if (eldest.status == Status.LOADING || (size <= MAX_HELD && now - eldest.lastUsed < IN_USE_MS)) {
+                continue;
+            }
             eldest.free();
             it.remove();
+            size--;
         }
     }
 
@@ -150,6 +182,11 @@ public final class StickerImages {
                     return;
                 }
                 ready(image, result);
+                // Just arrived for someone waiting on it: in use, so this pass doesn't free it straight away (a long
+                // download left lastUsed behind IN_USE_MS; review of 1.3.133).
+                image.lastUsed = Util.getMillis();
+                CACHE.get(image.key);
+                evict();
                 List<Runnable> waiting = List.copyOf(image.waiting);
                 image.waiting.clear();
                 waiting.forEach(Runnable::run);

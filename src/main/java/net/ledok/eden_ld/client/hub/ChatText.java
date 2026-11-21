@@ -41,13 +41,20 @@ final class ChatText extends CanvasGroup implements Interactive {
     /** Stickers shown under a message: their size, and at most this many per message. */
     private static final float STICKER_SIDE = 64;
     private static final int MAX_STICKERS = 3;
+    /**
+     * Only this many newest messages of a view show their stickers as images (review finding 53): with
+     * {@link #MAX_STICKERS} each they stay under StickerImages' 32 kept images, where a whole history thrashed its
+     * cache and downloaded every sticker again on each rebuild. Older messages keep the clickable "[Sticker]" text.
+     */
+    static final int STICKER_MESSAGES = 8;
 
     /**
-     * A whole hub chat message: the line, then the stickers it links as their images (only
-     * stickers — GIFs stay a "[GIF]" to click). A sticker opens the viewer on click.
+     * A whole hub chat message: the line, then, when {@code images} (one of the view's newest
+     * {@link #STICKER_MESSAGES}), the stickers it links as their images (only stickers — GIFs stay
+     * a "[GIF]" to click). A sticker opens the viewer on click.
      */
-    static net.ledok.vectorlib.client.canvas.CanvasNode message(Component line, int wrap) {
-        List<ChatLinks.Sticker> stickers = stickers(line);
+    static net.ledok.vectorlib.client.canvas.CanvasNode message(Component line, int wrap, boolean images) {
+        List<ChatLinks.Sticker> stickers = images ? stickers(line) : List.of();
         ChatText text = new ChatText(line, EdenParchment.INK, wrap);
         if (stickers.isEmpty()) {
             return text;

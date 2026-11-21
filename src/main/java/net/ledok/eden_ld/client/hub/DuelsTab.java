@@ -46,8 +46,11 @@ final class DuelsTab {
 
     /** Kept while the game runs (like the other tabs' choices). */
     private static View view = View.MATCHES;
-    /** The searching card's status line, ticked every client tick ("Searching 0:42 · ±150"). */
-    private static Label searchLabel;
+    /**
+     * The searching cards' status lines, ticked every client tick ("Searching 0:42 · ±150"). A list (review finding
+     * 76): queued for 1v1 and 2v2 at once, the 2v2 card's line replaced the 1v1 one, which then only moved on pushes.
+     */
+    private static final List<Label> SEARCH_LABELS = new java.util.ArrayList<>();
 
     private DuelsTab() {
     }
@@ -69,7 +72,7 @@ final class DuelsTab {
         DuelsData data = HubState.duelsData;
         width = HubScreen.innerWidth();
         cardWidth = (width - GAP) / 2;
-        searchLabel = null;
+        SEARCH_LABELS.clear();
         if (data == null) {
             Flex center = Flex.column().justify(Justify.CENTER).alignItems(Align.CENTER);
             center.sizing(Sizing.fill(), Sizing.expand());
@@ -168,7 +171,7 @@ final class DuelsTab {
         status.color(searching ? EdenParchment.ACCENT : EdenParchment.INK_DIM);
         status.tooltipWhenCut(true);
         if (searching && data.state() == DuelsData.SEARCHING && data.searchingMillis() >= 0) {
-            searchLabel = status;
+            SEARCH_LABELS.add(status);
         }
         actions.item(status);
         card.item(actions);
@@ -238,11 +241,15 @@ final class DuelsTab {
     /** Every client tick on the tab: the search timer. */
     static void tick() {
         DuelsData data = HubState.duelsData;
-        if (searchLabel == null || data == null || data.searchingMillis() < 0) {
+        if (SEARCH_LABELS.isEmpty() || data == null || data.searchingMillis() < 0) {
             return;
         }
+        // Both cards share the one search time.
         long elapsed = data.searchingMillis() + System.currentTimeMillis() - HubState.duelsReceivedAt;
-        searchLabel.text(searching(data, elapsed));
+        Component text = searching(data, elapsed);
+        for (Label label : SEARCH_LABELS) {
+            label.text(text);
+        }
     }
 
     // ------------------------------------------------------------------ lists

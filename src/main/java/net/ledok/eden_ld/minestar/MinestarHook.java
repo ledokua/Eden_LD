@@ -204,7 +204,7 @@ public final class MinestarHook {
             });
             if (server != null) {
                 java.util.concurrent.CompletableFuture.delayedExecutor(3, java.util.concurrent.TimeUnit.SECONDS)
-                        .execute(() -> server.execute(() -> {
+                        .execute(() -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                             if (answered.compareAndSet(false, true)) {
                                 EdenLD.LOGGER.warn("[Shop] The platform gave no answer about {}'s website purchases "
                                         + "in 3 s; going on without them.", player.getGameProfile().getName());

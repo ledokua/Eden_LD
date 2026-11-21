@@ -63,6 +63,8 @@ public final class HubServer {
                 (payload, context) -> sendFriendsData(context.player(), false, null));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.FriendAction.TYPE,
                 (payload, context) -> handleFriendAction(context.player(), payload));
+        // Before flushParties, so a leave's party sync goes out in the same tick (review finding 91).
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(HubServer::drainLeft);
         // Review findings 41 and 45: syncParties only marks the parties dirty; the rebuild runs here, once a tick.
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(HubServer::flushParties);
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(HubServer::flushHomePushes);
@@ -73,6 +75,7 @@ public final class HubServer {
             SHOP_COUNTS.clear();
             HOME_PUSHES.clear();
             REQUEST_NOTICES.clear();
+            LEFT.clear();
         });
         IgnoreList.initialize();
         net.ledok.eden_ld.hub.activity.ActivityServer.initialize();
@@ -82,8 +85,12 @@ public final class HubServer {
         ServerLang.initialize();
         DailyQuestRegistry.initialize();
         DailyProgressHooks.initialize();
-        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.DailiesDataRequest.TYPE,
-                (payload, context) -> pushDailies(context.player()));
+        ServerPlayNetworking.registerGlobalReceiver(HubPayloads.DailiesDataRequest.TYPE, (payload, context) -> {
+            // Review finding 52: a spammed request rebuilt the tab (and looked up the balance) every time.
+            if (HubRateLimit.DAILIES_REQUEST.tryAcquire(context.player())) {
+                pushDailies(context.player());
+            }
+        });
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.DailyAction.TYPE,
                 (payload, context) -> handleDailyAction(context.player(), payload));
         WaystonesHook.initialize(HubServer::sendWaystones, () -> {
@@ -149,9 +156,11 @@ public final class HubServer {
 
         // Push party + friends data to everyone on join and disconnect: client combat matchers
         // need the party without the hub ever opening, and open tabs (Party, Friends' "On this
-        // server" and invite buttons, Home's invite count) update live. Both deferred one tick:
-        // Fabric's JOIN fires inside placeNewPlayer before the player is in the list, and on
-        // DISCONNECT they're still in it.
+        // server" and invite buttons, Home's invite count) update live. JOIN is deferred one task:
+        // Fabric's JOIN fires inside placeNewPlayer before the player is in the list. DISCONNECT
+        // usually fires on netty while the player stays in the list until the next connection tick,
+        // so a server.execute ran before the removal (review finding 91): the leave work waits in
+        // LEFT until the player is out of the list (drainLeft).
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 server.execute(() -> {
                     syncParties(server);
@@ -162,13 +171,7 @@ public final class HubServer {
                     }
                 }));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                server.execute(() -> {
-                    UUID gone = handler.getPlayer().getUUID();
-                    SHOP_COUNTS.remove(gone);
-                    REQUEST_NOTICES.remove(gone);
-                    syncParties(server);
-                    syncNameStyles(server);
-                }));
+                LEFT.put(handler.getPlayer().getUUID(), new Left(handler.getPlayer(), server.getTickCount())));
         // LuckPerms edits (groups, prefixes) recolor names live; the event arrives off-thread.
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 net.ledok.eden_ld.compat.LuckPermsCompat.onUserDataChange(() ->
@@ -260,11 +263,12 @@ public final class HubServer {
                             WaystonesHook.LOADED,
                             dailies == null ? 0 : dailies.claimableCount(),
                             dailies == null ? 0 : dailies.claimedCount(),
-                            dailies == null ? 0 : dailies.slots().size(),
+                            dailies == null ? 0 : dailies.bonusTotal(),
                             profile != null, profile == null ? 0 : profile.level(),
                             profile == null ? 0 : profile.levelXp(),
                             profile == null ? 0 : profile.levelXpNeeded(), background,
-                            net.ledok.eden_ld.command.EdenPermissions.staff(player), net.ledok.eden_ld.compat.duels.DuelsHook.LOADED));
+                            net.ledok.eden_ld.command.EdenPermissions.staff(player), net.ledok.eden_ld.compat.duels.DuelsHook.LOADED,
+                            MinestarHook.local()));
                 }));
     }
 
@@ -329,6 +333,60 @@ public final class HubServer {
             // claim may have read the old count); sent at the end of the tick unless a Home goes out before then.
             HOME_PUSHES.add(player);
         });
+    }
+
+    // ---------------------------------------------------------------- leaving (review finding 91)
+
+    /** A player who left, and the tick it was noticed. */
+    private record Left(ServerPlayer player, int tick) {
+    }
+
+    /** Players who left and the player list may still hold; any thread puts, the server thread drains. */
+    private static final Map<UUID, Left> LEFT = new java.util.concurrent.ConcurrentHashMap<>();
+    /** A leaver still listed after this many ticks is handled anyway (a stuck removal must not hold the syncs). */
+    private static final int LEFT_MAX_WAIT_TICKS = 100;
+    /** {@link #onLeft} listeners. */
+    private static final List<java.util.function.BiConsumer<MinecraftServer, UUID>> LEFT_LISTENERS =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Runs {@code listener} on the server thread once a player who disconnected is out of the player list (review
+     * finding 91), so syncs made then show them offline. Not called when the same player is already back (a rejoin
+     * within the wait): their maps belong to the new session.
+     */
+    public static void onLeft(java.util.function.BiConsumer<MinecraftServer, UUID> listener) {
+        LEFT_LISTENERS.add(listener);
+    }
+
+    /** End of tick: the leave work of everyone who is out of the player list now. */
+    private static void drainLeft(MinecraftServer server) {
+        if (LEFT.isEmpty()) {
+            return;
+        }
+        boolean any = false;
+        for (java.util.Iterator<Map.Entry<UUID, Left>> it = LEFT.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<UUID, Left> entry = it.next();
+            ServerPlayer listed = server.getPlayerList().getPlayer(entry.getKey());
+            Left left = entry.getValue();
+            if (listed == left.player() && server.getTickCount() - left.tick() < LEFT_MAX_WAIT_TICKS) {
+                continue;
+            }
+            it.remove();
+            any = true;
+            if (listed != null && listed != left.player()) {
+                // Already back under a new session: its state stays, only the syncs below run.
+                continue;
+            }
+            SHOP_COUNTS.remove(entry.getKey());
+            REQUEST_NOTICES.remove(entry.getKey());
+            for (java.util.function.BiConsumer<MinecraftServer, UUID> listener : LEFT_LISTENERS) {
+                listener.accept(server, entry.getKey());
+            }
+        }
+        if (any) {
+            syncParties(server);
+            syncNameStyles(server);
+        }
     }
 
     /** Players owed a fresh Home after {@link #forgetShopCount}; any Home sent to them meanwhile settles it. */
@@ -670,13 +728,14 @@ public final class HubServer {
         // The balance is only needed to price a paid reroll; skip the lookup otherwise.
         if (freeLeft > 0 || cost <= 0 || !EconomyCompat.available()) {
             ServerPlayNetworking.send(player, new HubPayloads.DailiesData(DailyQuests.millisUntilReset(), freeLeft,
-                    cost, EconomyCompat.available(), -1, entries, bonus, state.bonusClaimed()));
+                    cost, EconomyCompat.available(), -1, entries, bonus, state.bonusClaimed(), MinestarHook.platform()));
             return;
         }
         EconomyCompat.fetchBalance(player, (hasEconomy, balance) -> {
             if (!player.hasDisconnected()) {
                 ServerPlayNetworking.send(player, new HubPayloads.DailiesData(DailyQuests.millisUntilReset(),
-                        freeLeft, cost, hasEconomy, hasEconomy ? balance : -1, entries, bonus, state.bonusClaimed()));
+                        freeLeft, cost, hasEconomy, hasEconomy ? balance : -1, entries, bonus, state.bonusClaimed(),
+                        MinestarHook.platform()));
             }
         });
     }

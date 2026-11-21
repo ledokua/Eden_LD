@@ -32,6 +32,11 @@ public final class DailyQuestRegistry {
     private static volatile java.util.Set<ResourceLocation> objectives = java.util.Set.of();
     private static volatile net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets statTargets =
             net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.NONE;
+    /**
+     * Review finding 20: which quest load this is (a new number at every reload and restart), so a slot whose quest
+     * vanished waits for the next load before it's replaced ({@code DailyQuests.replaceRemoved}).
+     */
+    private static volatile long loadId = System.nanoTime();
 
     private DailyQuestRegistry() {
     }
@@ -50,6 +55,10 @@ public final class DailyQuestRegistry {
     /** Whether a {@code stat} quest counts this stat (by name): the per-tick stats skip the quest lookup otherwise. */
     public static boolean countsStat(String name) {
         return statTargets.counts(name);
+    }
+
+    public static long loadId() {
+        return loadId;
     }
 
     public static boolean usesObjective(ResourceLocation type) {
@@ -178,6 +187,7 @@ public final class DailyQuestRegistry {
             Map<ResourceLocation, DailyQuestDefinition> byId = new LinkedHashMap<>();
             loaded.forEach(quest -> byId.put(quest.id(), quest));
             quests = byId;
+            loadId = System.nanoTime();
             objectives = byId.values().stream().map(DailyQuestDefinition::objective)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
             statTargets = net.ledok.eden_ld.hub.daily.DailyObjectives.StatTargets.of(

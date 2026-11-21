@@ -1,9 +1,35 @@
 package net.ledok.eden_ld.hub.daily;
 
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.ledok.eden_ld.hub.HubServer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.AttachedStemBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.CocoaBlock;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.NetherWartBlock;
+import net.minecraft.world.level.block.PitcherCropBlock;
+import net.minecraft.world.level.block.StemBlock;
+import net.minecraft.world.level.block.SweetBerryBushBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.block.state.properties.Property;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Eden's built-in progress sources: mob kills (projectiles count for their shooter),
@@ -12,15 +38,82 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class DailyProgressHooks {
 
+    /**
+     * Review finding 52: players whose dailies moved, sent at most every {@link #PUSH_EVERY_TICKS} (a walking player's
+     * travel quest moved them every tick: a full Dailies packet, and once free rerolls were used a balance lookup, about
+     * 20 times a second).
+     */
+    private static final Set<UUID> DIRTY = new LinkedHashSet<>();
+    private static final int PUSH_EVERY_TICKS = 10;
+
+    /** Review finding 93: players inside {@code Player.eat} (its ITEM_USED stat is no placement). */
+    private static final Set<UUID> EATING = new HashSet<>();
+
+    /** Review finding 92: a block a player is breaking right now, as the break event saw it (cleared every tick). */
+    private record Breaking(Block block, boolean counts) {
+    }
+
+    private static final Map<UUID, Breaking> BREAKING = new HashMap<>();
+
+    private record Spot(ResourceKey<Level> dimension, long pos) {
+    }
+
+    /**
+     * Review finding 92: the latest blocks players placed (any player; crops aside, they count by ripeness), so mining
+     * one again isn't counted. In memory and bounded: a restart forgets them, and a piston-moved block isn't followed —
+     * enough against the place-and-mine loop, at a few hundred KB at most.
+     */
+    private static final int PLACED_LIMIT = 4096;
+    private static final Map<Spot, Block> PLACED = new LinkedHashMap<>(256, 0.75f, false) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Spot, Block> eldest) {
+            return size() > PLACED_LIMIT;
+        }
+    };
+
     private DailyProgressHooks() {
     }
 
     public static void initialize() {
+        DailyQuests.initialize();
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((level, killer, killed) -> {
             if (killer instanceof ServerPlayer player && !(killed instanceof ServerPlayer)
                     && DailyQuests.report(player, DailyQuests.KILL_MOBS, DailyQuests.entityMatcher(killed.getType()), 1)) {
-                HubServer.pushDailies(player);
+                changed(player);
             }
+        });
+        // Review finding 92: what is being broken (BEFORE runs ahead of the mined stat, in the same call); AFTER means
+        // it is gone, so the spot isn't player-placed any more.
+        PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> {
+            if (player instanceof ServerPlayer serverPlayer) {
+                BREAKING.put(serverPlayer.getUUID(), new Breaking(state.getBlock(), countsAsBroken(level, pos, state)));
+            }
+            return true;
+        });
+        PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, blockEntity) -> {
+            if (!PLACED.isEmpty() && !level.isClientSide()) {
+                PLACED.remove(new Spot(level.dimension(), pos.asLong()));
+            }
+        });
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            BREAKING.clear();
+            if (DIRTY.isEmpty() || server.getTickCount() % PUSH_EVERY_TICKS != 0) {
+                return;
+            }
+            List<UUID> players = List.copyOf(DIRTY);
+            DIRTY.clear();
+            for (UUID id : players) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null) {
+                    HubServer.pushDailies(player);
+                }
+            }
+        });
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            DIRTY.clear();
+            EATING.clear();
+            BREAKING.clear();
+            PLACED.clear();
         });
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("spell_engine")) {
             SpellCastHook.register();
@@ -42,7 +135,7 @@ public final class DailyProgressHooks {
                         ? spell.tags().anyMatch(tag -> tag.location().toString().equals(target.substring(1)))
                         : spell.unwrapKey().map(key -> key.location().toString().equals(target)).orElse(false);
                 if (DailyQuests.report(player, DailyQuests.CAST_SPELLS, matcher, 1)) {
-                    HubServer.pushDailies(player);
+                    changed(player);
                 }
             });
         }
@@ -80,6 +173,13 @@ public final class DailyProgressHooks {
                 java.util.Map<net.minecraft.world.level.block.Block, Integer> perBlock = new java.util.LinkedHashMap<>();
                 for (Log log : logs) {
                     if (!ht.treechop.common.chop.ChopUtil.isBlockALog(level, log.pos())) {
+                        // A log a player placed there isn't counted (review finding 92, of 1.3.133: a "tree" of placed
+                        // logs felled whole got around the place-and-mine check); it's gone now, so forgotten too.
+                        Block placed = PLACED.isEmpty() ? null
+                                : PLACED.remove(new Spot(level.dimension(), log.pos().asLong()));
+                        if (placed != null && placed == log.block()) {
+                            continue;
+                        }
                         perBlock.merge(log.block(), 1, Integer::sum);
                     }
                 }
@@ -89,7 +189,7 @@ public final class DailyProgressHooks {
                             DailyQuests.blockMatcher(entry.getKey()), entry.getValue());
                 }
                 if (changed) {
-                    HubServer.pushDailies(player);
+                    changed(player);
                 }
                 return true;
             });
@@ -98,7 +198,7 @@ public final class DailyProgressHooks {
 
     /**
      * From {@code ServerPlayer.awardStat}: block placing (ITEM_USED of a block item — seeds and
-     * berries planted count), mining (BLOCK_MINED), fishing (FISH_CAUGHT), crafting (ITEM_CRAFTED: whatever calls
+     * berries planted count, eaten ones don't), mining (BLOCK_MINED: ripe crops only, not blocks a player placed), fishing (FISH_CAUGHT), crafting (ITEM_CRAFTED: whatever calls
      * {@code ItemStack.onCraftedBy} — the crafting grid, furnaces, stonecutters, smithing, villager trades and mod
      * stations such as Farmer's Delight's cooking pot; a quest's {@code station} picks where), and the generic
      * {@code stat} objective for anything else vanilla tracks.
@@ -107,11 +207,18 @@ public final class DailyProgressHooks {
         boolean changed = false;
         if (stat.getType() == net.minecraft.stats.Stats.ITEM_USED
                 && stat.getValue() instanceof net.minecraft.world.item.BlockItem blockItem) {
-            changed = DailyQuests.report(player, DailyQuests.PLACE_BLOCKS,
-                    DailyQuests.blockMatcher(blockItem.getBlock()), amount);
+            if (!EATING.contains(player.getUUID())) {
+                changed = DailyQuests.report(player, DailyQuests.PLACE_BLOCKS,
+                        DailyQuests.blockMatcher(blockItem.getBlock()), amount);
+            }
         } else if (stat.getType() == net.minecraft.stats.Stats.BLOCK_MINED
                 && stat.getValue() instanceof net.minecraft.world.level.block.Block block) {
-            changed = DailyQuests.report(player, DailyQuests.BREAK_BLOCKS, DailyQuests.blockMatcher(block), amount);
+            // Review finding 92: an unripe crop or a block a player placed doesn't count (only known when the break
+            // event saw this block this tick; any other source of the stat counts as before).
+            Breaking breaking = BREAKING.remove(player.getUUID());
+            if (breaking == null || breaking.block() != block || breaking.counts()) {
+                changed = DailyQuests.report(player, DailyQuests.BREAK_BLOCKS, DailyQuests.blockMatcher(block), amount);
+            }
         } else if (stat.getType() == net.minecraft.stats.Stats.CUSTOM
                 && net.minecraft.stats.Stats.FISH_CAUGHT.equals(stat.getValue())) {
             changed = DailyQuests.report(player, DailyQuests.CATCH_FISH, target -> true, amount);
@@ -128,14 +235,69 @@ public final class DailyProgressHooks {
             changed |= DailyQuests.report(player, DailyQuests.STAT, target -> DailyObjectives.statMatches(target, name), amount);
         }
         if (changed) {
-            HubServer.pushDailies(player);
+            changed(player);
         }
     }
 
     public static void onAte(ServerPlayer player, ItemStack food) {
         if (DailyQuests.report(player, DailyQuests.EAT_FOOD, DailyQuests.itemMatcher(food), 1)) {
-            HubServer.pushDailies(player);
+            changed(player);
         }
+    }
+
+    /** Review finding 52: the Dailies tab is sent on one of the next ticks, once however often it moved meanwhile. */
+    private static void changed(ServerPlayer player) {
+        DIRTY.add(player.getUUID());
+    }
+
+    /** {@code PlayerEatMixin} (review finding 93): the player starts or stops eating. */
+    public static void eating(ServerPlayer player, boolean eating) {
+        if (eating) {
+            EATING.add(player.getUUID());
+        } else {
+            EATING.remove(player.getUUID());
+        }
+    }
+
+    /** {@code BlockItemPlacedMixin} (review finding 92): a player placed this block here. */
+    public static void placed(ServerPlayer player, BlockPos pos, BlockState state) {
+        if (!isCrop(state.getBlock())) {
+            PLACED.put(new Spot(player.level().dimension(), pos.asLong()), state.getBlock());
+        }
+    }
+
+    /**
+     * Review finding 92: whether breaking this counts for break_blocks. A crop only when ripe (a stem never: its melon
+     * or pumpkin is the harvest), anything else unless a player placed this very block here.
+     */
+    private static boolean countsAsBroken(Level level, BlockPos pos, BlockState state) {
+        Block block = state.getBlock();
+        if (isCrop(block)) {
+            return ripe(state);
+        }
+        return PLACED.isEmpty() || PLACED.get(new Spot(level.dimension(), pos.asLong())) != block;
+    }
+
+    private static boolean isCrop(Block block) {
+        return block instanceof CropBlock || block instanceof StemBlock || block instanceof AttachedStemBlock
+                || block instanceof NetherWartBlock || block instanceof CocoaBlock || block instanceof SweetBerryBushBlock
+                || block instanceof PitcherCropBlock;
+    }
+
+    private static boolean ripe(BlockState state) {
+        Block block = state.getBlock();
+        if (block instanceof CropBlock crop) {
+            return crop.isMaxAge(state);
+        }
+        if (block instanceof StemBlock || block instanceof AttachedStemBlock) {
+            return false;
+        }
+        for (Property<?> property : state.getProperties()) {
+            if (property instanceof IntegerProperty age && "age".equals(property.getName())) {
+                return state.getValue(age) >= age.getPossibleValues().stream().mapToInt(Integer::intValue).max().orElse(0);
+            }
+        }
+        return true;
     }
 
 }

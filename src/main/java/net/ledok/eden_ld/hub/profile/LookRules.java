@@ -57,6 +57,13 @@ public final class LookRules extends SavedData {
 
     private static final long MAX_PRICE = 1_000_000_000L;
 
+    /**
+     * Purchases whose LC take hasn't answered yet, as "player|kind|id" (review finding 16): a second LookBuy for the
+     * same look (two clicks, the Wardrobe and the theme dialog, a modified client) used to charge twice for one
+     * unlock. Server thread only; cleared when the server stops.
+     */
+    private static final java.util.Set<String> BUYING = new java.util.HashSet<>();
+
     private final Kind kind;
     private final Map<String, LookRule> rules = new LinkedHashMap<>();
 
@@ -74,6 +81,7 @@ public final class LookRules extends SavedData {
                 (payload, context) -> context.server().execute(() -> save(context.player(), Kind.of(payload.theme()), payload.rule())));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.LookBuy.TYPE,
                 (payload, context) -> context.server().execute(() -> buy(context.player(), Kind.of(payload.theme()), payload.id())));
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> BUYING.clear());
     }
 
     /** The rule for a look (the default when none was set). */
@@ -149,18 +157,33 @@ public final class LookRules extends SavedData {
             return;
         }
         String which = kind == Kind.THEME ? "theme" : "background";
+        String pending = player.getUUID() + "|" + kind.name() + "|" + id;
+        if (!BUYING.add(pending)) {
+            return;
+        }
         EconomyCompat.take(player, rule.price(), paid -> {
+            BUYING.remove(pending);
             if (!paid) {
                 ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
                         Component.translatable("message.eden_ld." + which + ".cant_afford", rule.price())));
                 return;
             }
+            boolean unlocked = kind == Kind.THEME
+                    ? HubSettings.setThemeUnlocked(server, player.getUUID(), id, true)
+                    : HubSettings.setBackgroundUnlocked(server, player.getUUID(), id, true);
+            if (!unlocked) {
+                // Already owned by the time the LC was taken (an unlock given meanwhile, or a buy that slipped past
+                // the guard): give the price back instead of keeping it for nothing (review finding 16).
+                EdenLD.LOGGER.info("{} already owned the {} {}; refunding {} LC", player.getGameProfile().getName(),
+                        which, id, rule.price());
+                EconomyCompat.give(player, rule.price());
+                Wardrobe.send(player);
+                return;
+            }
             if (kind == Kind.THEME) {
-                HubSettings.setThemeUnlocked(server, player.getUUID(), id, true);
                 HubSettings.selectTheme(server, player.getUUID(), id);
                 HubServer.pushSettings(server, player.getUUID());
             } else {
-                HubSettings.setBackgroundUnlocked(server, player.getUUID(), id, true);
                 HubSettings.selectBackground(server, player.getUUID(), id);
                 ProfileServer.send(player, player.getUUID());
             }

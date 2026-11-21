@@ -52,6 +52,14 @@ public final class GuildManager extends SavedData {
     private final Map<UUID, UUID> memberIndex = new HashMap<>();
     /** invitee → guild → invite. */
     private final Map<UUID, Map<UUID, Invite>> invites = new HashMap<>();
+    /** Officers hear about one player's application to one guild at most this often (review finding 29). */
+    private static final long APPLICATION_NOTICE_MS = 10 * 60 * 1000L;
+    /**
+     * applicant → guild → when its officers were last told (review finding 29). In memory only, and kept through
+     * {@link #cancelApplication}, so an Apply / Cancel loop can't flood officers' chat; entries older than
+     * {@link #APPLICATION_NOTICE_MS} are dropped on the next application.
+     */
+    private final Map<UUID, Map<UUID, Long>> applicationNotices = new HashMap<>();
 
     public static GuildManager get(MinecraftServer server) {
         return EdenData.get(server, FACTORY, "guilds");
@@ -333,14 +341,25 @@ public final class GuildManager extends SavedData {
         if (guild.applications.containsKey(player.getUUID())) {
             return error("already_applied");
         }
-        guild.applications.put(player.getUUID(), System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        guild.applications.put(player.getUUID(), now);
         guild.applicantNames.put(player.getUUID(), player.getGameProfile().getName());
         setDirty();
-        guild.members.forEach((member, rank) -> {
-            if (rank.atLeast(GuildRank.OFFICER)) {
-                notify(server, member, "application_received", player.getGameProfile().getName());
-            }
+        // Once per applicant and guild every APPLICATION_NOTICE_MS, and not to officers who ignore the applicant
+        // (review finding 29): Apply / Cancel in a loop used to post a line to every officer per click.
+        applicationNotices.values().removeIf(byGuild -> {
+            byGuild.values().removeIf(at -> now - at >= APPLICATION_NOTICE_MS);
+            return byGuild.isEmpty();
         });
+        Map<UUID, Long> told = applicationNotices.computeIfAbsent(player.getUUID(), k -> new HashMap<>());
+        if (told.putIfAbsent(guildId, now) == null) {
+            guild.members.forEach((member, rank) -> {
+                if (rank.atLeast(GuildRank.OFFICER)
+                        && !net.ledok.eden_ld.hub.IgnoreList.ignores(server, member, player.getUUID())) {
+                    notify(server, member, "application_received", player.getGameProfile().getName());
+                }
+            });
+        }
         return null;
     }
 
@@ -370,6 +389,11 @@ public final class GuildManager extends SavedData {
         }
         if (guild.members.size() >= memberLimit(guild)) {
             return error("full");
+        }
+        // Not into a guild mid-run, mid-duel or in the tutorial, the one way in that skipped the busy lock (review
+        // finding 68); the application stays for later.
+        if (net.ledok.busylib.BusyState.isBusy(applicant)) {
+            return error("target_busy", name);
         }
         addMember(guild, applicant, name, GuildRank.RECRUIT);
         notifyMembers(server, guild, "member_joined", name);

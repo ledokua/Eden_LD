@@ -148,6 +148,18 @@ public final class EdenRentalApi {
         return RentalStash.end(player);
     }
 
+    /**
+     * As {@link #end(ServerPlayer)}, for a caller that restores the player's health itself (review finding
+     * 64): {@link #end(ServerPlayer)} sets health a few ticks later, once their own gear's max health is in, to the
+     * share of max they had during the session, which overwrote health set by the caller right after it. Here those
+     * ticks later their health becomes {@code health} instead (capped at their max then: set right after end, the
+     * loadout's max health would still cap it), or with {@code Float.NaN} isn't touched at all. A player who is dead
+     * gets it at the respawn, with their items. False when they weren't renting.
+     */
+    public static boolean end(ServerPlayer player, float health) {
+        return RentalStash.end(player, health);
+    }
+
     /** Ends a session of a player who may be offline: then everything comes back at their next login. */
     public static boolean end(MinecraftServer server, UUID player) {
         return RentalStash.end(server, player);

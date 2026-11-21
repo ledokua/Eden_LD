@@ -315,6 +315,12 @@ public final class GuildBankServer {
             return;
         }
         Guild guild = GuildManager.get(server).guildOf(player.getUUID());
+        if (limitChanged && guild != null) {
+            // The claim limit changes only in the sync's OPAC reconcile: push the banks after it, not before, so they
+            // don't keep the old limit (review finding 97).
+            GuildServer.scheduleSyncAndBank(guild.id);
+            return;
+        }
         if (guild != null) {
             pushToViewers(server, guild);
         }
@@ -323,7 +329,8 @@ public final class GuildBankServer {
         }
     }
 
-    private static void fail(ServerPlayer player, @Nullable Component message) {
+    /** Red chat line and a hub toast; also for a payout that failed later ({@link GuildBankService#withdrawLc}). */
+    static void fail(ServerPlayer player, @Nullable Component message) {
         if (message == null) {
             return;
         }

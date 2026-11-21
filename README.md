@@ -177,6 +177,10 @@ player takes exactly vanilla damage, and the share takes over around 70–100 ma
 - **What protects**: not armor — hazards skip it (and don't wear it down), so heavy armor can't sit in lava.
   Protection enchantments still do (Protection, Fire Protection, Feather Falling…, up to 80%), and so do
   Fire Resistance, Resistance, Slow Falling, Water Breathing and leather against freezing.
+  The exception is a rule with `"armor": true` — **falls** by default (1.3.123): armor softens them like an ordinary
+  hit and wears down. Since 1.3.132 that goes through the server's armor curve (Effective Armor Formula's, not
+  vanilla's; about 40% at 20 armor) and the hooks other mods put there (Arenas' blocked-by-armor stats count falls
+  too).
 - Attacks stay as they are: mobs and players hitting, explosions, harming potions, falling anvils, and
   skills' damage over time (More RPG Classes' bleeding, fatal poison and molten, Soulslike's bleed, Mine
   Cells' bleeding).
@@ -1605,8 +1609,9 @@ All platform calls are asynchronous; nothing blocks the server thread.
 
 Items the Minestar website shop sells show one more tooltip line, in Prime purple: "Available on the website · 200 LP",
 or "· 20 LP for 8" for packs (uk_ua: «Можна придбати на сайті · 200 LP» / «… · 20 LP за 8 шт.») (1.3.34). The list
-lives on the server in **`config/eden_ld/website_shop.json`**: `currency` and `items`, item id → `price` per purchase
-and `count` items per purchase (exact ids; an entry without a price is skipped). It's sent to players on join and
+lives on the server in **`config/eden_ld/website_shop.json`**: `currency` (at most 16 characters: a longer one is cut
+and the log warns; it used to kick every player) and `items`, item id → `price` per purchase and `count` items per
+purchase (exact ids; an entry without a price is skipped). It's sent to players on join and
 again after `/reload`, so prices change with the website without a pack update. A missing file is created empty;
 a broken one shows nothing and says so in the log. Needs Eden on the client (it's a tooltip).
 
@@ -1647,7 +1652,10 @@ Everything Eden_LD reads lives in **`config/eden_ld/`**, **one file per section*
 `commands.json`, `saving.json` — plus `emoji.json`, `dimensions.json` (each dimension's own gamerules, PvP mode, difficulty and border, see
 [World rules](#world-rules)) and the `daily_quests/`, `guild_quests/` and `lang/` folders.
 Missing files and settings are created with their defaults on launch (new settings appear by
-themselves after an update); a file that can't be read keeps its defaults and says so in the log.
+themselves after an update). A file that can't be read (a syntax or type error) runs on its defaults, says so in the
+log and is **not rewritten** (1.3.132), so fixing it and `/reload` (or a restart) brings your values back. The
+exception is `commands.json`: its defaults would unlock every command you made op-only, so a broken one falls back to
+**`commands.json.last-good`**, the copy Eden keeps of the last commands.json it read well.
 The old single `eden_ld.json` is no longer read (the log warns while it's there: copy what you
 changed into the new files, then delete it). Below, each top-level key is the file of that name:
 

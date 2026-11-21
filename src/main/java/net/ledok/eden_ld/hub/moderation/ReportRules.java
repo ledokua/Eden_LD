@@ -7,7 +7,9 @@ import java.util.UUID;
 
 /**
  * The rules of filing and keeping reports, apart from the game (tested): a few reports per player per ten minutes,
- * text and log cut to their caps rather than refused, and the newest {@link #KEEP} kept — old handled ones go first.
+ * text and log cut to their caps rather than refused, and the newest {@link #KEEP} kept — old handled ones go first,
+ * then other handled ones; open ones are never dropped (review finding 30), so new filings are refused instead once
+ * too many are open ({@link #mayOpen}).
  */
 public final class ReportRules {
 
@@ -27,9 +29,20 @@ public final class ReportRules {
     /** Reports one player may file within {@link #RATE_WINDOW_MILLIS}. */
     public static final int RATE_LIMIT = 5;
     public static final long RATE_WINDOW_MILLIS = 10 * 60_000L;
-    /** Reports kept at most; past that, handled ones older than {@link #HANDLED_AGE_MILLIS} drop first, then the oldest. */
+    /**
+     * Reports kept at most; past that, handled ones older than {@link #HANDLED_AGE_MILLIS} drop first, then the oldest
+     * handled ones. Open ones (new, being looked at) stay, so the store can go past this while that many are open.
+     */
     public static final int KEEP = 2000;
     public static final long HANDLED_AGE_MILLIS = 90L * 24 * 60 * 60_000L;
+    /**
+     * Open reports at most: past this nothing more is filed (review finding 30). Players stop {@link #PLAYER_HEADROOM}
+     * earlier, so other mods' filings (wager disputes, suggestions) still get through a player flood.
+     */
+    public static final int MAX_OPEN = KEEP;
+    public static final int PLAYER_HEADROOM = 200;
+    /** Open reports one player may have from the hub and {@code /report} (other mods' filings aren't counted against it). */
+    public static final int MAX_OPEN_PER_REPORTER = 10;
 
     private ReportRules() {
     }
@@ -83,7 +96,37 @@ public final class ReportRules {
         return true;
     }
 
-    /** Drops reports past {@code keep} ({@code reports} oldest first): handled ones older than the age first, then the oldest. */
+    /**
+     * Whether one more report may be filed: {@code open} reports are open now, {@code openByReporter} of them the
+     * reporter's own; {@code player} for the hub and {@code /report} (a lower total cap and the per-player cap).
+     */
+    public static boolean mayOpen(int open, int openByReporter, boolean player) {
+        if (!player) {
+            return open < MAX_OPEN;
+        }
+        return open < MAX_OPEN - PLAYER_HEADROOM && openByReporter < MAX_OPEN_PER_REPORTER;
+    }
+
+    /**
+     * How many of {@code reports} are open (new or being looked at), filed by {@code reporter} and of one of
+     * {@code kinds} (the kinds players file themselves). Other mods' filings in their name (recipe suggestions, wager
+     * disputes) don't count, so they never use up a player's {@link #MAX_OPEN_PER_REPORTER} (review of 1.3.133).
+     */
+    public static int openBy(List<Report> reports, UUID reporter, java.util.Collection<String> kinds) {
+        int open = 0;
+        for (Report report : reports) {
+            if (!report.handled() && report.reporter.equals(reporter) && kinds.contains(report.category)) {
+                open++;
+            }
+        }
+        return open;
+    }
+
+    /**
+     * Drops reports past {@code keep} ({@code reports} oldest first): handled ones older than the age first, then the
+     * oldest handled ones. Open ones are never dropped (review finding 30: a flood of filings used to push pending
+     * complaints out, with their text, evidence and thread, and nobody was told); {@link #mayOpen} bounds them instead.
+     */
     public static void prune(List<Report> reports, long now, int keep) {
         int excess = reports.size() - keep;
         if (excess <= 0) {
@@ -96,8 +139,11 @@ public final class ReportRules {
                 excess--;
             }
         }
-        if (excess > 0) {
-            reports.subList(0, excess).clear();
+        for (Iterator<Report> it = reports.iterator(); it.hasNext() && excess > 0; ) {
+            if (it.next().handled()) {
+                it.remove();
+                excess--;
+            }
         }
     }
 }

@@ -26,6 +26,8 @@ public final class ActivityReturn {
     private static String followedPackage = "";
     private static boolean escaped;
     private static boolean check;
+    /** Esc is being handled by the hub: a screen it opens now (the inventory it came from) is the player's. */
+    private static boolean hubEscape;
 
     private ActivityReturn() {
     }
@@ -36,9 +38,30 @@ public final class ActivityReturn {
         backToInventory = Minecraft.getInstance().screen instanceof HubScreen hub && hub.backToInventory();
     }
 
+    /**
+     * No lobby screen is coming after all (review finding 77): the server refused the Join, Create or Leaderboard.
+     * Meant for the HubNotice receiver on a failed notice; a screen already followed stays followed.
+     */
+    public static void disarm() {
+        armedAt = 0;
+    }
+
     public static void initialize() {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof HubScreen || screen == followed) {
+            if (screen instanceof HubScreen) {
+                watchHub(screen);
+                return;
+            }
+            if (screen == followed) {
+                // Resized (window, F11, GUI scale): Fabric gave the screen new event lists, so listen again (review
+                // finding 82: Esc no longer came back, and the stale follow later took over another screen).
+                listen(screen);
+                return;
+            }
+            if (hubEscape) {
+                // The player closed the hub with Esc (back to the inventory it came from): never the lobby screen
+                // (review finding 77).
+                armedAt = 0;
                 return;
             }
             boolean fresh = armedAt > 0 && System.currentTimeMillis() - armedAt < ARM_MILLIS;
@@ -52,7 +75,19 @@ public final class ActivityReturn {
             follow(screen);
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (hubEscape) {
+                // Backstop for the after-key listener (the key and the screen change happen within one tick).
+                hubEscape = false;
+                if (!(client.screen instanceof HubScreen)) {
+                    armedAt = 0;
+                }
+            }
             if (!check) {
+                // The followed screen is gone without its close being seen: stop, so a later screen of the same mod
+                // isn't taken for it (review finding 82).
+                if (followed != null && client.screen == null) {
+                    stop();
+                }
                 return;
             }
             check = false;
@@ -74,6 +109,11 @@ public final class ActivityReturn {
         int dot = name.indexOf('.', name.indexOf('.', name.indexOf('.') + 1) + 1);
         // e.g. "net.ledok.arenas_ld." — the screen's mod package.
         followedPackage = dot > 0 ? name.substring(0, dot + 1) : "";
+        listen(screen);
+    }
+
+    /** Esc and close listeners on the followed screen (again after each resize: review finding 82). */
+    private static void listen(Screen screen) {
         ScreenKeyboardEvents.allowKeyPress(screen).register((current, key, scancode, modifiers) -> {
             if (key == GLFW.GLFW_KEY_ESCAPE && current == followed) {
                 escaped = true;
@@ -84,6 +124,26 @@ public final class ActivityReturn {
             if (current == followed) {
                 check = true;
             }
+        });
+    }
+
+    /**
+     * The hub closed by the player's Esc disarms (review finding 77): a refused Join left the arm on for 5 s, and the
+     * next screen the player opened (inventory, chat, pause) was followed, so its Esc reopened the hub. An Esc that
+     * only closes a popup or a field keeps the arm.
+     */
+    private static void watchHub(Screen hub) {
+        ScreenKeyboardEvents.allowKeyPress(hub).register((current, key, scancode, modifiers) -> {
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                hubEscape = true;
+            }
+            return true;
+        });
+        ScreenKeyboardEvents.afterKeyPress(hub).register((current, key, scancode, modifiers) -> {
+            if (key == GLFW.GLFW_KEY_ESCAPE && hubEscape && Minecraft.getInstance().screen != current) {
+                armedAt = 0;
+            }
+            hubEscape = false;
         });
     }
 

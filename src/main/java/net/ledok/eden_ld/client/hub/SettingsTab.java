@@ -292,14 +292,14 @@ final class SettingsTab {
         settings.heading(tr("section.channel_notify"));
         for (net.ledok.eden_ld.chat.ChatChannels.Channel channel : net.ledok.eden_ld.chat.ChatChannels.Channel.values()) {
             String name = lower(channel);
-            int shift = channel.ordinal() * 2;
             settings.add(Option.choice(Component.translatable("chat.eden_ld.channel." + name),
                             List.of(HubSettings.ChannelNotify.ALL_MESSAGES, HubSettings.ChannelNotify.ONLY_MENTIONS,
                                     HubSettings.ChannelNotify.NOTHING),
-                            HubSettings.ChannelNotify.of(data.chatNotify(), channel.ordinal()),
+                            HubSettings.ChannelNotify.of(HubNotifications.chatNotify(), channel.ordinal()),
                             net.ledok.eden_ld.client.chat.ChannelMenu::notifyLabel,
-                            level -> send(HubSettings.CHAT_NOTIFY,
-                                    data.chatNotify() & ~(3 << shift) | level.ordinal() << shift))
+                            // Built at click time on any change still pending, not on this build's snapshot
+                            // (review finding 84).
+                            level -> HubNotifications.setChatNotify(channel.ordinal(), level))
                     // The explanation once, under the first channel.
                     .hint(channel.ordinal() == 0 ? tr("channel_notify.hint") : null)
                     .defaultValue(HubSettings.ChannelNotify.ONLY_MENTIONS)

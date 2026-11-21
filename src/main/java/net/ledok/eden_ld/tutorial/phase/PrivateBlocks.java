@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * sent only to them. While a player acts on such a block (using it, clicking in its menu, the copy ticking) a
  * <em>scope</em> is open: {@code Level.getBlockEntity} answers with their copy and a same-block state change (a lit
  * furnace) stays theirs ({@code PhaseLevelBlockMixin}). Copies go when their player has left the tutorial or been away
- * five minutes. After 20 errors the whole feature switches itself off (the server keeps running).
+ * five minutes, and when the real block is broken or replaced. After 20 errors the whole feature switches itself off (the server keeps running).
  */
 public final class PrivateBlocks {
 
@@ -182,6 +182,7 @@ public final class PrivateBlocks {
             if (frame == null || level.isClientSide() || !isPrivate(level, pos)) {
                 return null;
             }
+            dropIfStale(level, pos);
             return frame.create() ? copyOrCreate(level, pos, frame.phase()) : copy(level, pos, frame.phase());
         } catch (Throwable error) {
             failed("in getBlockEntity", error);
@@ -194,7 +195,11 @@ public final class PrivateBlocks {
     public static BlockState scopedState(Level level, BlockPos pos) {
         try {
             Frame frame = frame();
-            return frame == null || level.isClientSide() ? null : state(level, pos, frame.phase());
+            if (frame == null || level.isClientSide()) {
+                return null;
+            }
+            dropIfStale(level, pos);
+            return state(level, pos, frame.phase());
         } catch (Throwable error) {
             failed("in getBlockState", error);
             return null;
@@ -205,8 +210,14 @@ public final class PrivateBlocks {
     public static boolean scopedSetBlock(Level level, BlockPos pos, BlockState state) {
         try {
             Frame frame = frame();
-            if (frame == null || !frame.setBlock() || !(level instanceof ServerLevel server)
-                    || copy(level, pos, frame.phase()) == null || !state.is(realState(level, pos).getBlock())) {
+            if (frame == null || !frame.setBlock() || !(level instanceof ServerLevel server)) {
+                return false;
+            }
+            if (dropIfStale(level, pos) && frame.pos().equals(pos)) {
+                // Review finding 95: a copy of a block that is gone (its tick, its menu) changed its block: swallowed.
+                return true;
+            }
+            if (copy(level, pos, frame.phase()) == null || !state.is(realState(level, pos).getBlock())) {
                 return false;
             }
             setState(server, pos, frame.phase(), state);
@@ -277,6 +288,57 @@ public final class PrivateBlocks {
         STATES.remove(key);
     }
 
+    /**
+     * Review finding 95: the real block was replaced or removed some other way than a hand-break ({@code /setblock},
+     * {@code /fill}, WorldEdit, an explosion), so the copies here are of a block that is gone: they go too (true), and
+     * nothing they do may reach the world (a lit furnace copy running out of fuel wrote an unlit furnace over whatever
+     * staff put there). Cheap when nothing is copied here; reads the real block only when something is.
+     */
+    private static boolean dropIfStale(Level level, BlockPos pos) {
+        Key key = key(level, pos);
+        Map<UUID, BlockEntity> copies = COPIES.get(key);
+        Map<UUID, BlockState> states = STATES.get(key);
+        if (copies == null && states == null || !level.isLoaded(pos)) {
+            return false;
+        }
+        BlockState realState = realState(level, pos);
+        net.minecraft.world.level.block.Block real = realState.getBlock();
+        boolean stale = copies != null && copies.values().stream().anyMatch(copy -> !copy.getBlockState().is(real))
+                || states != null && states.values().stream().anyMatch(state -> !state.is(real));
+        if (stale) {
+            COPIES.remove(key);
+            STATES.remove(key);
+            MENUS.values().removeIf(menu -> menu.dimension().equals(key.dimension()) && menu.pos().asLong() == key.pos());
+            // Their client still shows their copy's block (a new listed block's update was filtered as private).
+            if (level instanceof ServerLevel server) {
+                Set<UUID> phases = new HashSet<>();
+                if (copies != null) {
+                    phases.addAll(copies.keySet());
+                }
+                if (states != null) {
+                    phases.addAll(states.keySet());
+                }
+                for (UUID phase : phases) {
+                    send(server, phase, new ClientboundBlockUpdatePacket(pos.immutable(), realState));
+                }
+            }
+        }
+        return stale;
+    }
+
+    /** Review finding 51: everything forgotten when the server stops (singleplayer opens the next world in this JVM). */
+    static void reset() {
+        COPIES.clear();
+        STATES.clear();
+        LAST_SEEN.clear();
+        MENUS.clear();
+        SCOPE.remove();
+        open = 0;
+        failures = 0;
+        tripped = false;
+        lastTick = Long.MIN_VALUE;
+    }
+
     /** The player's copies go (they finished the tutorial). */
     public static void clearPhase(UUID phase) {
         COPIES.values().forEach(map -> map.remove(phase));
@@ -306,7 +368,7 @@ public final class PrivateBlocks {
         for (Map.Entry<Key, Map<UUID, BlockEntity>> entry : COPIES.entrySet()) {
             ServerLevel level = server.getLevel(entry.getKey().dimension());
             BlockPos pos = BlockPos.of(entry.getKey().pos());
-            if (level == null || !level.isLoaded(pos)) {
+            if (level == null || !level.isLoaded(pos) || dropIfStale(level, pos)) {
                 continue;
             }
             for (Map.Entry<UUID, BlockEntity> copy : entry.getValue().entrySet()) {

@@ -84,17 +84,12 @@ public final class DirectMessages {
                 sync(server, player);
             }
         }));
-        // DISCONNECT fires on the server thread while the player is still in the list (server.execute would run at
-        // once, and the check below kept everything): forget them in a queued task, unless they're back already.
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID id = handler.getPlayer().getUUID();
-            server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
-                if (server.getPlayerList().getPlayer(id) == null) {
-                    KNOWN.remove(id);
-                    LAST_OPEN.remove(id);
-                    LAST_RENAME.remove(id);
-                }
-            }));
+        // Forgotten once they're out of the player list, unless they're back already (review finding 91: DISCONNECT
+        // fires while they're still listed, and the queued check that stood here ran before the removal and kept all).
+        net.ledok.eden_ld.hub.HubServer.onLeft((server, id) -> {
+            KNOWN.remove(id);
+            LAST_OPEN.remove(id);
+            LAST_RENAME.remove(id);
         });
     }
 

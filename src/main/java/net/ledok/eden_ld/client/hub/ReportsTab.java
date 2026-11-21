@@ -43,8 +43,12 @@ public final class ReportsTab {
     private static String kind = KINDS.get(0);
     private static UUID target;
     private static String text = "";
-    /** A submission is on its way: the form empties once the server's list holds one more. */
-    private static int sentAt = -1;
+    /**
+     * A submission is on its way: the newest submission id seen when it was sent (-1: none on its way).
+     * The form empties once the server's list holds a newer id. Review finding 85: this used to compare
+     * the list's size, which is capped at 100, so past 100 submissions the form never emptied.
+     */
+    private static long sentAt = -1;
     /** The submission whose conversation is open (-1: the form and the list), and the reply being typed. */
     private static long openThread = -1;
     private static String reply = "";
@@ -77,7 +81,7 @@ public final class ReportsTab {
             }
             pendingName = null;
         }
-        if (sentAt >= 0 && data.entries().size() > sentAt) {
+        if (sentAt >= 0 && newestId(data) > sentAt) {
             text = "";
             target = null;
             sentAt = -1;
@@ -94,6 +98,15 @@ public final class ReportsTab {
                 replySentAt = -1;
             }
         }
+    }
+
+    /** The newest submission's id (ids only grow), or 0 for none (review finding 85). */
+    private static long newestId(HubPayloads.ReportsData data) {
+        long newest = 0;
+        for (ReportEntry entry : data.entries()) {
+            newest = Math.max(newest, entry.id());
+        }
+        return newest;
     }
 
     private static ReportEntry entry(HubPayloads.ReportsData data, long id) {
@@ -132,7 +145,7 @@ public final class ReportsTab {
         float width = HubScreen.innerWidth();
         ReportEntry open = openThread >= 0 ? entry(data, openThread) : null;
         if (open != null) {
-            thread(screen, content, open, width);
+            thread(screen, content, open, width, data.allowed());
             return;
         }
         openThread = -1;
@@ -253,7 +266,7 @@ public final class ReportsTab {
         if (complaint && target == null) {
             return;
         }
-        sentAt = data.entries().size();
+        sentAt = newestId(data);
         ClientPlayNetworking.send(new HubPayloads.ReportSubmit(kind, complaint ? Optional.of(target) : Optional.empty(),
                 text));
     }
@@ -348,9 +361,10 @@ public final class ReportsTab {
 
     /**
      * One submission as a conversation: the player's messages on the right, staff's on the left with their name, system
-     * lines in the middle; then, while it's open, a reply box with Надіслати and «Питання вирішено».
+     * lines in the middle; then, while it's open, a reply box with Надіслати and «Питання вирішено». Without the right
+     * to file ({@code allowed}) only «Питання вирішено» stays: the server refuses their replies (review finding 31).
      */
-    private static void thread(HubScreen screen, Flex content, ReportEntry entry, float width) {
+    private static void thread(HubScreen screen, Flex content, ReportEntry entry, float width, boolean allowed) {
         Flex top = Flex.row().gap(6).alignItems(Align.CENTER);
         top.sizing(Sizing.fill(), Sizing.content());
         top.item(EdenParchment.fitButton(tr("back"), 40, 14, () -> backToList(screen)));
@@ -374,6 +388,14 @@ public final class ReportsTab {
             content.item(EdenParchment.text(tr("thread_closed"), EdenParchment.INK_DIM, (int) width));
             return;
         }
+        if (!allowed) {
+            content.item(EdenParchment.text(tr("not_allowed"), EdenParchment.INK_DIM, (int) width));
+            Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
+            actions.sizing(Sizing.fill(), Sizing.content());
+            actions.item(closeButton(entry));
+            content.item(actions);
+            return;
+        }
         Button send = EdenParchment.fitButton(tr("send"), 70, 14, () -> {
             replySentAt = entry.messages().size();
             ClientPlayNetworking.send(new HubPayloads.ReportThreadAction(entry.id(),
@@ -388,13 +410,18 @@ public final class ReportsTab {
         content.item(area);
         Flex actions = Flex.row().gap(6).alignItems(Align.CENTER);
         actions.sizing(Sizing.fill(), Sizing.content());
-        Button close = EdenParchment.fitButton(tr("close_thread"), 80, 14, () -> ClientPlayNetworking.send(
-                new HubPayloads.ReportThreadAction(entry.id(), HubPayloads.ReportThreadAction.CLOSE, "")));
-        close.tooltip(tr("close_thread.hint"));
-        actions.item(close);
+        actions.item(closeButton(entry));
         actions.spacer();
         actions.item(send);
         content.item(actions);
+    }
+
+    /** «Питання вирішено»: the player closes their own submission. */
+    private static Button closeButton(ReportEntry entry) {
+        Button close = EdenParchment.fitButton(tr("close_thread"), 80, 14, () -> ClientPlayNetworking.send(
+                new HubPayloads.ReportThreadAction(entry.id(), HubPayloads.ReportThreadAction.CLOSE, "")));
+        close.tooltip(tr("close_thread.hint"));
+        return close;
     }
 
     /** A message: the player's own on the right, staff's on the left (their name above), a system line centered. */

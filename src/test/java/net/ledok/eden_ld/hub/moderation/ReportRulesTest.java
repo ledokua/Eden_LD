@@ -128,26 +128,78 @@ class ReportRulesTest {
     }
 
     @Test
-    void thenTheOldestWhateverTheirState() {
+    void thenTheOldestHandledButNeverOpenOnes() {
+        // Review finding 30: open reports are never dropped, even past the cap.
         Report a = report(ALEX, NOW - 3000);
         Report b = handled(NOW - 2000);
         Report c = report(BOB, NOW - 1000);
         List<Report> reports = new ArrayList<>(List.of(a, b, c));
         ReportRules.prune(reports, NOW, 1);
-        assertEquals(List.of(c), reports);
+        assertEquals(List.of(a, c), reports);
     }
 
     @Test
-    void theNewestTwoThousandStay() {
+    void theOldestHandledGoBeforeNewerHandled() {
+        Report first = handled(NOW - 4000);
+        Report open = report(BOB, NOW - 3000);
+        Report second = handled(NOW - 2000);
+        Report third = handled(NOW - 1000);
+        List<Report> reports = new ArrayList<>(List.of(first, open, second, third));
+        ReportRules.prune(reports, NOW, 2);
+        assertEquals(List.of(open, third), reports);
+    }
+
+    @Test
+    void openReportsAllStayPastTheCap() {
         List<Report> reports = new ArrayList<>();
         for (int i = 0; i < ReportRules.KEEP + 5; i++) {
             reports.add(report(ALEX, NOW - (ReportRules.KEEP + 5 - i)));
         }
-        Report newest = reports.get(reports.size() - 1);
-        Report firstKept = reports.get(5);
+        List<Report> before = List.copyOf(reports);
         ReportRules.prune(reports, NOW, ReportRules.KEEP);
-        assertEquals(ReportRules.KEEP, reports.size());
-        assertEquals(firstKept, reports.get(0));
-        assertEquals(newest, reports.get(reports.size() - 1));
+        assertEquals(before, reports);
+    }
+
+    @Test
+    void playersStopBeforeTheTotalCapAndAtTheirOwn() {
+        assertTrue(ReportRules.mayOpen(0, 0, true));
+        assertFalse(ReportRules.mayOpen(0, ReportRules.MAX_OPEN_PER_REPORTER, true));
+        assertFalse(ReportRules.mayOpen(ReportRules.MAX_OPEN - ReportRules.PLAYER_HEADROOM, 0, true));
+        assertTrue(ReportRules.mayOpen(ReportRules.MAX_OPEN - ReportRules.PLAYER_HEADROOM, 0, false));
+        assertFalse(ReportRules.mayOpen(ReportRules.MAX_OPEN, 0, false));
+    }
+
+    @Test
+    void openByCountsOnlyTheReportersOpenOnes() {
+        List<Report> reports = List.of(filed(ALEX, BUG), filed(ALEX, BUG), handledFiled(ALEX, BUG), filed(BOB, BUG));
+        assertEquals(2, ReportRules.openBy(reports, ALEX, PLAYER_KINDS));
+        assertEquals(1, ReportRules.openBy(reports, BOB, PLAYER_KINDS));
+    }
+
+    @Test
+    void otherModsFilingsDontUseUpAPlayersOpenReports() {
+        List<Report> reports = new ArrayList<>();
+        for (int i = 0; i < ReportRules.MAX_OPEN_PER_REPORTER; i++) {
+            reports.add(filed(ALEX, i % 2 == 0 ? "datarewriter:recipe" : "duels_ld:wager"));
+        }
+        reports.add(filed(ALEX, BUG));
+        int own = ReportRules.openBy(reports, ALEX, PLAYER_KINDS);
+        assertEquals(1, own);
+        assertTrue(ReportRules.mayOpen(reports.size(), own, true));
+    }
+
+    /** ReportDesk.PLAYER_KINDS, written out: ReportDesk itself needs the game. */
+    private static final String BUG = "eden_ld:bug";
+    private static final List<String> PLAYER_KINDS = List.of(BUG, "eden_ld:complaint", "eden_ld:idea", "eden_ld:other");
+
+    private static Report filed(UUID reporter, String category) {
+        return new Report(nextId++, NOW, reporter, reporter.equals(ALEX) ? "Alex" : "Bob", category, "", "text",
+                List.of());
+    }
+
+    private static Report handledFiled(UUID reporter, String category) {
+        Report report = filed(reporter, category);
+        report.status = Report.ACCEPTED;
+        return report;
     }
 }

@@ -15,7 +15,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.level.saveddata.SavedData;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,15 +70,22 @@ public final class LocalSocial extends SavedData {
     private static final int EXPIRY_SWEEP_TICKS = 20 * 60 * 60;
     /** When the "too many requests on the server" warning was last logged (once a minute at most). */
     private static long requestsFullLogged;
-    /** What we know of each player: name, first and last seen, level and playtime when they last left. */
+    /** What we know of each player: name, first and last seen, level, playtime, group and Prime when they last left. */
     private final Map<UUID, Known> known = new HashMap<>();
 
     private static final class Known {
         String name = "";
+        /** -1: unknown (they played here before local mode and their files don't say since when). */
         long firstSeen;
         long lastSeen;
         int level;
         long playtimeSeconds;
+        /**
+         * Group and Prime as LuckPerms last had them (review finding 89): LuckPerms keeps only online users loaded, so
+         * offline profiles showed neither. A Prime that runs out while they're away shows until they come back.
+         */
+        String group = "";
+        boolean prime;
     }
 
     static LocalSocial get(MinecraftServer server) {
@@ -125,13 +131,65 @@ public final class LocalSocial extends SavedData {
         long now = System.currentTimeMillis();
         Known entry = known.computeIfAbsent(player.getUUID(), uuid -> new Known());
         entry.name = player.getGameProfile().getName();
-        if (entry.firstSeen == 0) {
-            entry.firstSeen = now;
+        entry.playtimeSeconds = player.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) / 20L;
+        if (!leaving) {
+            entry.firstSeen = firstSeen(player, entry.firstSeen, entry.playtimeSeconds, now);
         }
         entry.lastSeen = now;
         entry.level = ActivityLevels.level(player);
-        entry.playtimeSeconds = player.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) / 20L;
+        if (LuckPermsCompat.userLoaded(player.getUUID())) {
+            entry.group = groupOf(player.getUUID());
+            entry.prime = isPrime(player.getUUID());
+        }
         setDirty();
+    }
+
+    /**
+     * When the player first played here (review finding 89): "member since" used to be their first join after local
+     * mode came (1.3.127), even for long-time players. Their stats and advancements files are written in place, so
+     * the older of their creation times is their first join, when the filesystem keeps creation times. A file time
+     * younger than their playtime can't be right (no creation time, only the last write): unknown (-1, the line is
+     * hidden) unless they are new here. Two file stats per join, on the server thread.
+     * <p>
+     * Review of 1.3.133: on JDK 21 / Linux {@code creationTime()} without a birth time returns the last write, so a
+     * creation time equal to the last-modified time counts as unknown; and a stored date their playtime doesn't fit in
+     * (written that way by 1.3.127–1.3.132) is dropped and worked out again.
+     */
+    private static long firstSeen(ServerPlayer player, long known, long playtimeSeconds, long now) {
+        if (!plausible(known, playtimeSeconds, now)) {
+            known = -1;
+        }
+        long oldest = known > 0 ? known : now;
+        String file = player.getUUID() + ".json";
+        for (net.minecraft.world.level.storage.LevelResource dir : List.of(
+                net.minecraft.world.level.storage.LevelResource.PLAYER_STATS_DIR,
+                net.minecraft.world.level.storage.LevelResource.PLAYER_ADVANCEMENTS_DIR)) {
+            try {
+                java.nio.file.attribute.BasicFileAttributes attributes = java.nio.file.Files.readAttributes(
+                        player.server.getWorldPath(dir).resolve(file),
+                        java.nio.file.attribute.BasicFileAttributes.class);
+                long created = attributes.creationTime().toMillis();
+                if (created == attributes.lastModifiedTime().toMillis()) {
+                    // No birth time on this filesystem: the JDK reports the last write instead.
+                    continue;
+                }
+                if (created > 0 && now - created >= playtimeSeconds * 1000L) {
+                    oldest = Math.min(oldest, created);
+                }
+            } catch (java.io.IOException | UnsupportedOperationException ignored) {
+                // No file yet (a new player), or no times: keep what we have.
+            }
+        }
+        if (oldest == now && known == 0 && playtimeSeconds > 60 * 60) {
+            // Played here for an hour or more before we could see it, and the files don't say since when.
+            return -1;
+        }
+        return known == -1 && oldest == now ? -1 : oldest;
+    }
+
+    /** False for a known first-seen date the playtime doesn't fit in (it can't be right); unknown ones pass. */
+    private static boolean plausible(long firstSeen, long playtimeSeconds, long now) {
+        return firstSeen <= 0 || playtimeSeconds * 1000L <= now - firstSeen;
     }
 
     // ---------------------------------------------------------------- friends
@@ -304,21 +362,28 @@ public final class LocalSocial extends SavedData {
 
     // ---------------------------------------------------------------- profiles
 
-    /** The local profile: online players' now, others' as they last left; null for someone never seen here. */
-    @Nullable
+    /**
+     * The local profile: online players' now, others' as they last left. Someone not seen here since local mode came
+     * (1.3.127) gets a minimal profile (name, LuckPerms group if loaded, level 0) instead of none, which read as
+     * "Minestar data isn't available" (review finding 89); the hub shows this server's playtime from their stats.
+     */
     static ProfileSnapshot profile(MinecraftServer server, UUID uuid) {
         LocalSocial data = get(server);
         ServerPlayer online = server.getPlayerList().getPlayer(uuid);
         Known entry = data.known.get(uuid);
-        if (online == null && entry == null) {
-            return null;
-        }
-        String name = online != null ? online.getGameProfile().getName() : entry.name;
-        int level = online != null ? ActivityLevels.level(online) : entry.level;
+        String name = online != null ? online.getGameProfile().getName()
+                : entry != null && !entry.name.isEmpty() ? entry.name : data.name(server, uuid);
+        int level = online != null ? ActivityLevels.level(online) : entry == null ? 0 : entry.level;
         long playtime = online != null ? online.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) / 20L
-                : entry.playtimeSeconds;
-        String group = groupOf(uuid);
-        return new ProfileSnapshot(name, group, -1, isPrime(uuid), entry == null ? 0 : entry.firstSeen, playtime,
+                : entry == null ? 0 : entry.playtimeSeconds;
+        // Live while LuckPerms has them loaded; otherwise as last seen (review finding 89).
+        boolean live = online != null || entry == null || LuckPermsCompat.userLoaded(uuid);
+        String group = live ? groupOf(uuid) : entry.group;
+        boolean prime = live ? isPrime(uuid) : entry.prime;
+        // A stored date their playtime doesn't fit in is hidden (review of 1.3.133: 1.3.127–1.3.132 wrote some).
+        long firstSeen = entry == null || !plausible(entry.firstSeen, playtime, System.currentTimeMillis()) ? -1
+                : entry.firstSeen;
+        return new ProfileSnapshot(name, group, -1, prime, firstSeen, playtime,
                 level, 0, 0, 0, 0, List.of(), friendUuids(server, uuid));
     }
 
@@ -386,6 +451,8 @@ public final class LocalSocial extends SavedData {
             k.putLong("last", entry.lastSeen);
             k.putInt("level", entry.level);
             k.putLong("playtime", entry.playtimeSeconds);
+            k.putString("group", entry.group);
+            k.putBoolean("prime", entry.prime);
             knownList.add(k);
         });
         tag.put("known", knownList);
@@ -418,6 +485,8 @@ public final class LocalSocial extends SavedData {
                 entry.lastSeen = k.getLong("last");
                 entry.level = k.getInt("level");
                 entry.playtimeSeconds = k.getLong("playtime");
+                entry.group = k.getString("group");
+                entry.prime = k.getBoolean("prime");
                 data.known.put(k.getUUID("uuid"), entry);
             }
         }

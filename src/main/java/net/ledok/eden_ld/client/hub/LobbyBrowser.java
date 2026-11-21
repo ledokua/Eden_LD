@@ -84,6 +84,15 @@ final class LobbyBrowser {
     private static boolean editing;
     /** «Створити лобі» was sent: the panel closes once the player owns a lobby (its screen opened meanwhile). */
     private static boolean awaitingLobby;
+    /**
+     * When «Створити лобі» was sent, and the own lobby as it was then. Review finding 73: a refusal sends only a toast,
+     * so the flag stayed set and a later change to a friend's lobby the player was in closed the panel mid-edit. Now
+     * only a lobby the player owns that wasn't theirs before closes it, and the wait ends after
+     * {@link #AWAIT_LOBBY_MS}.
+     */
+    private static long awaitingSince;
+    private static HubPayloads.OwnLobbyData awaitingFrom = HubPayloads.OwnLobbyData.NONE;
+    private static final long AWAIT_LOBBY_MS = 5000;
     private static int panelKind = -1;
     @Nullable
     private static ResourceLocation panelActivity;
@@ -152,6 +161,8 @@ final class LobbyBrowser {
     private static long leaderboardAskedAt;
     /** The hosted view is that leaderboard: leaving it reopens the create panel as it was. */
     private static boolean hostedFromPanel;
+    /** ...and that panel was editing the own lobby (review finding 72: it came back in create mode). */
+    private static boolean hostedFromEdit;
     private static Component hostedName = Component.empty();
 
     /**
@@ -172,6 +183,7 @@ final class LobbyBrowser {
         hostedName = name;
         // Opened from the create panel's «Таблиця лідерів» just now: ← Назад goes back to the panel.
         hostedFromPanel = panelOpen && System.currentTimeMillis() - leaderboardAskedAt < 5000;
+        hostedFromEdit = hostedFromPanel && editing;
         leaderboardAskedAt = 0;
         panelOpen = false;
         editing = false;
@@ -194,6 +206,7 @@ final class LobbyBrowser {
         Hosted view = hosted;
         hosted = null;
         hostedFromPanel = false;
+        hostedFromEdit = false;
         if (view != null) {
             view.close();
         }
@@ -204,8 +217,9 @@ final class LobbyBrowser {
         Hosted view = hosted;
         if (view != null && view.closed()) {
             hosted = null;
-            panelOpen = hostedFromPanel;
+            backToPanel(hostedFromPanel, hostedFromEdit);
             hostedFromPanel = false;
+            hostedFromEdit = false;
             // Left the lobby (or it's gone): back to the lobby list (LeDok 2026-11-19, 1.3.124: «Покинути» left the
             // player on an empty «Ви не в лобі»). A run starting closes the hub anyway: Arenas_LD 4.36.1+ sends every
             // party member vanilla's container close, which closes the screen.
@@ -238,13 +252,29 @@ final class LobbyBrowser {
         Component back = tr("browser.back");
         Button button = EdenParchment.button(back, EdenParchment.fitWidth(back, 50), 14, () -> {
             boolean toPanel = hostedFromPanel;
+            boolean toEdit = hostedFromEdit;
             closeHosted();
-            panelOpen = toPanel;
+            backToPanel(toPanel, toEdit);
             screen.onActivitiesData();
         });
         button.tooltip(tr("browser.back_hint"));
         screen.titleActions(EdenParchment.text(hostedName, EdenParchment.INK), button);
         content.item(new HostPanel(view));
+    }
+
+    /**
+     * Leaving the panel's leaderboard: the panel comes back as it was, in edit mode when it was editing and the lobby is
+     * still the player's to edit (review finding 72). Its activity, settings and prefill were kept meanwhile.
+     */
+    private static void backToPanel(boolean toPanel, boolean toEdit) {
+        HubPayloads.OwnLobbyData lobby = OwnLobbyButton.data();
+        boolean stillOwned = lobby.present() && lobby.owner() && !lobby.inRun();
+        if (toPanel && toEdit && !stillOwned) {
+            // No longer theirs to edit: back to the list, as onOwnLobby does when the panel is open.
+            toPanel = false;
+        }
+        panelOpen = toPanel;
+        editing = toPanel && toEdit;
     }
 
     /** Fills the tab and passes its size on to the view (which lays itself out). */
@@ -311,7 +341,14 @@ final class LobbyBrowser {
 
     /** The own lobby changed: a lobby made from the panel closes it. */
     static void onOwnLobby(HubPayloads.OwnLobbyData lobby) {
-        if (awaitingLobby && lobby.present()) {
+        if (awaitingLobby && System.currentTimeMillis() - awaitingSince > AWAIT_LOBBY_MS) {
+            // Refused, or no answer: the panel stays (review finding 73).
+            awaitingLobby = false;
+        }
+        HubPayloads.OwnLobbyData before = awaitingFrom;
+        boolean newLobby = lobby.present() && lobby.owner()
+                && (!before.present() || !before.owner() || !lobby.activity().equals(before.activity()));
+        if (awaitingLobby && newLobby) {
             awaitingLobby = false;
             panelOpen = false;
         }
@@ -389,7 +426,10 @@ final class LobbyBrowser {
             mine.tooltip(lobby.inRun() ? tr("own_lobby.in_run", lobby.name())
                     : tr("own_lobby", lobby.name(), lobby.members(), lobby.maxMembers()));
             actions.add(mine);
-            if (lobby.owner() && !lobby.inRun() && !lobby.activity().isEmpty()) {
+            // Only for a listed activity (review finding 75): the panel can't edit a hidden one (made at its block)
+            // and was a dead end with no Save.
+            if (lobby.owner() && !lobby.inRun() && !lobby.activity().isEmpty()
+                    && byId(data).containsKey(lobby.activity())) {
                 Component edit = tr("browser.edit");
                 Button button = EdenParchment.button(edit, EdenParchment.fitWidth(edit, 50), 14,
                         () -> openPanel(screen, ResourceLocation.tryParse(lobby.activity()), true, kind));
@@ -542,7 +582,7 @@ final class LobbyBrowser {
             case NEWEST -> Comparator.comparingLong((Row r) -> -r.lobby().createdAt());
             case PLAYERS -> Comparator.comparingInt((Row r) -> -r.lobby().members())
                     .thenComparingLong(r -> -r.lobby().createdAt());
-            case LEVEL -> Comparator.comparingInt((Row r) -> r.lobby().minLevel())
+            case LEVEL -> Comparator.comparingInt((Row r) -> r.lobby().requiredLevel())
                     .thenComparingLong(r -> -r.lobby().createdAt());
         };
         // The player's own lobby first, whatever the order.
@@ -569,8 +609,10 @@ final class LobbyBrowser {
         if (lobby.full()) {
             return tr("lobbies.full_hint");
         }
-        if (data.gated() && lobby.minLevel() > 0 && data.level() < lobby.minLevel()) {
-            return tr("browser.min_level_hint", lobby.minLevel());
+        // The lobby's minimum or its difficulty's level, whichever is higher (review finding 71: the difficulty's
+        // level wasn't known here, so Join showed for lobbies the server then refused).
+        if (data.gated() && lobby.requiredLevel() > 0 && data.level() < lobby.requiredLevel()) {
+            return tr("browser.min_level_hint", lobby.requiredLevel());
         }
         return null;
     }
@@ -619,9 +661,9 @@ final class LobbyBrowser {
             pills.item(more);
         }
         MutableComponent rest = Component.empty();
-        if (lobby.minLevel() > 0) {
-            boolean low = data.gated() && data.level() < lobby.minLevel();
-            rest.append(tr("browser.min_level", lobby.minLevel()).copy()
+        if (lobby.requiredLevel() > 0) {
+            boolean low = data.gated() && data.level() < lobby.requiredLevel();
+            rest.append(tr("browser.min_level", lobby.requiredLevel()).copy()
                     .withColor((low ? EdenParchment.DANGER : EdenParchment.INK_DIM) & 0xFFFFFF));
         }
         if (lobby.request()) {
@@ -772,6 +814,8 @@ final class LobbyBrowser {
     static void closePanel(HubScreen screen) {
         panelOpen = false;
         editing = false;
+        // Review finding 73: a create still waited for after the panel closed must not close a later one.
+        awaitingLobby = false;
         screen.onActivitiesData();
     }
 
@@ -1408,6 +1452,8 @@ final class LobbyBrowser {
             }
             if (!editing) {
                 awaitingLobby = true;
+                awaitingSince = System.currentTimeMillis();
+                awaitingFrom = OwnLobbyButton.data();
                 ActivityReturn.arm();
             }
             ClientPlayNetworking.send(new HubPayloads.LobbyCreate(panelActivity, difficulty, hardcore,

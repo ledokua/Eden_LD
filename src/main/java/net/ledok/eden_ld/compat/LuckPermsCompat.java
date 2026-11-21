@@ -186,7 +186,7 @@ public final class LuckPermsCompat {
             return;
         }
         if (DRAIN_QUEUED.compareAndSet(false, true)) {
-            server.execute(() -> drain(server));
+            net.ledok.eden_ld.util.OnServerThread.run(server, () -> drain(server));
         }
     }
 
@@ -230,6 +230,15 @@ public final class LuckPermsCompat {
         return LOADED && Hook.inGroup(player, group);
     }
 
+    /**
+     * Whether LuckPerms has the player loaded (online players, and offline ones something loaded lately), so that
+     * {@link #inGroup} answers for them; false without LuckPerms. Local profiles keep group and Prime from the last
+     * time this was true (review finding 89).
+     */
+    public static boolean userLoaded(java.util.UUID player) {
+        return LOADED && Hook.userLoaded(player);
+    }
+
     /** LuckPerms group names, highest weight first; empty without LuckPerms. */
     public static java.util.List<String> groupNames() {
         return LOADED ? Hook.groupNames() : java.util.List.of();
@@ -265,6 +274,14 @@ public final class LuckPermsCompat {
                         .thenApply(found -> java.util.Set.copyOf(found.keySet()));
             } catch (IllegalStateException e) {
                 return java.util.concurrent.CompletableFuture.completedFuture(java.util.Set.of());
+            }
+        }
+
+        static boolean userLoaded(java.util.UUID player) {
+            try {
+                return net.luckperms.api.LuckPermsProvider.get().getUserManager().isLoaded(player);
+            } catch (IllegalStateException e) {
+                return false;
             }
         }
 

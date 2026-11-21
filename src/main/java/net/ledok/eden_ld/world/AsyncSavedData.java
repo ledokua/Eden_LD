@@ -41,8 +41,11 @@ public final class AsyncSavedData {
     private static final String TEMP_FOLDER = "eden_ld_saving";
     private static final long FLUSH_TIMEOUT_SECONDS = 300;
 
-    /** A file's snapshot to write; {@code backup} (player files: {@code .dat_old}) gets the file it replaces. */
-    private record Job(CompoundTag tag, @org.jetbrains.annotations.Nullable Path backup) {
+    /**
+     * A file's snapshot to write; {@code backup} (player files: {@code .dat_old}) gets the file it replaces;
+     * {@code temps} the folder its temp file goes in.
+     */
+    private record Job(CompoundTag tag, @org.jetbrains.annotations.Nullable Path backup, Path temps) {
     }
 
     /** The newest snapshot of each file not yet written. */
@@ -58,6 +61,12 @@ public final class AsyncSavedData {
     private static volatile Path tempFolder;
     /** The file the writer is on right now, if any. */
     private static volatile Path writing;
+    /**
+     * Held for each single file write, by the writer and by {@link #awaitFile} writing a file itself (review finding
+     * 46). Fair, so a waiting server thread is next once the writer's current file is done, not after the whole queue.
+     */
+    private static final java.util.concurrent.locks.ReentrantLock WRITE_LOCK =
+            new java.util.concurrent.locks.ReentrantLock(true);
     private static boolean logged;
 
     private AsyncSavedData() {
@@ -103,14 +112,28 @@ public final class AsyncSavedData {
     }
 
     static void queue(Path target, CompoundTag tag, Path temps) {
-        queue(target, new Job(tag, null), temps);
+        queue(target, new Job(tag, null, temps));
     }
 
-    private static void queue(Path target, Job job, Path temps) {
+    private static void queue(Path target, Job job) {
         // Only the first snapshot of a file queues a write; a newer one waiting replaces it and goes in that write.
         if (PENDING.put(target, job) == null) {
-            WRITER.execute(() -> write(target, temps));
+            WRITER.execute(() -> write(target));
         }
+    }
+
+    /**
+     * Any other file Eden writes as gzipped NBT ({@code tag} is written as it is: hand over a copy if it can change):
+     * queued for the writer, false when a save can't be queued now ({@link #canQueue}), and the caller writes it
+     * itself. For files written in a tick where every millisecond counts (review finding 48: the rental stash copy).
+     */
+    public static boolean queueFile(Path target, CompoundTag tag) {
+        Path temps = tempFolder;
+        if (!canQueue() || temps == null) {
+            return false;
+        }
+        queue(target.toAbsolutePath().normalize(), new Job(tag, null, temps));
+        return true;
     }
 
     /** Whether a save now may be handed to the writer: on the server thread of a running server. */
@@ -124,16 +147,27 @@ public final class AsyncSavedData {
      * vanilla does (the old file becomes {@code backup}).
      */
     public static void queuePlayer(Path target, Path backup, CompoundTag tag) {
-        queue(target.toAbsolutePath().normalize(), new Job(tag, backup.toAbsolutePath().normalize()), tempFolder);
+        queue(target.toAbsolutePath().normalize(), new Job(tag, backup.toAbsolutePath().normalize(), tempFolder));
     }
 
-    private static void write(Path target, Path temps) {
-        writing = target;
-        Job job = PENDING.remove(target);
-        if (job == null) {
+    /** The writer's task for one file: its newest snapshot, if {@link #awaitFile} hasn't written it already. */
+    private static void write(Path target) {
+        WRITE_LOCK.lock();
+        try {
+            writing = target;
+            Job job = PENDING.remove(target);
+            if (job != null) {
+                writeJob(target, job);
+            }
+        } finally {
             writing = null;
-            return;
+            WRITE_LOCK.unlock();
         }
+    }
+
+    /** Writes one snapshot: to a temp file, then moved over the real one. Under {@link #WRITE_LOCK}. */
+    private static void writeJob(Path target, Job job) {
+        Path temps = job.temps();
         Path temp = temps.resolve(TEMP_NAMES.incrementAndGet() + "-" + target.getFileName());
         try {
             Files.createDirectories(temps);
@@ -154,8 +188,6 @@ public final class AsyncSavedData {
                 Files.deleteIfExists(temp);
             } catch (IOException ignored) {
             }
-        } finally {
-            writing = null;
         }
     }
 
@@ -178,14 +210,44 @@ public final class AsyncSavedData {
         }
     }
 
-    /** Before a data file is read: waits only when that file still has a write coming. */
+    /**
+     * Before a data file is read: when that file still has a write coming, it is written now. Only that file (review
+     * finding 46): this used to wait for the whole writer queue, so a logout or a saved-data read at the wrong moment
+     * held the server thread until every player and data file of that autosave was on disk. Now it waits at most for
+     * the file the writer is on (the fair lock), then writes its own snapshot here; the writer's task for it then
+     * finds nothing left to do.
+     */
     public static void awaitFile(File file) {
         if (PENDING.isEmpty() && writing == null) {
             return;
         }
         Path target = file.toPath().toAbsolutePath().normalize();
-        if (PENDING.containsKey(target) || target.equals(writing)) {
-            flush();
+        if (!PENDING.containsKey(target) && !target.equals(writing)) {
+            return;
+        }
+        try {
+            // The same bound as a flush: a writer stuck on a file doesn't hold the server forever.
+            if (!WRITE_LOCK.tryLock(FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                EdenLD.LOGGER.error("[Saving] {} still not written after {} s; reading it as it is.", target,
+                        FLUSH_TIMEOUT_SECONDS);
+                return;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        try {
+            // The writer finished whatever it was on (this file's older snapshot, maybe); this one's newest is ours.
+            // Marked as being written meanwhile, as the writer does, so another reader of this file (another thread's
+            // awaitFile) waits for it instead of reading a half-replaced state (review of 1.3.133).
+            writing = target;
+            Job job = PENDING.remove(target);
+            if (job != null) {
+                writeJob(target, job);
+            }
+        } finally {
+            writing = null;
+            WRITE_LOCK.unlock();
         }
     }
 

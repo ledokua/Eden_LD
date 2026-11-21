@@ -244,14 +244,16 @@ if (id < 0) {
 - `category` names what it's about — your mod id and a kind (`duels_ld:wager`); `reference` is
   your own id of the thing (`#1042`, "" for none). Staff see "New report #12 (duels_ld:wager #1042)
   from Alex", and both in the list.
-- Returns the new report's id, or **-1 when refused**: blank text, or the reporter already filed
-  5 reports in the last 10 minutes (across every mod). Tell the player — Eden says nothing to them.
+- Returns the new report's id, or **-1 when refused**: blank text, the reporter already filed
+  5 reports in the last 10 minutes (across every mod), or (1.3.133) too many reports are open: 2000 open ones
+  (`ReportRules.MAX_OPEN`) and staff get an alert. Tell the player — Eden says nothing to them.
 - Caps are **cut, not refused**: text 500 characters, the log's first 200 lines of up to 300
   characters each (trailing spaces trimmed), category and reference 64 each. The constants are on
   `EdenModerationApi`.
 - The reporter may be offline (their name comes from the server's profile cache).
-- Reports are kept in the world (`data/eden_ld/reports.dat`), at most the newest 2000 — past that,
-  handled ones older than 90 days go first, then the oldest.
+- Reports are kept in the world (`data/eden_ld/reports.dat`), the newest 2000 — past that, handled ones older than
+  90 days go first, then the oldest handled ones. **Open reports are never dropped** (1.3.133): new filings are
+  refused (-1) instead while too many are open.
 - Since 1.3.83 every report has a **status** (New, Under review, Accepted, Rejected) and an optional **staff reply**;
   the reporter sees both in their hub tab «Звернення» (Reports) and gets Eden mail when either changes. Name your
   category in the player's language with the lang keys `gui.eden_ld.hub.reports.category.<namespace>.<path>`
@@ -279,8 +281,8 @@ EdenModerationApi.resolve(server, id, true, "Thanks, added!", staff.getGameProfi
 
 - `payload` is opaque to Eden: your proposed content, up to `EdenModerationApi.MAX_PAYLOAD` (30,000) characters
   (longer is cut). It's stored with the suggestion and handed back to your editor.
-- `suggest` returns **-1** when refused: blank text, the rate limit, or this player already has an **open**
-  suggestion of the same category and reference.
+- `suggest` returns **-1** when refused: blank text, the rate limit, this player already has an **open**
+  suggestion of the same category and reference, or (1.3.133) too many reports are open (as for `report`).
 - In Moderation → Reports a suggestion of a category with an editor shows **[Open in editor]**, which calls your
   `SuggestionEditor` on the server thread for that staff member. Open your screen from there.
 - `resolve` sets Accepted or Rejected, shows `reason` to the author in their tab and mails them. Staff can also set
@@ -361,6 +363,7 @@ player onto a loadout and back (design: `Balance/RENTAL-BUILDS.md`).
 boolean begin(ServerPlayer player, String session, ResourceLocation kit)        // a Kits_LD 0.3.0+ (hidden) kit
 boolean begin(ServerPlayer player, String session, Consumer<ServerPlayer> give) // any loadout; may throw to refuse
 boolean end(ServerPlayer player)
+boolean end(ServerPlayer player, float health)    // 1.3.133: and their health then, see below
 boolean end(MinecraftServer server, UUID player)  // offline: done at their next login
 boolean isRenting(Player player)
 @Nullable String sessionOf(Player player)
@@ -378,6 +381,11 @@ boolean isRentalItem(ItemStack stack)             // custom_data {eden_rental: <
 - `end` removes every rental item (also inside shulker boxes and bundles) and gives their items back to the same slots.
   A tree that was put aside is given back even if the option changed meanwhile. Anything else they got meanwhile is kept
   (overflow is dropped at their feet).
+- **Health after `end`:** a few ticks later, once their own gear's max health is in, `end(player)` sets their health to
+  the share of max they had during the session. To set it yourself use `end(player, health)` (1.3.133): those ticks
+  later their health becomes exactly `health`, capped at their own max then (set right after `end`, the loadout's max
+  health would still cap it, and the share would overwrite it). `Float.NaN` leaves health untouched. A player who is
+  dead at `end` gets it at the respawn, with their items.
 - While renting:
   - Rental items can't be dropped (they go back to the hand) or put in any container slot: chests, ender chest,
     crafting, anvils, trades, shops, modded storage screens.

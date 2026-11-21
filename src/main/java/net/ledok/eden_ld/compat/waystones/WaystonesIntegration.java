@@ -260,11 +260,11 @@ final class WaystonesIntegration {
         // Waystones' config would charge (XP, items, its cooldowns) with nothing.
         WaystonesAPI.createDefaultTeleportContext(player, waystone, context -> { })
                 .ifLeft(context -> WaystonesAPI.tryTeleportAsync(context.setRequirements(FREE))
-                        .thenAccept(result -> current.execute(() -> onDone.accept(
+                        .thenAccept(result -> net.ledok.eden_ld.util.OnServerThread.run(current, () -> onDone.accept(
                                 result.map(entities -> null, error -> error.getComponent()))))
                         .exceptionally(error -> {
                             EdenLD.LOGGER.error("[Waystones] Hub teleport failed.", error);
-                            current.execute(() -> onDone.accept(
+                            net.ledok.eden_ld.util.OnServerThread.run(current, () -> onDone.accept(
                                     Component.translatable("message.eden_ld.waystones.failed")));
                             return null;
                         }))

@@ -134,7 +134,7 @@ final class FriendService {
         long wait = FETCH_MIN_GAP_MS - (System.currentTimeMillis() - LAST_START.getOrDefault(uuid, 0L));
         if (wait > 0) {
             java.util.concurrent.CompletableFuture.delayedExecutor(wait, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    .execute(() -> server.execute(() -> send(server, player, pending)));
+                    .execute(() -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> send(server, player, pending)));
             return;
         }
         send(server, player, pending);
@@ -152,22 +152,28 @@ final class FriendService {
         LAST_START.put(uuid, System.currentTimeMillis());
         minestar.getUserProfileByProfileUuid(uuid)
                 .onSuccess(profile -> {
-                    ProfileService.store(server, profile);
-                    LAST_FETCH.put(uuid, System.currentTimeMillis());
+                    ProfileService.store(server, player, profile);
                     FriendSnapshot snapshot = snapshot(profile);
-                    server.execute(() -> finish(server, player, pending, snapshot));
+                    net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+                        // Same hop as the cache put, and not for someone gone: forget() already cleared it on leave
+                        // (review finding 50).
+                        if (!ProfileService.gone(player)) {
+                            LAST_FETCH.put(uuid, System.currentTimeMillis());
+                        }
+                        finish(server, player, pending, snapshot);
+                    });
                 })
                 .onFailure(cause -> {
                     EdenLD.LOGGER.warn("[Friends] Failed to refresh the profile of {}.",
                             player.getGameProfile().getName(), cause);
                     // A stale snapshot beats an empty tab.
                     FriendSnapshot fallback = cached == null ? null : snapshot(cached);
-                    server.execute(() -> finish(server, player, pending, fallback));
+                    net.ledok.eden_ld.util.OnServerThread.run(server, () -> finish(server, player, pending, fallback));
                 });
         // The watchdog, as in MinestarHook.fetchPendingPurchases: answer from the cache if the platform stalls; the
         // late answer then finds the fetch done and is dropped, and the next fetch starts fresh.
         java.util.concurrent.CompletableFuture.delayedExecutor(FETCH_WATCHDOG_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .execute(() -> server.execute(() -> {
+                .execute(() -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (pending.done) {
                         return;
                     }
@@ -236,12 +242,12 @@ final class FriendService {
             return;
         }
         minestar.addUserFriend(player.getUUID(), target)
-                .onSuccess(request -> server.execute(() -> {
+                .onSuccess(request -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (end(player.getUUID(), mutation)) {
                         onDone.done(null, request.status() == FriendRequestStatus.ACCEPTED);
                     }
                 }))
-                .onFailure(cause -> server.execute(() -> {
+                .onFailure(cause -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (end(player.getUUID(), mutation)) {
                         onDone.done(addError(player.getUUID(), target, targetName, cause), false);
                     }
@@ -259,12 +265,12 @@ final class FriendService {
             return;
         }
         minestar.removeUserFriend(player.getUUID(), target)
-                .onSuccess(unit -> server.execute(() -> {
+                .onSuccess(unit -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (end(player.getUUID(), mutation)) {
                         onDone.done(null, false);
                     }
                 }))
-                .onFailure(cause -> server.execute(() -> {
+                .onFailure(cause -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (!end(player.getUUID(), mutation)) {
                         return;
                     }
@@ -290,7 +296,7 @@ final class FriendService {
             return null;
         }
         java.util.concurrent.CompletableFuture.delayedExecutor(MUTATION_WATCHDOG_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .execute(() -> server.execute(() -> {
+                .execute(() -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     if (end(uuid, mutation)) {
                         EdenLD.LOGGER.warn("[Friends] {} for {} got no answer in {} s; giving up on it.", call,
                                 player.getGameProfile().getName(), MUTATION_WATCHDOG_MS / 1000);

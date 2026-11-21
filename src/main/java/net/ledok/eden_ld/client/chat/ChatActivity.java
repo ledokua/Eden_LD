@@ -45,7 +45,9 @@ public final class ChatActivity {
 
     public static ChannelNotify notify(Channel channel) {
         HubPayloads.SettingsData settings = HubState.settingsData;
-        return settings == null ? ChannelNotify.ONLY_MENTIONS : ChannelNotify.of(settings.chatNotify(), channel.ordinal());
+        // A change still on its way to the server counts already (review finding 84).
+        return settings == null ? ChannelNotify.ONLY_MENTIONS
+                : ChannelNotify.of(net.ledok.eden_ld.client.hub.HubNotifications.chatNotify(), channel.ordinal());
     }
 
     /** When the channel's mute ends (epoch minutes), {@link HubSettings#MUTED_FOR_GOOD}, or 0 when not muted. */

@@ -36,6 +36,12 @@ public final class HubRateLimit {
     public static final HubRateLimit BANK_ACTION = new HubRateLimit(8, 4.0);
     /** Profile pages (an offline one reads a stats file, a platform one asks the website): 12, then 4 a second (36). */
     public static final HubRateLimit PROFILE_REQUEST = new HubRateLimit(12, 4.0);
+    /**
+     * Dailies tab requests (each rebuilds the tab and may look up the LC balance): a burst of 10, then 3 a second
+     * (review finding 52; widened in the review of 1.3.133 so the day-rollover refresh is never dropped). Over it the
+     * request is dropped silently: the tab already has data that is kept up to date.
+     */
+    public static final HubRateLimit DAILIES_REQUEST = new HubRateLimit(10, 3.0);
 
     /** A refused player hears about it at most this often, so the refusal itself isn't a packet amplifier. */
     private static final long WARN_GAP_MS = 1_000;

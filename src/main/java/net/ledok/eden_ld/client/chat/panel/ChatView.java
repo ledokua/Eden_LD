@@ -252,8 +252,10 @@ public final class ChatView {
                 }
             }
             rows = built;
-            if (newLook && builtTab != null && builtTab != tab) {
-                // Another tab starts at its newest line (a mention jump centers its line after this).
+            if (newLook && builtTab != null && !builtTab.id().equals(tab.id())) {
+                // Another tab starts at its newest line (a mention jump centers its line after this). Compared by
+                // id: a group's meta change (invite, leave, rename, hide) makes a new spec for the same tab, which
+                // must keep the reader's scroll (review finding 99).
                 viewport.reset();
             }
             builtRules = ChatViews.rulesEpoch();

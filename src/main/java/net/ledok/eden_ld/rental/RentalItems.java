@@ -175,10 +175,46 @@ public final class RentalItems {
     }
 
     /**
+     * Whether {@link #stripNested} could find anything in the stack, read-only (no copies): a rental item in a shulker's
+     * or bundle's contents (at any depth through shulkers), or any Bundle API component, whose contents can only be
+     * seen by encoding it (so {@link #stripNested} still decides there, as before).
+     */
+    private static boolean mayHoldRental(ItemStack stack) {
+        ItemContainerContents container = stack.get(DataComponents.CONTAINER);
+        if (container != null) {
+            for (ItemStack inner : container.nonEmptyItems()) {
+                if (isRental(inner) || mayHoldRental(inner)) {
+                    return true;
+                }
+            }
+        }
+        BundleContents bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
+        if (bundle != null) {
+            for (ItemStack inner : bundle.items()) {
+                if (isRental(inner)) {
+                    return true;
+                }
+            }
+        }
+        for (DataComponentType<?> type : nestedTypes()) {
+            if (type != DataComponents.CONTAINER && type != DataComponents.BUNDLE_CONTENTS
+                    && type != DataComponents.CHARGED_PROJECTILES && stack.has(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Rental items hidden inside a container item (shulker box, bundle, a Bundle API pouch) removed; true when anything was. Container
      * items with their own storage (modded backpacks) aren't seen here: their menus' slots keep rental items out.
      */
     public static boolean stripNested(ItemStack stack) {
+        if (!mayHoldRental(stack)) {
+            // The once-a-second sweep comes through here for every stack of every online player (review finding 49):
+            // the read-only look first, so a shulker or bundle without rental items isn't copied and rebuilt.
+            return false;
+        }
         boolean changed = false;
         ItemContainerContents container = stack.get(DataComponents.CONTAINER);
         if (container != null) {

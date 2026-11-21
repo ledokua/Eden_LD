@@ -289,6 +289,10 @@ public final class GuildBankService {
             }
             Guild current = manager.byId(guildId);
             if (current == null) {
+                // A refund that fails is only logged by EconomyCompat; this line says what it was for, so staff can
+                // pay it back by hand (review finding 15).
+                EdenLD.LOGGER.warn("[Guild] Refunding {} LC to {} ({}): their guild was gone when the deposit landed.",
+                        amount, player.getGameProfile().getName(), player.getUUID());
                 EconomyCompat.give(player, amount);
                 done.accept(error("no_tab"));
                 return;
@@ -324,11 +328,65 @@ public final class GuildBankService {
             return error("bank_short", guild.bank.balance);
         }
         guild.bank.balance -= amount;
-        usage(guild.bank, player.getUUID()).lc += amount;
-        EconomyCompat.give(player, amount);
+        GuildBank.Usage usage = usage(guild.bank, player.getUUID());
+        usage.lc += amount;
+        // Logged before the payout, so a failed one can take its own row back out (review finding 15).
         log(guild, player, GuildBank.LogType.WITHDRAW_LC, -1, ItemStack.EMPTY, amount, "");
         manager.markChanged();
+        GuildBank.LogEntry entry = guild.bank.log.isEmpty() ? null : guild.bank.log.get(guild.bank.log.size() - 1);
+        UUID guildId = guild.id;
+        UUID uuid = player.getUUID();
+        long day = usage.day;
+        net.minecraft.server.MinecraftServer server = player.getServer();
+        // Review finding 15: the give used to be fire-and-forget, so a failed one left the bank debited and the LC
+        // nowhere. Now a failure puts the balance, the usage and the log back, and says so.
+        EconomyCompat.give(player, amount, given -> {
+            if (given) {
+                return;
+            }
+            Component message = restoreLcWithdrawal(manager, guildId, uuid, amount, day, entry);
+            ServerPlayer online = server == null ? null : server.getPlayerList().getPlayer(uuid);
+            if (online != null) {
+                GuildBankServer.fail(online, message);
+            }
+            Guild current = manager.byId(guildId);
+            if (server != null && current != null) {
+                GuildBankServer.pushToViewers(server, current);
+            }
+        });
         return null;
+    }
+
+    /**
+     * Puts back an LC withdrawal whose payout failed (review finding 15): the bank balance and the member's daily
+     * usage are restored and the withdrawal's log row is dropped, so nothing was lost but the attempt. The failure
+     * branch of {@link #withdrawLc}'s give; the caller pushes the bank and tells the player with the returned message.
+     * Server thread only.
+     *
+     * @param entry the WITHDRAW_LC row {@link #withdrawLc} logged (removed by identity; gone already when the log
+     *              rolled past it)
+     */
+    static Component restoreLcWithdrawal(GuildManager manager, UUID guildId, UUID player, long amount, long day,
+                                         @Nullable GuildBank.LogEntry entry) {
+        EdenLD.LOGGER.error("[Guild] Paying out {} LC from guild {} to {} failed; the LC went back to the bank.",
+                amount, guildId, player);
+        Guild guild = manager.byId(guildId);
+        if (guild == null) {
+            EdenLD.LOGGER.error("[Guild] Guild {} is gone; {} LC for {} must be returned by hand.", guildId, amount,
+                    player);
+            // Not "back in the guild bank": there is no bank any more (review of 1.3.133).
+            return error("withdraw_failed_no_guild");
+        }
+        guild.bank.balance += amount;
+        GuildBank.Usage usage = guild.bank.usage.get(player);
+        if (usage != null && usage.day == day) {
+            usage.lc = Math.max(0, usage.lc - amount);
+        }
+        if (entry != null) {
+            guild.bank.log.removeIf(row -> row == entry);
+        }
+        manager.markChanged();
+        return error("withdraw_failed");
     }
 
     // ---------------------------------------------------------------- purchases (leader, from bank LC)

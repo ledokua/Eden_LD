@@ -236,6 +236,10 @@ public class EdenLDClient implements ClientModInitializer {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(HubPayloads.HubNotice.TYPE, (payload, context) -> {
+            if (!payload.ok()) {
+                // A refused Join/Create/Leaderboard: no lobby screen follows, so stop waiting for one (review finding 77).
+                net.ledok.eden_ld.client.hub.ActivityReturn.disarm();
+            }
             if (context.client().screen instanceof HubScreen screen) {
                 net.ledok.vectorlib.client.canvas.widget.Toast.text(screen.canvas(), payload.message(),
                         payload.ok() ? EdenParchment.GOOD : EdenParchment.DANGER);

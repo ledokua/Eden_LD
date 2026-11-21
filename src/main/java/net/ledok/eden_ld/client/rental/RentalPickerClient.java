@@ -182,7 +182,9 @@ public final class RentalPickerClient {
             closedByPlayer(current);
             canvas.focus(opener != null && opener.canvas() == canvas ? opener : null);
         });
-        canvas.focus(close[0]);
+        // No initial focus (review finding 78): the picker replaces whatever was open, so a held Space or
+        // the Enter that sent a chat line would fire a focused «Close» (or a Pick). Esc still closes.
+        canvas.focus(null);
     }
 
     private static void openScreen(OpenRentalPicker payload, Shown current, long deadlineAt) {
@@ -199,7 +201,8 @@ public final class RentalPickerClient {
             }
         };
         minecraft.setScreen(screen[0]);
-        screen[0].canvas().focus(close[0]);
+        // No initial focus (review finding 78): see openModal.
+        screen[0].canvas().focus(null);
     }
 
     /** The modal's frame: scales the panel down when the host canvas is smaller than it. */

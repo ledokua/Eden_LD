@@ -113,7 +113,13 @@ public final class HubHelp {
         body.clear();
         int textWidth = (int) Math.max(40, help.width() - 16 - 4 - LANE);
         Flex paragraphs = Flex.column().gap(5).padding(Insets.of(2, 0, 2, 2));
-        String text = Component.translatable("gui.eden_ld.hub.help." + shown.name().toLowerCase(Locale.ROOT)).getString();
+        String helpKey = "gui.eden_ld.hub.help." + shown.name().toLowerCase(Locale.ROOT);
+        // Without the Minestar platform the profile and the friends are this server's own (review finding 87).
+        if ((shown == HubTab.PROFILE || shown == HubTab.FRIENDS) && HubState.homeData != null
+                && HubState.homeData.local()) {
+            helpKey += "_local";
+        }
+        String text = Component.translatable(helpKey).getString();
         for (String paragraph : text.split("\n\n")) {
             paragraphs.item(EdenParchment.text(Component.literal(paragraph), EdenParchment.INK_MID, textWidth));
         }

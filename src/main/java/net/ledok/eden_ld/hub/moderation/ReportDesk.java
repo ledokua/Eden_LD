@@ -104,14 +104,14 @@ public final class ReportDesk {
 
     // ---------------------------------------------------------------- filing
 
-    /** The new report's id, or -1 when refused (blank text, or the reporter's rate limit). */
+    /** The new report's id, or -1 when refused (blank text, the reporter's rate limit, or too many open reports). */
     public static long file(MinecraftServer server, UUID reporter, String category, String reference, String text,
                             List<String> log) {
         Report report = add(server, reporter, category, reference, text, log, null, "", "");
         return report == null ? -1 : report.id;
     }
 
-    /** Files and tells staff; null when refused (blank text, or the reporter's rate limit). */
+    /** Files and tells staff; null when refused (blank text, the reporter's rate limit, or too many open reports). */
     @Nullable
     private static Report add(MinecraftServer server, UUID reporter, String category, String reference, String text,
                               List<String> log, @Nullable UUID target, String targetName, String payload) {
@@ -122,6 +122,13 @@ public final class ReportDesk {
         long now = System.currentTimeMillis();
         Reports reports = Reports.get(server);
         if (!reports.mayFile(reporter, now)) {
+            return null;
+        }
+        // Open reports are never pruned any more (review finding 30), so the store's bound is here: past MAX_OPEN open
+        // ones nothing more is filed. Players stop earlier (submit), so this only catches other mods' filings.
+        int open = reports.openCount();
+        if (!ReportRules.mayOpen(open, 0, false)) {
+            alertFull(server, open, now);
             return null;
         }
         Report report = reports.add(reporter, name(server, reporter), ReportRules.clip(category, ReportRules.MAX_LABEL),
@@ -163,6 +170,20 @@ public final class ReportDesk {
         boolean complaint = kind.equals(COMPLAINT);
         if (complaint && (target == null || target.equals(player.getUUID()))) {
             return Component.translatable("message.eden_ld.reports.no_target");
+        }
+        // Caps on open reports (review finding 30): one player can't hold more than MAX_OPEN_PER_REPORTER, and players
+        // stop PLAYER_HEADROOM short of the store's cap, so other mods' filings still fit.
+        Reports store = Reports.get(server);
+        int open = store.openCount();
+        if (!ReportRules.mayOpen(open, 0, true)) {
+            alertFull(server, open, System.currentTimeMillis());
+            return Component.translatableWithFallback("message.eden_ld.reports.queue_full",
+                    "Staff have too many open submissions right now. Please try again later.");
+        }
+        if (!ReportRules.mayOpen(open, ReportRules.openBy(store.all(), player.getUUID(), PLAYER_KINDS), true)) {
+            return Component.translatableWithFallback("message.eden_ld.reports.too_many_open",
+                    "You have %s open submissions. Wait for staff to answer them, or close the solved ones.",
+                    ReportRules.MAX_OPEN_PER_REPORTER);
         }
         String targetName = complaint ? name(server, target) : "";
         List<String> evidence = new ArrayList<>();
@@ -226,6 +247,28 @@ public final class ReportDesk {
 
     // ---------------------------------------------------------------- staff alerts
 
+    /** When staff were last told the store is full of open reports (at most every ten minutes). */
+    private static volatile long lastFullAlert;
+
+    /** A filing was refused because too many reports are open (review finding 30): the log and online staff hear it. */
+    private static void alertFull(MinecraftServer server, int open, long now) {
+        if (now - lastFullAlert < ReportRules.RATE_WINDOW_MILLIS) {
+            return;
+        }
+        lastFullAlert = now;
+        EdenLD.LOGGER.warn("[Reports] {} reports are open: new filings are refused until staff handle some.", open);
+        Component line = Component.translatableWithFallback("message.eden_ld.reports.store_full",
+                        "%s submissions are open: new ones are refused until some are handled.", open)
+                .withStyle(ChatFormatting.RED)
+                .append(" ")
+                .append(openButton());
+        for (ServerPlayer staff : server.getPlayerList().getPlayers()) {
+            if (mayHandle(staff)) {
+                staff.sendSystemMessage(line);
+            }
+        }
+    }
+
     /** "1 open report [Open]" / "N open reports [Open]" to staff who may handle them, while any are open. */
     public static void joinLine(ServerPlayer player) {
         if (!mayHandle(player)) {
@@ -275,6 +318,11 @@ public final class ReportDesk {
     /** The reporter writes in their own open submission. Null when added, else why not. */
     @Nullable
     public static Component playerMessage(ServerPlayer player, long id, String text) {
+        // eden_ld.report.submit covers replies too (review finding 31): with it taken away a player could still ping
+        // every staff member from their open threads. Closing and reading stay allowed.
+        if (!maySubmit(player)) {
+            return Component.translatable("message.eden_ld.reports.not_allowed");
+        }
         Reports store = Reports.get(player.server);
         Report report = store.byId(id);
         if (report == null || !report.reporter.equals(player.getUUID())) {

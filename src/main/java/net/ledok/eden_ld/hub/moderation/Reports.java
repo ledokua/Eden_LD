@@ -16,8 +16,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Every player report (Moderation → Reports), oldest first, at most {@link ReportRules#KEEP}. Kept in
- * {@code data/eden_ld/reports.dat}. Server thread.
+ * Every player report (Moderation → Reports), oldest first. Pruned to {@link ReportRules#KEEP} by dropping handled
+ * ones only: open ones are never dropped (review finding 30), so while many are open the store can hold more, up to
+ * {@link ReportRules#MAX_OPEN} open ones (past that, filings are refused). Kept in {@code data/eden_ld/reports.dat}.
+ * Server thread.
  */
 public final class Reports extends SavedData {
 

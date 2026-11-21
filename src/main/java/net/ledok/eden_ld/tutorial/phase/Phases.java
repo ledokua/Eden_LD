@@ -1,5 +1,6 @@
 package net.ledok.eden_ld.tutorial.phase;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.ledok.eden_ld.EdenLD;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -53,6 +54,13 @@ public final class Phases {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             PhaseContext.clear();
             PrivateBlocks.endTick();
+        });
+        // Review finding 51: in singleplayer the next world runs in the same JVM; old copies would keep the closed
+        // world in memory and tick against the new one, and the counts and index would carry over.
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            ENTITIES.clear();
+            PHASED.clear();
+            PrivateBlocks.reset();
         });
     }
 

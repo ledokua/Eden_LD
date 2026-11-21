@@ -765,7 +765,9 @@ public class HubScreen extends CanvasScreen {
             float progress = data.levelXpNeeded() > 0 ? (float) data.levelXp() / data.levelXpNeeded() : 0f;
             LevelRing ring = new LevelRing(28, 3, data.level(), progress, text,
                     pictured ? (text & 0xFFFFFF) | 0x50000000 : EdenParchment.BAR_TRACK, false);
-            ring.tooltip(Component.translatable("gui.eden_ld.hub.home.level", data.level(), data.levelXp(),
+            // Local mode: Eden's own level, no XP and no Minestar name (review finding 87).
+            ring.tooltip(data.local() ? Component.translatable("gui.eden_ld.hub.home.level_local", data.level())
+                    : Component.translatable("gui.eden_ld.hub.home.level", data.level(), data.levelXp(),
                     data.levelXpNeeded()));
             strip.item(ring);
         }

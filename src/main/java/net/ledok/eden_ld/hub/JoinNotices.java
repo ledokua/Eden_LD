@@ -32,7 +32,7 @@ public final class JoinNotices {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 server.execute(() -> DUE.put(handler.getPlayer().getUUID(), server.getTickCount() + DELAY_TICKS)));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                server.execute(() -> DUE.remove(handler.getPlayer().getUUID())));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> DUE.remove(handler.getPlayer().getUUID())));
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> DUE.clear());
         ServerTickEvents.END_SERVER_TICK.register(JoinNotices::tick);
     }

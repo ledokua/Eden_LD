@@ -1,5 +1,7 @@
 package net.ledok.eden_ld.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.ledok.eden_ld.hub.daily.DailyProgressHooks;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -20,6 +22,24 @@ public abstract class PlayerEatMixin {
                                   CallbackInfoReturnable<ItemStack> cir) {
         if ((Object) this instanceof ServerPlayer player && !food.isEmpty()) {
             DailyProgressHooks.onAte(player, food);
+        }
+    }
+
+    /**
+     * Review finding 93: {@code Player.eat} awards ITEM_USED, which for a carrot, potato or berries (block items) read
+     * as placing a block; while the player eats, that stat isn't a placement.
+     */
+    @WrapMethod(method = "eat")
+    private ItemStack eden_ld$eatingIsNotPlacing(Level level, ItemStack food, FoodProperties properties,
+                                                 Operation<ItemStack> original) {
+        if (!((Object) this instanceof ServerPlayer player)) {
+            return original.call(level, food, properties);
+        }
+        DailyProgressHooks.eating(player, true);
+        try {
+            return original.call(level, food, properties);
+        } finally {
+            DailyProgressHooks.eating(player, false);
         }
     }
 }

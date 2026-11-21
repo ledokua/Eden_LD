@@ -144,12 +144,13 @@ public final class ProfileServer {
                 self ? HubSettings.availableBackgrounds(server, target) : List.of(),
                 self ? LookRules.get(server, LookRules.Kind.BACKGROUND).offersFor(HubSettings.availableBackgrounds(server, target)) : List.of(),
                 guild == null ? "" : guild.name, guild == null ? "" : guild.tag, guild == null ? 0 : guild.color,
-                perks);
+                perks, MinestarHook.local());
     }
 
     private static HubPayloads.ProfileData empty(UUID target, String name, int access) {
         return new HubPayloads.ProfileData(target, name, access, false, false, "", -1, false, 0, 0, 0, 0, 0, 0, -1,
-                -1, List.of(), HubSettings.DEFAULT_BACKGROUND, List.of(), List.of(), "", "", 0, List.of());
+                -1, List.of(), HubSettings.DEFAULT_BACKGROUND, List.of(), List.of(), "", "", 0, List.of(),
+                MinestarHook.local());
     }
 
     @Nullable
@@ -195,7 +196,7 @@ public final class ProfileServer {
         }
         loading.thenAccept(ticks -> {
             if (!server.isStopped()) {
-                server.execute(() -> onDone.accept(ticks));
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> onDone.accept(ticks));
             }
         });
     }

@@ -58,14 +58,15 @@ public final class HubPayloads {
      * or the profile has no group; {@code hasEconomy} gates the balance display;
      * {@code shopPending} is 0 when there is nothing (or no Minestar); {@code friendsAvailable}
      * is false without Minestar (the Friends tab hides itself); {@code waystonesAvailable}
-     * likewise hides the Waystones tab, and {@code duelsAvailable} the Duels tab (Duels_LD).
+     * likewise hides the Waystones tab, and {@code duelsAvailable} the Duels tab (Duels_LD). {@code local}: the server
+     * runs without the Minestar platform, so the level is Eden's own and has no XP to show (review finding 87).
      */
     public record HomeData(String group, boolean prime, boolean hasEconomy, long balance,
                            long playtimeTicks, NewsView news, int shopPending, int partyInvites,
                            boolean friendsAvailable, int friendRequests, boolean waystonesAvailable,
                            int dailiesClaimable, int dailiesClaimed, int dailiesTotal,
                            boolean hasLevel, int level, long levelXp, long levelXpNeeded, String background,
-                           int staff, boolean duelsAvailable)
+                           int staff, boolean duelsAvailable, boolean local)
             implements CustomPacketPayload {
         /**
          * {@code staff} bits: the Moderation window at all, writing mail, everyone's mail log,
@@ -105,19 +106,20 @@ public final class HubPayloads {
                     buf.writeUtf(payload.background, 128);
                     buf.writeVarInt(payload.staff);
                     buf.writeBoolean(payload.duelsAvailable);
+                    buf.writeBoolean(payload.local);
                 },
                 buf -> new HomeData(buf.readUtf(), buf.readBoolean(), buf.readBoolean(),
                         buf.readVarLong(), buf.readVarLong(), NewsView.read(buf),
                         buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readVarInt(), buf.readBoolean(),
                         buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                         buf.readBoolean(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readUtf(128),
-                        buf.readVarInt(), buf.readBoolean()));
+                        buf.readVarInt(), buf.readBoolean(), buf.readBoolean()));
 
         /** The same data with a fresh balance ({@link Balance}). */
         public HomeData withBalance(long balance) {
             return new HomeData(group, prime, hasEconomy, balance, playtimeTicks, news, shopPending, partyInvites,
                     friendsAvailable, friendRequests, waystonesAvailable, dailiesClaimable, dailiesClaimed,
-                    dailiesTotal, hasLevel, level, levelXp, levelXpNeeded, background, staff, duelsAvailable);
+                    dailiesTotal, hasLevel, level, levelXp, levelXpNeeded, background, staff, duelsAvailable, local);
         }
 
         @Override
@@ -1923,11 +1925,12 @@ public final class HubPayloads {
      * S2C: the Dailies tab. {@code resetMillis} counts down to the next day;
      * {@code freeRerollsLeft} / {@code nextRerollCost} (LC) price the reroll buttons;
      * {@code economy} false means paid rerolls are impossible; {@code balance} is the player's
-     * LC (-1 when unknown) so the tab can grey out a reroll they can't afford.
+     * LC (-1 when unknown) so the tab can grey out a reroll they can't afford. {@code platform}: the Minestar platform
+     * is used, so the website's daily chests exist and the tab links to them (review finding 90).
      */
     public record DailiesData(long resetMillis, int freeRerollsLeft, long nextRerollCost, boolean economy, long balance,
                               List<DailyEntry> quests, RewardView bonusRewards,
-                              boolean bonusClaimed) implements CustomPacketPayload {
+                              boolean bonusClaimed, boolean platform) implements CustomPacketPayload {
         public static final Type<DailiesData> TYPE = new Type<>(id("dailies_data"));
         public static final StreamCodec<RegistryFriendlyByteBuf, DailiesData> CODEC = StreamCodec.of(
                 (buf, p) -> {
@@ -1939,11 +1942,12 @@ public final class HubPayloads {
                     writeList(buf, p.quests, DailyEntry::write);
                     RewardView.write(buf, p.bonusRewards);
                     buf.writeBoolean(p.bonusClaimed);
+                    buf.writeBoolean(p.platform);
                 },
                 buf -> new DailiesData(buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readBoolean(),
                         buf.readVarLong() - 1, readList(buf, DailyEntry::read),
                         RewardView.read(buf),
-                        buf.readBoolean()));
+                        buf.readBoolean(), buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -2240,10 +2244,22 @@ public final class HubPayloads {
         }
     }
 
-    /** One open lobby on an activity card's badge (1.3.98): see {@code ActivitySource.OpenLobby}. */
+    /**
+     * One open lobby on an activity card's badge (1.3.98): see {@code ActivitySource.OpenLobby}. {@code requiredLevel}
+     * (review finding 71): the level joining needs, the lobby's own minimum or its difficulty's level, whichever is
+     * higher; the client couldn't know the difficulty's level, so it offered Join to players the server then refused.
+     */
     public record LobbyLine(java.util.UUID lobby, String owner, int members, int maxMembers, String difficulty,
                             boolean hardcore, boolean request, boolean member, int ready, int minLevel,
-                            List<net.minecraft.network.chat.Component> modifiers, long createdAt) {
+                            List<net.minecraft.network.chat.Component> modifiers, long createdAt, int requiredLevel) {
+        /** Without the difficulty's level: {@code requiredLevel} is the lobby's own minimum. */
+        public LobbyLine(java.util.UUID lobby, String owner, int members, int maxMembers, String difficulty,
+                         boolean hardcore, boolean request, boolean member, int ready, int minLevel,
+                         List<net.minecraft.network.chat.Component> modifiers, long createdAt) {
+            this(lobby, owner, members, maxMembers, difficulty, hardcore, request, member, ready, minLevel, modifiers,
+                    createdAt, minLevel);
+        }
+
         public boolean full() {
             return members >= maxMembers;
         }
@@ -2262,13 +2278,14 @@ public final class HubPayloads {
             writeList(buf, l.modifiers, (b, c) ->
                     net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.encode(b, c));
             buf.writeVarLong(l.createdAt);
+            buf.writeVarInt(Math.max(0, l.requiredLevel));
         }
 
         static LobbyLine read(RegistryFriendlyByteBuf buf) {
             return new LobbyLine(buf.readUUID(), buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readUtf(32),
                     buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
                     readList(buf, b -> net.minecraft.network.chat.ComponentSerialization.STREAM_CODEC.decode(b)),
-                    buf.readVarLong());
+                    buf.readVarLong(), buf.readVarInt());
         }
     }
 
@@ -3624,14 +3641,17 @@ public final class HubPayloads {
      * setting), {@link #UNKNOWN} (no such player). {@code platform}: Minestar data is present (group,
      * prime, level, all-servers playtime, registration, rewards). {@code groupColor} RGB or -1;
      * {@code registeredAt} epoch millis or -1; {@code serverPlaytimeTicks} this server's playtime
-     * (-1 unknown). {@code backgrounds} and {@code perks} only come with the viewer's own profile.
+     * (-1 unknown). {@code backgrounds} and {@code perks} only come with the viewer's own profile. {@code local}: the
+     * server runs without the Minestar platform; the profile is this server's own (Eden's activity level with no XP,
+     * this server's playtime, no rewards), and the page drops the Minestar wording and XP lines (review finding 87).
      */
     public record ProfileData(java.util.UUID uuid, String name, int access, boolean self, boolean platform,
                               String group, int groupColor, boolean prime, int level, long totalXp, long levelXp,
                               long levelXpNeeded, long xpToNextLevel, long playtimeSeconds, long serverPlaytimeTicks,
                               long registeredAt, List<ProfileReward> rewards, String background,
                               List<String> backgrounds, List<LookOffer> offers, String guildName,
-                              String guildTag, int guildColor, List<PerkRule> perks) implements CustomPacketPayload {
+                              String guildTag, int guildColor, List<PerkRule> perks, boolean local)
+            implements CustomPacketPayload {
         public static final int SHOWN = 0;
         public static final int PRIVATE = 1;
         public static final int UNKNOWN = 2;
@@ -3665,13 +3685,15 @@ public final class HubPayloads {
                     buf.writeUtf(p.guildTag, 32);
                     buf.writeInt(p.guildColor);
                     writeList(buf, p.perks, PerkRule::write);
+                    buf.writeBoolean(p.local);
                 },
                 buf -> new ProfileData(buf.readUUID(), buf.readUtf(64), buf.readVarInt(), buf.readBoolean(),
                         buf.readBoolean(), buf.readUtf(128), buf.readInt(), buf.readBoolean(), buf.readVarInt(),
                         buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarLong(),
                         buf.readLong(), buf.readLong(), readList(buf, ProfileReward::read), buf.readUtf(128),
                         readStrings(buf), readList(buf, LookOffer::read),
-                        buf.readUtf(128), buf.readUtf(32), buf.readInt(), readList(buf, PerkRule::read)));
+                        buf.readUtf(128), buf.readUtf(32), buf.readInt(), readList(buf, PerkRule::read),
+                        buf.readBoolean()));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

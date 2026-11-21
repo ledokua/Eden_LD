@@ -1,5 +1,7 @@
 package net.ledok.eden_ld.hub.daily;
 
+import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.ledok.eden_ld.EdenLD;
 import net.ledok.eden_ld.compat.EconomyCompat;
 import net.ledok.eden_ld.compat.LuckPermsCompat;
@@ -60,7 +62,25 @@ public final class DailyQuests {
     private static final String TAG = "dailies";
     private static final Set<UUID> REROLLING = new HashSet<>();
 
+    /**
+     * Review finding 19: a copy of the player's dailies tag as of their last claim, bonus, reroll or draw, saved in the
+     * player file. The rewards land in the player file at once while hub.dat waits for the autosave, so after a hard
+     * stop in between the copy with the newer {@code stamp} wins: a quest stays claimed exactly when its rewards stayed.
+     * Hub data stays the store (offline players, staff tools); this only catches it up.
+     */
+    private static final AttachmentType<CompoundTag> SAVED = AttachmentRegistry.<CompoundTag>builder()
+            .persistent(CompoundTag.CODEC)
+            .copyOnDeath()
+            .buildAndRegister(ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "dailies"));
+
     private DailyQuests() {
+    }
+
+    /** Registers {@link #SAVED} (before any player file is read: called from mod init). */
+    static void initialize() {
+        // A take that answers no more once the server stops never clears its player (review of 1.3.133).
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(
+                stopped -> REROLLING.clear());
     }
 
     private static ResourceLocation eden(String path) {
@@ -119,6 +139,15 @@ public final class DailyQuests {
         public int claimableCount() {
             return (int) slots.stream().filter(slot -> slot.complete() && !slot.claimed()).count();
         }
+
+        /**
+         * The slots the all-quests bonus waits for: every slot but one whose quest was removed from the registry
+         * before it was claimed (review of 1.3.133: it could never be claimed, so the bonus stayed locked all day).
+         * Claimed ones always count, so {@link #claimedCount()} reaching this means the bonus is due.
+         */
+        public int bonusTotal() {
+            return (int) slots.stream().filter(slot -> slot.quest() != null || slot.claimed()).count();
+        }
     }
 
     /** Today's state, rolled over (fresh draw) when the stored day is stale. */
@@ -138,28 +167,80 @@ public final class DailyQuests {
                 tag.getBoolean("bonus"));
     }
 
-    /** The player's tag for today; creates/rolls over (and marks dirty) when needed. */
+    /**
+     * The player's tag for today; creates/rolls over (and marks dirty) when needed. Review finding 94: only for an
+     * online player: an offline one's draw would be at loot stage 1, so they get a provisional tag (today, no slots,
+     * today's granted rerolls) that isn't stored; their real draw happens on their first access online.
+     */
     private static CompoundTag today(MinecraftServer server, UUID player) {
+        ServerPlayer online = server.getPlayerList().getPlayer(player);
         CompoundTag stored = HubData.get(server).peek(player).getCompound(TAG);
+        if (online != null) {
+            stored = newestOf(server, online, stored);
+        }
         long today = today();
-        if (stored.contains("day") && stored.getLong("day") == today && !stored.getList("slots", Tag.TAG_COMPOUND).isEmpty()) {
-            replaceRemoved(server, player, stored);
+        boolean sameDay = stored.contains("day") && stored.getLong("day") == today;
+        if (sameDay && !stored.getList("slots", Tag.TAG_COMPOUND).isEmpty()) {
+            if (online != null) {
+                replaceRemoved(server, player, stored);
+            }
             return stored;
         }
-        return fresh(server, player, new Random(seed(today, player)));
+        if (online == null) {
+            CompoundTag provisional = new CompoundTag();
+            provisional.putLong("day", today);
+            if (sameDay) {
+                provisional.putInt("extra_rerolls", stored.getInt("extra_rerolls"));
+                provisional.putBoolean("reshuffle", stored.getBoolean("reshuffle"));
+            }
+            return provisional;
+        }
+        // A staff reset while they were offline asked for a random set instead of the day's own.
+        Random random = sameDay && stored.getBoolean("reshuffle") ? new Random() : new Random(seed(today, player));
+        return fresh(server, player, random, sameDay ? stored.getInt("extra_rerolls") : 0);
     }
 
-    /** A new day for the player: a draw from {@code random}, no progress, no rerolls used. */
-    private static CompoundTag fresh(MinecraftServer server, UUID player, Random random) {
+    /**
+     * Review finding 19: hub.dat's tag, or the player file's copy ({@link #SAVED}) when that one is newer (hub.dat lost
+     * a claim, bonus or reroll to a hard stop); progress made since stays where hub.dat has more.
+     */
+    private static CompoundTag newestOf(MinecraftServer server, ServerPlayer player, CompoundTag stored) {
+        CompoundTag saved = player.getAttached(SAVED);
+        if (saved == null || saved.getLong("stamp") <= stored.getLong("stamp")) {
+            return stored;
+        }
+        CompoundTag restored = saved.copy();
+        if (restored.getLong("day") == stored.getLong("day")) {
+            ListTag mine = restored.getList("slots", Tag.TAG_COMPOUND);
+            ListTag theirs = stored.getList("slots", Tag.TAG_COMPOUND);
+            for (int i = 0; i < Math.min(mine.size(), theirs.size()); i++) {
+                CompoundTag slot = mine.getCompound(i);
+                CompoundTag other = theirs.getCompound(i);
+                if (!slot.getBoolean("claimed") && slot.getString("quest").equals(other.getString("quest"))) {
+                    slot.putInt("progress", Math.max(slot.getInt("progress"), other.getInt("progress")));
+                }
+            }
+        }
+        HubData.get(server).player(player.getUUID()).put(TAG, restored);
+        ActiveStatQuests.invalidate();
+        EdenLD.LOGGER.info("[Dailies] Restored {}'s dailies from their player file (hub data was older).",
+                player.getGameProfile().getName());
+        return restored;
+    }
+
+    /** A new day for the player: a draw from {@code random}, no progress, no rerolls used but {@code extraRerolls}. */
+    private static CompoundTag fresh(MinecraftServer server, UUID player, Random random, int extraRerolls) {
         CompoundTag fresh = new CompoundTag();
         fresh.putLong("day", today());
         ListTag slots = new ListTag();
         for (DailyQuestDefinition quest : draw(drawPool(server, player), random)) {
-            slots.add(slotTag(quest.id()));
+            slots.add(slotTag(quest));
         }
         fresh.put("slots", slots);
-        HubData.get(server).player(player).put(TAG, fresh);
-        ActiveStatQuests.invalidate();
+        if (extraRerolls > 0) {
+            fresh.putInt("extra_rerolls", extraRerolls);
+        }
+        write(server, player, fresh);
         return fresh;
     }
 
@@ -168,31 +249,60 @@ public final class DailyQuests {
         return day * 0x9E3779B97F4A7C15L + 0x5EED ^ player.getMostSignificantBits() * 31 ^ player.getLeastSignificantBits();
     }
 
-    /** Unclaimed slots whose quest left the pool (datapack edit) get a replacement. */
+    /**
+     * Unclaimed slots whose quest left the pool (datapack edit) get a replacement. Review finding 20: not at once — a
+     * /reload that dropped a quest by mistake (a JSON typo) and the one that fixes it would otherwise cost the slot's
+     * progress for the day. The slot is kept (shown as unavailable) through the quest load that lost it and replaced
+     * only once a later load (a reload, a restart) still lacks it; a slot that reached its goal (the count stored at
+     * draw) is never replaced, and the replacement is never a quest rerolled away today.
+     */
     private static void replaceRemoved(MinecraftServer server, UUID player, CompoundTag tag) {
         ListTag slots = tag.getList("slots", Tag.TAG_COMPOUND);
+        long load = DailyQuestRegistry.loadId();
+        boolean marked = false;
         boolean changed = false;
         for (int i = 0; i < slots.size(); i++) {
             CompoundTag slot = slots.getCompound(i);
             ResourceLocation id = ResourceLocation.tryParse(slot.getString("quest"));
-            if (!slot.getBoolean("claimed") && (id == null || DailyQuestRegistry.get(id) == null)) {
-                DailyQuestDefinition replacement = randomExcluding(drawPool(server, player), questIds(slots), new Random());
-                if (replacement != null) {
-                    slots.set(i, slotTag(replacement.id()));
-                    changed = true;
+            if (id != null && DailyQuestRegistry.get(id) != null) {
+                if (slot.contains("missing_load")) {
+                    slot.remove("missing_load");
+                    marked = true;
                 }
+                continue;
+            }
+            if (slot.getBoolean("claimed") || slot.contains("count") && slot.getInt("progress") >= slot.getInt("count")) {
+                continue;
+            }
+            if (!slot.contains("missing_load")) {
+                slot.putLong("missing_load", load);
+                marked = true;
+                continue;
+            }
+            if (slot.getLong("missing_load") == load) {
+                continue;
+            }
+            Set<ResourceLocation> excluded = questIds(slots);
+            excluded.addAll(rerolledAway(tag));
+            DailyQuestDefinition replacement = randomExcluding(drawPool(server, player), excluded, new Random());
+            if (replacement != null) {
+                slots.set(i, slotTag(replacement));
+                changed = true;
             }
         }
         if (changed) {
-            HubData.get(server).player(player).put(TAG, tag);
-            ActiveStatQuests.invalidate();
+            write(server, player, tag);
+        } else if (marked) {
+            writeProgress(server, player, tag);
         }
     }
 
-    private static CompoundTag slotTag(ResourceLocation quest) {
+    /** A fresh slot; the goal is stored too, so a slot whose quest vanished can still tell it was done (finding 20). */
+    private static CompoundTag slotTag(DailyQuestDefinition quest) {
         CompoundTag slot = new CompoundTag();
-        slot.putString("quest", quest.toString());
+        slot.putString("quest", quest.id().toString());
         slot.putInt("progress", 0);
+        slot.putInt("count", quest.count());
         slot.putBoolean("claimed", false);
         return slot;
     }
@@ -255,9 +365,21 @@ public final class DailyQuests {
         return pool.get(pool.size() - 1);
     }
 
-    /** Claims, rerolls, admin changes: the open stat quests may differ ({@link ActiveStatQuests}). */
+    /**
+     * Claims, rerolls, draws, admin changes: the open stat quests may differ ({@link ActiveStatQuests}). Review finding
+     * 19: stamped, and for an online player copied into their player file ({@link #SAVED}) along with what it paid.
+     * The stamp is always past the stored one too (review of 1.3.133): an offline write on a fresh tag (an admin reset,
+     * extra rerolls granted on a new day) stamped just "now", which a clock step back could put behind the player
+     * file's copy, and that older copy then won at their next login.
+     */
     private static void write(MinecraftServer server, UUID player, CompoundTag tag) {
+        long stored = HubData.get(server).peek(player).getCompound(TAG).getLong("stamp");
+        tag.putLong("stamp", Math.max(System.currentTimeMillis(), Math.max(tag.getLong("stamp"), stored) + 1));
         writeProgress(server, player, tag);
+        ServerPlayer online = server.getPlayerList().getPlayer(player);
+        if (online != null) {
+            online.setAttached(SAVED, tag.copy());
+        }
         ActiveStatQuests.invalidate();
     }
 
@@ -392,7 +514,7 @@ public final class DailyQuests {
         return null;
     }
 
-    /** Claims the all-quests bonus once every slot is claimed. */
+    /** Claims the all-quests bonus once every slot is claimed (a vanished quest's slot aside: {@link State#bonusTotal}). */
     @Nullable
     public static Component claimBonus(ServerPlayer player) {
         MinecraftServer server = player.getServer();
@@ -400,7 +522,7 @@ public final class DailyQuests {
             return null;
         }
         State state = state(server, player.getUUID());
-        if (state.bonusClaimed() || state.slots().isEmpty() || state.claimedCount() < state.slots().size()) {
+        if (state.bonusClaimed() || state.bonusTotal() == 0 || state.claimedCount() < state.bonusTotal()) {
             return Component.translatable("message.eden_ld.dailies.bonus_locked");
         }
         CompoundTag tag = today(server, player.getUUID());
@@ -498,7 +620,7 @@ public final class DailyQuests {
                 away.add(net.minecraft.nbt.StringTag.valueOf(slotIds.get(index).toString()));
                 tag.put("rerolled", away);
             }
-            slots.set(index, slotTag(replacement.id()));
+            slots.set(index, slotTag(replacement));
             String counter = usesFree ? "free_used" : "paid_used";
             tag.putInt(counter, tag.getInt(counter) + 1);
             write(server, player.getUUID(), tag);
@@ -506,9 +628,21 @@ public final class DailyQuests {
         });
     }
 
-    /** A new random set for today, with progress and rerolls starting over (admin reset). */
+    /**
+     * A new random set for today, with progress and rerolls starting over (admin reset). Review finding 94: for an
+     * offline player only the wish is stored; the set is drawn at their loot stage on their first access online.
+     */
     public static void resetToday(MinecraftServer server, UUID player) {
-        fresh(server, player, new Random());
+        if (server.getPlayerList().getPlayer(player) != null) {
+            fresh(server, player, new Random(), 0);
+            return;
+        }
+        CompoundTag reset = new CompoundTag();
+        reset.putLong("day", today());
+        reset.putBoolean("reshuffle", true);
+        // Carried forward, so the reset is newer than any copy of the old tag (review of 1.3.133).
+        reset.putLong("stamp", HubData.get(server).peek(player).getCompound(TAG).getLong("stamp"));
+        write(server, player, reset);
     }
 
     /**

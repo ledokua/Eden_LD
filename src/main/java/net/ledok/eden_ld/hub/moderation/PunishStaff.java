@@ -81,7 +81,7 @@ public final class PunishStaff {
             DUE.remove(handler.getPlayer().getUUID());
         }));
         ServerLifecycleEvents.SERVER_STARTED.register(started ->
-                BanHammerCompat.onPunishment(target -> started.execute(() -> refreshViewers(target))));
+                BanHammerCompat.onPunishment(target -> net.ledok.eden_ld.util.OnServerThread.run(started, () -> refreshViewers(target))));
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
             VIEWING.clear();
             DUE.clear();
@@ -176,32 +176,51 @@ public final class PunishStaff {
     /**
      * The most recently active offline players: every player's data file is saved when they leave,
      * so its date is when they were last here (players from before Eden count too).
+     * <p>
+     * Each file's date is read once, in the folder walk (review finding 47): the sort used to call
+     * {@code File::lastModified} on both sides of every comparison, about 2·N·log2 N stat calls on the server thread
+     * (40–150 ms at 3000 players); now it is N, and the sort compares the dates already read.
      */
     private static void recent(MinecraftServer server, Map<UUID, PunishPlayer> found) {
-        java.io.File[] files = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.PLAYER_DATA_DIR)
-                .toFile().listFiles((dir, name) -> name.endsWith(".dat"));
-        if (files == null || server.getProfileCache() == null) {
+        java.nio.file.Path folder = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.PLAYER_DATA_DIR);
+        if (server.getProfileCache() == null || !java.nio.file.Files.isDirectory(folder)) {
             return;
         }
-        List<java.io.File> sorted = new ArrayList<>(List.of(files));
-        sorted.sort(Comparator.comparingLong(java.io.File::lastModified).reversed());
+        record Seen(UUID uuid, long time) {
+        }
+        List<Seen> seen = new ArrayList<>();
+        try (java.nio.file.DirectoryStream<java.nio.file.Path> files =
+                     java.nio.file.Files.newDirectoryStream(folder, "*.dat")) {
+            for (java.nio.file.Path file : files) {
+                String name = file.getFileName().toString();
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(name.substring(0, name.length() - 4));
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+                if (found.containsKey(uuid)) {
+                    continue;
+                }
+                try {
+                    seen.add(new Seen(uuid, java.nio.file.Files.getLastModifiedTime(file).toMillis()));
+                } catch (java.io.IOException ignored) {
+                    // Gone since the listing (a save's move): not recent then.
+                }
+            }
+        } catch (java.io.IOException | java.nio.file.DirectoryIteratorException e) {
+            EdenLD.LOGGER.warn("[Moderation] Couldn't list {} for recent players: {}", folder, e.toString());
+            return;
+        }
+        seen.sort(Comparator.comparingLong(Seen::time).reversed());
         int added = 0;
-        for (java.io.File file : sorted) {
+        for (Seen entry : seen) {
             if (added >= RECENT_LIMIT) {
                 break;
             }
-            UUID uuid;
-            try {
-                uuid = UUID.fromString(file.getName().substring(0, file.getName().length() - 4));
-            } catch (IllegalArgumentException e) {
-                continue;
-            }
-            if (found.containsKey(uuid)) {
-                continue;
-            }
-            java.util.Optional<GameProfile> profile = server.getProfileCache().get(uuid);
+            java.util.Optional<GameProfile> profile = server.getProfileCache().get(entry.uuid());
             if (profile.isPresent()) {
-                found.put(uuid, new PunishPlayer(uuid, profile.get().getName(), false, file.lastModified()));
+                found.put(entry.uuid(), new PunishPlayer(entry.uuid(), profile.get().getName(), false, entry.time()));
                 added++;
             }
         }
@@ -239,7 +258,7 @@ public final class PunishStaff {
             boolean kept = BanHammerCompat.historyKept();
             List<PunishView> history = BanHammerCompat.history(target);
             return new Object[]{active, kept, history.size() > HISTORY_LIMIT ? history.subList(0, HISTORY_LIMIT) : history};
-        }).thenAccept(read -> server.execute(() -> {
+        }).thenAccept(read -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             ServerPlayer viewer = server.getPlayerList().getPlayer(adminId);
             if (viewer == null || !target.equals(VIEWING.get(adminId))) {
                 return;
@@ -318,7 +337,7 @@ public final class PunishStaff {
             @Override
             public void sendSystemMessage(Component message) {
                 // BanHammer answers from its own thread.
-                server.execute(() -> {
+                net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     ServerPlayer viewer = server.getPlayerList().getPlayer(adminId);
                     if (viewer != null) {
                         notice(viewer, message, !RED.equals(message.getStyle().getColor()));
@@ -378,7 +397,7 @@ public final class PunishStaff {
         MinecraftServer server = admin.server;
         UUID adminId = admin.getUUID();
         CompletableFuture.supplyAsync(() -> new Object[]{BanHammerCompat.historyKept(), BanHammerCompat.recent(LOG_SIZE)})
-                .thenAccept(read -> server.execute(() -> {
+                .thenAccept(read -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     ServerPlayer viewer = server.getPlayerList().getPlayer(adminId);
                     if (viewer != null) {
                         @SuppressWarnings("unchecked") List<PunishView> entries = (List<PunishView>) read[1];

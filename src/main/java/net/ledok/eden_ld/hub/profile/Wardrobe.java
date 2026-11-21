@@ -29,6 +29,12 @@ import java.util.UUID;
 public final class Wardrobe {
 
     private static final int MAX_NOTE = 120;
+    /**
+     * Gifts whose LC take hasn't answered yet, as "giver|recipient|kind|id" (as LookRules' purchases): two quick sends
+     * of the same gift charged twice for one unlock. Server thread only; cleared when the server stops (a take that
+     * answers no more at a stop then can't keep a key forever).
+     */
+    private static final java.util.Set<String> GIFTING = new java.util.HashSet<>();
 
     private Wardrobe() {
     }
@@ -38,6 +44,8 @@ public final class Wardrobe {
                 (payload, context) -> context.server().execute(() -> send(context.player())));
         ServerPlayNetworking.registerGlobalReceiver(HubPayloads.LookGift.TYPE,
                 (payload, context) -> context.server().execute(() -> gift(context.player(), payload)));
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(
+                stopped -> GIFTING.clear());
     }
 
     /** The player's wardrobe (after opening the tab, equipping, buying, or being given something). */
@@ -114,15 +122,28 @@ public final class Wardrobe {
             return;
         }
         String message = note;
+        String pending = giver.getUUID() + "|" + to + "|" + kind.name() + "|" + gift.id();
+        if (!GIFTING.add(pending)) {
+            return;
+        }
         EconomyCompat.take(giver, rule.price(), paid -> {
+            GIFTING.remove(pending);
             if (!paid) {
                 notice(giver, Component.translatable("message.eden_ld.gift.cant_afford", rule.price()), false);
                 return;
             }
-            if (kind == LookRules.Kind.THEME) {
-                HubSettings.setThemeUnlocked(server, to, gift.id(), true);
-            } else {
-                HubSettings.setBackgroundUnlocked(server, to, gift.id(), true);
+            boolean unlocked = kind == LookRules.Kind.THEME
+                    ? HubSettings.setThemeUnlocked(server, to, gift.id(), true)
+                    : HubSettings.setBackgroundUnlocked(server, to, gift.id(), true);
+            if (!unlocked) {
+                // They got it meanwhile (bought it, another gift): the price goes back and no mail is sent.
+                EdenLD.LOGGER.info("{} gave the {} {} to {}, who already had it; refunding {} LC",
+                        giver.getGameProfile().getName(), kind.name().toLowerCase(java.util.Locale.ROOT), gift.id(),
+                        recipient.getName(), rule.price());
+                EconomyCompat.give(giver, rule.price());
+                notice(giver, Component.translatable("message.eden_ld.gift.has_it", recipient.getName()), false);
+                send(giver);
+                return;
             }
             EdenLD.LOGGER.info("{} gave the {} {} to {} for {} LC", giver.getGameProfile().getName(),
                     kind.name().toLowerCase(java.util.Locale.ROOT), gift.id(), recipient.getName(), rule.price());

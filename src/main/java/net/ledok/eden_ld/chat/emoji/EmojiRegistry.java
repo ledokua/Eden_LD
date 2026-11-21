@@ -269,6 +269,10 @@ public final class EmojiRegistry {
     }
 
     public static void initialize() {
+        // guests.json once, before any chat line can add a guest (review finding 69): loaded by every reload on the
+        // common pool, it raced the fetcher's adds (a guest lost, its character handed out again), and an add before
+        // the first reload's load saved a guests.json holding only that guest. A small file, read on the server thread.
+        ServerLifecycleEvents.SERVER_STARTING.register(starting -> GUESTS.load());
         ServerLifecycleEvents.SERVER_STARTED.register(EmojiRegistry::reload);
         // Discord's channel and role names, so the first bridge lines already read "#name".
         ServerLifecycleEvents.SERVER_STARTED.register(started -> net.ledok.eden_ld.chat.DiscordNames.preload());
@@ -439,7 +443,8 @@ public final class EmojiRegistry {
             names.put(name.toLowerCase(Locale.ROOT), emoji);
             ids.put(id, emoji);
         }
-        GUESTS.load();
+        // Guests aren't re-read here (review finding 69): they're loaded once at SERVER_STARTING, and from then on only
+        // the fetcher changes them.
         List<Emoji> all = new ArrayList<>(names.values());
         Map<String, Image> loaded = new HashMap<>();
         for (Emoji emoji : all) {
@@ -468,13 +473,16 @@ public final class EmojiRegistry {
         for (Group group : readGroups) {
             group.emojis().forEach(name -> byEmoji.putIfAbsent(name.toLowerCase(Locale.ROOT), group));
         }
-        server.execute(() -> {
+        net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             groups = readGroups;
             groupOf = byEmoji;
             byName = names;
             listedById = ids;
             listedByCodepoint = characters;
-            IMAGES.clear();
+            // Images of guests added while this reload ran stay (review finding 69: clearing them left those guests
+            // known but imageless until the next reload). Checked per id at removal time: the fetcher registers a
+            // guest before it puts its image.
+            IMAGES.keySet().removeIf(id -> !loaded.containsKey(id) && GUESTS.get(id) == null);
             IMAGES.putAll(loaded);
             // Failed ids get another try.
             FAILED.clear();

@@ -27,7 +27,8 @@ import java.util.UUID;
  * Players a player ignores (the Friends tab's right-click menu, Settings → Privacy, {@code /ignore}).
  * Their chat lines, whispers, deaths and advancements are hidden from the player (the client hides
  * marked lines, so stopping brings earlier lines back), their mentions don't ping, and their party
- * invites, guild invites and friend-request notices don't reach the player. Anyone can be ignored,
+ * invites, guild invites, guild application notices (review finding 29) and friend-request notices don't reach the
+ * player. Anyone can be ignored,
  * staff too, and the ignored player isn't told. Kept in the player's hub data as {uuid, name}: the
  * name they had when last seen, for the lists while they're offline.
  */

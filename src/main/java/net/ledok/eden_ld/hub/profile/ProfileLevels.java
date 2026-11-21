@@ -105,12 +105,20 @@ public final class ProfileLevels {
         if (level <= 0 || totals.isEmpty()) {
             return;
         }
-        player.sendSystemMessage(Component.translatable("message.eden_ld.profile.level_perks", level)
+        player.sendSystemMessage(Component.translatable(localKey("message.eden_ld.profile.level_perks"), level)
                 .withStyle(ChatFormatting.GOLD)
                 .append(" ")
                 .append(LevelPerks.describe(totals).copy().withStyle(ChatFormatting.GREEN))
                 .append(" ")
                 .append(profileLink()));
+    }
+
+    /**
+     * {@code key}, or its "_local" twin without the Minestar name when the server runs without the platform (review
+     * finding 87: local mode announced "Minestar level N!" for Eden's own activity level).
+     */
+    private static String localKey(String key) {
+        return MinestarHook.local() ? key + "_local" : key;
     }
 
     /** Level-up: what the new level(s) gave, or what the next perk is. */
@@ -122,7 +130,7 @@ public final class ProfileLevels {
                 gained.merge(gain.kind(), gain.amount(), Integer::sum);
             }
         }
-        MutableComponent message = Component.translatable("message.eden_ld.profile.level_up", now)
+        MutableComponent message = Component.translatable(localKey("message.eden_ld.profile.level_up"), now)
                 .withStyle(ChatFormatting.GOLD);
         if (!gained.isEmpty()) {
             message.append(" ").append(Component.translatable("message.eden_ld.profile.level_up_gained",

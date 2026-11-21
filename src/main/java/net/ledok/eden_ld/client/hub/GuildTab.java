@@ -651,7 +651,9 @@ final class GuildTab {
         if (HubState.guildChat.stream().allMatch(entry -> HubState.ignores(entry.sender()))) {
             chat.item(EdenParchment.text(tr("chat_empty"), EdenParchment.INK_DIM, (int) (linesWidth - 20)));
         }
+        int index = 0;
         for (HubPayloads.ChatEntry entry : HubState.guildChat) {
+            boolean images = index++ >= HubState.guildChat.size() - ChatText.STICKER_MESSAGES;
             if (entry.sender().equals(Guild.ChatLine.SYSTEM)) {
                 // From Eden itself (staff renamed the guild, …): no face, no name.
                 chat.item(EdenParchment.text(entry.text(), EdenParchment.INK_MID, (int) (linesWidth - 6 - LANE)));
@@ -664,7 +666,7 @@ final class GuildTab {
             line.item(PlayerFace.of(entry.sender(), entry.name(), 8));
             // Hover and click work as in chat (items, spoilers, emojis, links, :pos:).
             line.item(ChatText.message(PlayerNames.chatName(entry.sender(), entry.name()).copy().append(": ")
-                    .append(entry.text()), (int) (linesWidth - 8 - 3 - 6 - LANE)));
+                    .append(entry.text()), (int) (linesWidth - 8 - 3 - 6 - LANE), images));
             chat.item(line);
         }
         ScrollPanel chatPanel = new ScrollPanel(linesWidth, 100, chat);

@@ -57,7 +57,13 @@ public final class ModerationReturn {
 
     public static void initialize() {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof ModerationScreen || screen == followed) {
+            if (screen == followed) {
+                // Resized (window, F11, GUI scale): Fabric gave the screen new event lists, so listen again (review
+                // finding 82: Esc no longer came back, and the stale follow later took over another screen).
+                listen(screen);
+                return;
+            }
+            if (screen instanceof ModerationScreen) {
                 return;
             }
             // Never one of the screens the admin opens by himself (Eden's own, chat, inventory, pause).
@@ -78,6 +84,11 @@ public final class ModerationReturn {
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (!check) {
+                // The followed screen is gone without its close being seen: stop, so a later screen of the same mod
+                // isn't taken for it (review finding 82).
+                if (followed != null && client.screen == null) {
+                    stop();
+                }
                 return;
             }
             check = false;
@@ -100,6 +111,11 @@ public final class ModerationReturn {
         int dot = name.indexOf('.', name.indexOf('.', name.indexOf('.') + 1) + 1);
         // e.g. "net.ledok.arenas_ld." — the screen's mod package.
         followedPackage = dot > 0 ? name.substring(0, dot + 1) : "";
+        listen(screen);
+    }
+
+    /** Esc and close listeners on the followed screen (again after each resize: review finding 82). */
+    private static void listen(Screen screen) {
         ScreenKeyboardEvents.allowKeyPress(screen).register((current, key, scancode, modifiers) -> {
             if (key == GLFW.GLFW_KEY_ESCAPE && current == followed) {
                 escaped = true;

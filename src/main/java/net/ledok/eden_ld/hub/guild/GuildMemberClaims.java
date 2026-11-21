@@ -128,9 +128,11 @@ public final class GuildMemberClaims extends SavedData {
             data.bonus.put(player, clamped);
         }
         data.setDirty();
-        if (GuildManager.get(server).guildOf(player) != null) {
-            // Coalesced: several members changing in one tick cost one sync (review finding 42).
-            GuildServer.scheduleSync(false);
+        Guild guild = GuildManager.get(server).guildOf(player);
+        if (guild != null) {
+            // Coalesced: several members changing in one tick cost one sync (review finding 42). Open banks of the
+            // guild follow after it, since they show the claim limit (review finding 97).
+            GuildServer.scheduleSyncAndBank(guild.id);
         }
     }
 

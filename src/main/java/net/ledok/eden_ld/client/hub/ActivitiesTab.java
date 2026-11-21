@@ -137,7 +137,9 @@ final class ActivitiesTab {
         }
         boolean duels = showingDuels() || showingWagers();
         boolean noActivities = data == null || data.activities().isEmpty();
-        if (noActivities && !duelsAvailable() && !wagersAvailable()) {
+        // A hosted lobby shows even with nothing to list (review finding 74: Arenas without Duels and no visible
+        // activity hid its Ready, Leave and Start behind the empty state).
+        if (noActivities && !duelsAvailable() && !wagersAvailable() && !LobbyBrowser.hostedOpen()) {
             if (data == null) {
                 Flex center = Flex.column().justify(Justify.CENTER).alignItems(Align.CENTER);
                 center.sizing(Sizing.fill(), Sizing.expand());
@@ -521,7 +523,12 @@ final class ActivitiesTab {
                     : HubState.closedActivities.contains(id) && !HubState.closedBypass ? tr("closed")
                     : !entry.unlocked() ? tr("min_level", entry.unlockLevel()) : null;
             for (int i = 0; i < lobbies.size(); i++) {
-                list.item(lobbyRow(entry == null ? null : entry.id(), lobbies.get(i), blocked, i % 2 == 1, width));
+                HubPayloads.LobbyLine lobby = lobbies.get(i);
+                // Below the lobby's or its difficulty's level: greyed, as the server refuses it (review finding 71).
+                Component why = blocked != null ? blocked
+                        : data.gated() && lobby.requiredLevel() > 0 && data.level() < lobby.requiredLevel()
+                        ? tr("browser.min_level_hint", lobby.requiredLevel()) : null;
+                list.item(lobbyRow(entry == null ? null : entry.id(), lobby, why, i % 2 == 1, width));
             }
         }
         if (!any) {

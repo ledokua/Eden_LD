@@ -315,7 +315,9 @@ final class PartyTab {
 
         Flex chat = Flex.column().gap(2).padding(Insets.of(2, 3, 2, 3));
         int shownLines = 0;
+        int index = 0;
         for (HubPayloads.ChatEntry entry : HubState.partyChat) {
+            boolean images = index++ >= HubState.partyChat.size() - ChatText.STICKER_MESSAGES;
             if (HubState.ignores(entry.sender())) {
                 continue;
             }
@@ -324,7 +326,7 @@ final class PartyTab {
             line.item(PlayerFace.of(entry.sender(), entry.name(), 8));
             // Hover and click work as in chat (items, spoilers, emojis, links, :pos:).
             line.item(ChatText.message(PlayerNames.chatName(entry.sender(), entry.name()).copy().append(": ")
-                    .append(entry.text()), (int) (width - 8 - 3 - 6 - LANE)));
+                    .append(entry.text()), (int) (width - 8 - 3 - 6 - LANE), images));
             chat.item(line);
         }
         if (shownLines == 0) {

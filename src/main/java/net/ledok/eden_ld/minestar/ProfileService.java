@@ -56,13 +56,32 @@ final class ProfileService {
         LISTENERS.add(listener);
     }
 
-    /** A fresh profile of an online player (any thread): cached, then the listeners run on the server thread. */
-    static void store(MinecraftServer server, UserProfile profile) {
-        ProfileCache.put(profile);
-        OTHERS.remove(profile.uuid());
-        FAILED.remove(profile.uuid());
+    /**
+     * A fresh profile of {@code player} (any thread): on the server thread it goes into {@link ProfileCache} and the
+     * listeners run, while the player is still online. A fetch that answers after they left keeps the snapshot in the
+     * offline cache instead (review finding 50): put back into the "online" cache after the disconnect evicted it, the
+     * entry stayed with no TTL and offline viewers saw it until a restart.
+     */
+    static void store(MinecraftServer server, ServerPlayer player, UserProfile profile) {
         UUID uuid = profile.uuid();
-        server.execute(() -> LISTENERS.forEach(listener -> listener.accept(server, uuid)));
+        net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+            FAILED.remove(uuid);
+            if (gone(player)) {
+                OTHERS.put(uuid, new Timed(ProfileCache.snapshot(profile), System.currentTimeMillis()));
+                return;
+            }
+            ProfileCache.put(profile);
+            OTHERS.remove(uuid);
+            LISTENERS.forEach(listener -> listener.accept(server, uuid));
+        });
+    }
+
+    /**
+     * Left, or leaving: the disconnect handler may already have run while the player isn't removed yet (review
+     * findings 50 and 91), so a closed connection counts as gone too.
+     */
+    static boolean gone(ServerPlayer player) {
+        return player.hasDisconnected() || !player.connection.isAcceptingMessages();
     }
 
     @Nullable
@@ -130,13 +149,16 @@ final class ProfileService {
         }
     }
 
-    /** Every asker of an in-flight fetch, on the server thread (none once it stopped: execute would run them here). */
+    /**
+     * Every asker of an in-flight fetch, on the server thread (none once it stopped). Through OnServerThread (review
+     * finding 33): {@code execute} ran them on the platform's thread once the server had started stopping.
+     */
     private static void answer(MinecraftServer server, UUID uuid, @Nullable ProfileSnapshot snapshot) {
         InFlight flight = WAITING.remove(uuid);
         if (flight == null || server.isStopped()) {
             return;
         }
-        server.execute(() -> flight.waiters.forEach(waiter -> waiter.accept(snapshot)));
+        net.ledok.eden_ld.util.OnServerThread.run(server, () -> flight.waiters.forEach(waiter -> waiter.accept(snapshot)));
     }
 
     /** Server tick: every {@code profile.refresh_minutes}, online players' profiles are fetched again. */
@@ -147,7 +169,7 @@ final class ProfileService {
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             minestar.getUserProfileByProfileUuid(player.getUUID())
-                    .onSuccess(profile -> store(server, profile))
+                    .onSuccess(profile -> store(server, player, profile))
                     .onFailure(cause -> EdenLD.LOGGER.debug("[Minestar] Profile refresh of {} failed: {}",
                             player.getGameProfile().getName(), cause.toString()));
         }

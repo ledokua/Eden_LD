@@ -233,7 +233,7 @@ public final class MailStaff {
         if (draft.texts().stream().noneMatch(t -> !t.title().isBlank())) {
             problems.add("gui.eden_ld.moderation.problem.no_title");
         }
-        resolve(player.server, draft).whenComplete((recipients, error) -> player.server.execute(() -> {
+        resolve(player.server, draft).whenComplete((recipients, error) -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
             if (error != null) {
                 EdenLD.LOGGER.warn("[Mail] Can't resolve recipients", error);
                 notice(player, Component.translatable("message.eden_ld.mail.failed"), false);
@@ -248,7 +248,7 @@ public final class MailStaff {
                         recipients.unknown(), problems));
                 return;
             }
-            Economy.send(player, draft, recipients).whenComplete((id, sendError) -> player.server.execute(() -> {
+            Economy.send(player, draft, recipients).whenComplete((id, sendError) -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                 if (sendError != null || id == null || id < 0) {
                     EdenLD.LOGGER.warn("[Mail] Sending failed", sendError);
                     notice(player, Component.translatable("message.eden_ld.mail.failed"), false);
@@ -365,7 +365,7 @@ public final class MailStaff {
 
         static void sendLog(ServerPlayer player, boolean everyone) {
             net.ledok.economy_ld.mail.EconomyMail.sent(everyone ? null : player.getUUID(), LOG_SIZE)
-                    .whenComplete((sent, error) -> player.server.execute(() -> {
+                    .whenComplete((sent, error) -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                         if (error != null) {
                             EdenLD.LOGGER.warn("[Mail] Can't read the mail log", error);
                             return;
@@ -404,7 +404,7 @@ public final class MailStaff {
                     .thenCompose(sent -> sent.stream().anyMatch(m -> m.id() == mailId)
                             ? net.ledok.economy_ld.mail.EconomyMail.recall(mailId)
                             : CompletableFuture.completedFuture(false))
-                    .whenComplete((recalled, error) -> player.server.execute(() -> {
+                    .whenComplete((recalled, error) -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                         boolean ok = error == null && Boolean.TRUE.equals(recalled);
                         if (ok) {
                             EdenLD.LOGGER.info("[Mail] {} recalled mail #{}", player.getGameProfile().getName(), mailId);

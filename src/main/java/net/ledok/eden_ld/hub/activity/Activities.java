@@ -145,6 +145,12 @@ public final class Activities {
         return visible;
     }
 
+    /** Whether staff turned the activity on for the hub ("Shown in the hub"); one settings lookup, no source walk. */
+    public static boolean visible(MinecraftServer server, ResourceLocation id) {
+        ActivitySettings.Setting setting = ActivitySettings.get(server).setting(id.toString());
+        return setting != null && setting.visible();
+    }
+
     @Nullable
     public static Activity get(MinecraftServer server, ResourceLocation id) {
         for (ActivitySource source : SOURCES) {

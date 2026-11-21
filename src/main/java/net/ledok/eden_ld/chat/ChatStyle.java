@@ -76,8 +76,9 @@ public final class ChatStyle {
     public static void initialize() {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(started ->
                 LuckPermsCompat.onUserDataChange(NAMES::clear));
-        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                net.ledok.eden_ld.util.OnServerThread.run(server, () -> NAMES.remove(handler.getPlayer().getUUID())));
+        // Once they're out of the player list (review finding 91: removed on DISCONNECT, the name came straight back
+        // with the "left the game" line); a rejoin in between keeps the new session's.
+        net.ledok.eden_ld.hub.HubServer.onLeft((server, id) -> NAMES.remove(id));
     }
 
     /**
@@ -95,9 +96,17 @@ public final class ChatStyle {
         StyledName cached = NAMES.get(player.getUUID());
         if (cached == null || now - cached.tick() >= NAME_TICKS || now < cached.tick() || !cached.vanilla().equals(key)) {
             cached = new StyledName(key, now, styledName(player, vanilla));
-            NAMES.put(player.getUUID(), cached);
+            // Not for a player leaving (review finding 91): their "left the game" line would cache them again.
+            if (!leaving(player)) {
+                NAMES.put(player.getUUID(), cached);
+            }
         }
         return cached.styled().copy();
+    }
+
+    /** Gone or going: disconnected, or the connection closed while they are still in the player list. */
+    private static boolean leaving(ServerPlayer player) {
+        return player.hasDisconnected() || player.connection == null || !player.connection.isAcceptingMessages();
     }
 
     private static Component styledName(ServerPlayer player, Component vanilla) {

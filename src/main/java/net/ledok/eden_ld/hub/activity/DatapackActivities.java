@@ -4,9 +4,12 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.ledok.eden_ld.EdenLD;
+import net.ledok.eden_ld.hub.HubPayloads;
+import net.ledok.eden_ld.hub.lang.ServerLang;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.resources.ResourceLocation;
@@ -118,8 +121,10 @@ public final class DatapackActivities implements ActivitySource {
         for (Entry entry : entries) {
             if (entry.activity().id().equals(activity)) {
                 if (entry.openCommand().isEmpty()) {
-                    player.sendSystemMessage(Component.translatable("message.eden_ld.activities.no_lobby",
-                            entry.activity().name()));
+                    // Its own key (review finding 81): it shared "no_lobby" with the hub's "You're not in a lobby.", and
+                    // the lang file's later entry won, so this line lost the activity's name.
+                    player.sendSystemMessage(Component.translatableWithFallback("message.eden_ld.activities.no_lobby_yet",
+                            "%s has no lobby to open yet.", entry.activity().name()));
                     return true;
                 }
                 MinecraftServer server = player.getServer();
@@ -127,6 +132,23 @@ public final class DatapackActivities implements ActivitySource {
                     server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
                             entry.openCommand().get().replace("{player}", player.getGameProfile().getName()));
                 }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Datapack activities have no leaderboard (review finding 67): the inherited default ran {@link #open}, so the
+     * Leaderboard button ran the file's {@code open_command} (a warp, say). Known ids get a notice, unknown ones false.
+     */
+    @Override
+    public boolean openLeaderboard(ServerPlayer player, ResourceLocation activity) {
+        for (Entry entry : entries) {
+            if (entry.activity().id().equals(activity)) {
+                ServerPlayNetworking.send(player, new HubPayloads.HubNotice(Component.translatableWithFallback(
+                        "message.eden_ld.activities.no_leaderboard", "%s has no leaderboard.",
+                        ServerLang.localize(player, entry.activity().name()))));
                 return true;
             }
         }

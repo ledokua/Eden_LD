@@ -425,11 +425,8 @@ public final class ChannelMenu {
         }
     }
 
+    /** On top of any change still pending (review finding 84: two quick changes undid each other). */
     private static void notify(Channel target, ChannelNotify level) {
-        HubPayloads.SettingsData settings = HubState.settingsData;
-        int packed = settings == null ? 0 : settings.chatNotify();
-        int shift = target.ordinal() * 2;
-        packed = packed & ~(3 << shift) | level.ordinal() << shift;
-        ClientPlayNetworking.send(new HubPayloads.SettingChange(HubSettings.CHAT_NOTIFY, packed));
+        net.ledok.eden_ld.client.hub.HubNotifications.setChatNotify(target.ordinal(), level);
     }
 }

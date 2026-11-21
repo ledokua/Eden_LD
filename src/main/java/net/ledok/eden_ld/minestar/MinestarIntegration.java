@@ -28,15 +28,37 @@ final class MinestarIntegration {
             ServerPlayer player = handler.getPlayer();
             minestar.getUserProfileByProfileUuid(player.getUUID())
                     .onSuccess(profile -> {
-                        ProfileService.store(server, profile);
-                        if (server.isDedicatedServer() && EdenLD.CONFIG.minestar.prime_role_sync_enabled) {
-                            PrimeSync.sync(player, profile);
-                        }
-                        // Requests from players they ignore wait in the panel without a reminder.
-                        int requests = (int) profile.incomingRequests().stream().filter(request ->
-                                !net.ledok.eden_ld.hub.IgnoreList.ignores(server, player.getUUID(), request.uuid())).count();
-                        if (requests > 0) {
-                            server.execute(() -> notifyFriendRequests(player, requests));
+                        // Runs on Minestar's executor. onFailure belongs to the fetch, so an exception here was
+                        // swallowed silently: logged now (review finding 32).
+                        try {
+                            ProfileService.store(server, player, profile);
+                            // PrimeSync only talks to LuckPerms' async API: fine off the server thread.
+                            if (server.isDedicatedServer() && EdenLD.CONFIG.minestar.prime_role_sync_enabled) {
+                                PrimeSync.sync(player, profile);
+                            }
+                            java.util.List<java.util.UUID> requesters = new java.util.ArrayList<>();
+                            for (var request : profile.incomingRequests()) {
+                                requesters.add(request.uuid());
+                            }
+                            if (!requesters.isEmpty()) {
+                                // The ignore check reads HubData (world data, plain maps): on the server thread only
+                                // (review finding 32).
+                                net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
+                                    if (player.hasDisconnected()) {
+                                        return;
+                                    }
+                                    // Requests from players they ignore wait in the panel without a reminder.
+                                    int requests = (int) requesters.stream().filter(requester ->
+                                            !net.ledok.eden_ld.hub.IgnoreList.ignores(server, player.getUUID(),
+                                                    requester)).count();
+                                    if (requests > 0) {
+                                        notifyFriendRequests(player, requests);
+                                    }
+                                });
+                            }
+                        } catch (RuntimeException e) {
+                            EdenLD.LOGGER.error("[Minestar] Handling the join profile of {} failed.",
+                                    player.getGameProfile().getName(), e);
                         }
                     })
                     .onFailure(cause -> EdenLD.LOGGER.error("[Minestar] Failed to fetch profile for {}.",

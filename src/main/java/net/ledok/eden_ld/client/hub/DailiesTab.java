@@ -79,7 +79,10 @@ final class DailiesTab {
 
         Flex header = Flex.row().gap(8).alignItems(Align.CENTER);
         header.sizing(Sizing.fill(), Sizing.content());
-        header.item(chestsButton(screen));
+        // The website's daily chests exist only with the Minestar platform (review finding 90).
+        if (data.platform()) {
+            header.item(chestsButton(screen));
+        }
         header.spacer();
         header.item(EdenParchment.text(tr("free_rerolls", data.freeRerollsLeft()), EdenParchment.INK_DIM));
         // As wide as the longest countdown ("… 23 h 59 min"), so it never cuts and never jumps per tick.
@@ -295,10 +298,18 @@ final class DailiesTab {
         return line;
     }
 
+    /** The card the server sends for a slot whose quest is gone: no title, a barrier icon, a count of 1. */
+    private static boolean vanished(DailyEntry entry) {
+        return entry.count() == 1 && entry.title().getString().isEmpty()
+                && entry.icon().equals(net.minecraft.resources.ResourceLocation.withDefaultNamespace("barrier"));
+    }
+
     private static Flex bonusRow(DailiesData data) {
-        int total = data.quests().size();
+        // A slot whose quest was removed (sent as a nameless barrier card) doesn't hold the bonus back, as on the
+        // server (DailyQuests.State.bonusTotal, review of 1.3.133).
+        int total = (int) data.quests().stream().filter(entry -> entry.claimed() || !vanished(entry)).count();
         int claimed = (int) data.quests().stream().filter(DailyEntry::claimed).count();
-        boolean ready = claimed == total && !data.bonusClaimed();
+        boolean ready = total > 0 && claimed >= total && !data.bonusClaimed();
 
         Flex row = Flex.row().gap(8).padding(Insets.of(3, 6, 3, 6)).alignItems(Align.CENTER);
         row.sizing(Sizing.fill(), Sizing.content());

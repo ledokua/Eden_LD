@@ -66,8 +66,12 @@ final class ShopClaim {
                     List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> purchases;
                     try {
                         purchases = products.stream()
+                                // Cut to the payload's 256 chars: a longer product name kicked the player on every
+                                // join while the purchase waited (review finding 65).
                                 .map(product -> new net.ledok.eden_ld.hub.HubPayloads.ShopPurchase(product.id(),
-                                        product.name() == null ? "" : product.name(), product.quantity()))
+                                        product.name() == null ? ""
+                                                : net.ledok.eden_ld.hub.WebsiteShop.clip(product.name(), 256),
+                                        product.quantity()))
                                 .toList();
                     } catch (RuntimeException e) {
                         // An odd answer must not swallow the callback (the hub's Home and Mail wait on it).
@@ -76,7 +80,7 @@ final class ShopClaim {
                         purchases = List.of();
                     }
                     List<net.ledok.eden_ld.hub.HubPayloads.ShopPurchase> answer = purchases;
-                    server.execute(() -> {
+                    net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                         // Delivered already, its confirmation not through yet: not waiting any more.
                         Set<Long> delivered = unconfirmed(server, player.getUUID());
                         retryConfirmations(delivered, answer.stream().map(net.ledok.eden_ld.hub.HubPayloads.ShopPurchase::id)
@@ -88,7 +92,7 @@ final class ShopClaim {
                 .onFailure(cause -> {
                     EdenLD.LOGGER.warn("[Shop] Failed to count pending products for {}.",
                             player.getGameProfile().getName(), cause);
-                    server.execute(() -> onPurchases.accept(List.of()));
+                    net.ledok.eden_ld.util.OnServerThread.run(server, () -> onPurchases.accept(List.of()));
                 });
     }
 
@@ -98,7 +102,7 @@ final class ShopClaim {
             return;
         }
         minestar.getUserPendingShopProductsByProfileUuidAndServerId(player.getUUID())
-                .onSuccess(products -> server.execute(() -> {
+                .onSuccess(products -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                     Set<Long> delivered = unconfirmed(server, player.getUUID());
                     retryConfirmations(delivered, products.stream().map(ShopProduct::id).collect(Collectors.toSet()),
                             player.getGameProfile().getName());
@@ -164,19 +168,25 @@ final class ShopClaim {
 
         try {
             minestar.getUserPendingShopProductsByProfileUuidAndServerId(uuid)
-                    .onSuccess(all -> server.execute(() -> {
+                    // A hop, not execute (review finding 33): once the server stops, execute ran the delivery on this
+                    // HTTP thread, giving items to a player whose file was already saved while the purchase was
+                    // confirmed. Refused, the purchase simply stays pending on the website.
+                    .onSuccess(all -> net.ledok.eden_ld.util.OnServerThread.hop(server, () -> {
                         try {
                             fetched(server, uuid, name, token, productId, all);
                         } catch (RuntimeException e) {
                             release(uuid, token);
                             throw e;
                         }
+                    }, () -> {
+                        release(uuid, token);
+                        EdenLD.LOGGER.warn("[Shop] The server is stopping; {}'s purchases stay pending.", name);
                     }))
                     .onFailure(cause -> {
                         boolean current = release(uuid, token);
                         EdenLD.LOGGER.error("[Shop] Failed to get pending products for {}.", name, cause);
                         if (current) {
-                            server.execute(() -> {
+                            net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
                                 ServerPlayer online = server.getPlayerList().getPlayer(uuid);
                                 if (online != null) {
                                     online.sendSystemMessage(Component.translatable("message.eden_ld.shop.error")

@@ -183,12 +183,16 @@ final class PlayerCard extends Widget {
         List<net.minecraft.util.FormattedCharSequence> hints = font.split(hint, (int) HOVER_W - 12);
         float height = header + 6 + detail.size() * 10 + 4 + hints.size() * 10 + 5;
 
+        // Kept inside the live canvas, not the old fixed 440×256 hub: a large or maximized hub put the card far
+        // above its row and always to the left (review finding 83).
         float[] at = localToRoot(0, 0);
+        float canvasWidth = screen.canvas().width();
+        float canvasHeight = screen.canvas().height();
         float x = at[0] + width + 4;
-        if (x + HOVER_W > 440 - 2) {
-            x = at[0] - HOVER_W - 4;
+        if (x + HOVER_W > canvasWidth - 2) {
+            x = Math.max(2, at[0] - HOVER_W - 4);
         }
-        float y = Math.max(2, Math.min(at[1], 256 - height - 2));
+        float y = Math.max(2, Math.min(at[1], canvasHeight - height - 2));
 
         CanvasGroup card = new HoverCard(this);
         card.pickable(false);

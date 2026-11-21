@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.compat.arenas;
 
 import net.ledok.arenas_ld.api.ArenasApi;
+import net.ledok.eden_ld.hub.IgnoreList;
 import net.ledok.eden_ld.hub.activity.ActivitySource;
 import net.ledok.eden_ld.minestar.MinestarHook;
 import net.minecraft.resources.ResourceLocation;
@@ -28,7 +29,8 @@ final class ArenasOpenLobbies {
 
     /**
      * Every lobby forming now, by activity: public ones for everyone; friends-only ones (joined by request) only for
-     * the owner's friends and its members (LeDok 2026-11-16). An in-memory read in Arenas_LD.
+     * the owner's friends and its members (LeDok 2026-11-16), and not for friends the owner ignores (review finding
+     * 66). An in-memory read in Arenas_LD.
      */
     static Map<ResourceLocation, List<ActivitySource.OpenLobby>> of(ServerPlayer viewer) {
         UUID self = viewer.getUUID();
@@ -41,7 +43,7 @@ final class ArenasOpenLobbies {
                 if (friends == null) {
                     friends = MinestarHook.friendUuids(self);
                 }
-                if (!friends.contains(lobby.owner())) {
+                if (!friends.contains(lobby.owner()) || IgnoreList.ignores(viewer.server, lobby.owner(), self)) {
                     continue;
                 }
             }
@@ -54,9 +56,26 @@ final class ArenasOpenLobbies {
         return out;
     }
 
-    /** Arenas_LD's own join/request flow (busy, entry gate, one lobby at a time, full); its lobby screen opens. */
+    /**
+     * Arenas_LD's own join/request flow (busy, entry gate, one lobby at a time, full); its lobby screen opens. A
+     * friends-only lobby first gets the same check as {@link #of} (review finding 66): only the owner's friends whom
+     * the owner doesn't ignore may ask, since a modified client could send any lobby id it read elsewhere and the owner
+     * got requests from strangers and ignored players. Refused like a lobby that's gone.
+     */
     @org.jetbrains.annotations.Nullable
     static net.minecraft.network.chat.Component join(ServerPlayer player, ResourceLocation activity, UUID lobby) {
+        UUID self = player.getUUID();
+        for (ArenasApi.OpenLobby open : ArenasApi.listOpenLobbies(player.server)) {
+            if (!open.lobbyId().equals(lobby)) {
+                continue;
+            }
+            if (open.access() == ArenasApi.LobbyAccess.REQUEST && !open.members().contains(self)
+                    && (!MinestarHook.friendUuids(self).contains(open.owner())
+                    || IgnoreList.ignores(player.server, open.owner(), self))) {
+                return net.minecraft.network.chat.Component.translatable("message.eden_ld.activities.unknown");
+            }
+            break;
+        }
         return ArenasApi.joinOpenLobby(player, activity, lobby);
     }
 }

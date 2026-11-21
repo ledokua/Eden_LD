@@ -114,14 +114,25 @@ public final class ActivityServer {
         }
         List<HubPayloads.LobbyBadge> badges = new ArrayList<>();
         Activities.openLobbies(player).forEach((activity, lobbies) -> {
+            // Hidden activities' lobbies (staff tests) only to their members (review finding 28): the badge carried the
+            // lobby id and the owner's name to everyone, and a modified client could then join by id.
+            boolean shown = Activities.visible(player.server, activity);
+            // The level the lobby really asks (review finding 71): its own minimum or its difficulty's, the higher.
+            Activity known = Activities.get(player.server, activity);
             List<HubPayloads.LobbyLine> lines = new ArrayList<>();
             for (ActivitySource.OpenLobby lobby : lobbies) {
+                if (!shown && !lobby.member()) {
+                    continue;
+                }
                 lines.add(new HubPayloads.LobbyLine(lobby.lobbyId(), lobby.owner(), lobby.members(), lobby.maxMembers(),
                         lobby.difficulty(), lobby.hardcore(), lobby.request(), lobby.member(), lobby.ready(),
                         lobby.minLevel(), lobby.modifiers().stream().map(name -> ServerLang.localize(player, name)).toList(),
-                        lobby.createdAt()));
+                        lobby.createdAt(),
+                        Math.max(lobby.minLevel(), known == null ? 0 : known.levelFor(lobby.difficulty()))));
             }
-            badges.add(new HubPayloads.LobbyBadge(activity, lines));
+            if (shown || !lines.isEmpty()) {
+                badges.add(new HubPayloads.LobbyBadge(activity, lines));
+            }
         });
         HubPayloads.ActivityLobbies data = new HubPayloads.ActivityLobbies(Activities.listsLobbies(),
                 Activities.createsLobbies(), badges, instanceCounts(player.server));
@@ -278,7 +289,32 @@ public final class ActivityServer {
         ServerPlayNetworking.send(player, new HubPayloads.ActivitiesData(level, gated, entries, party));
     }
 
+    /**
+     * Whether the hub may act on the activity for this player (review finding 28): it's shown in the hub, or the player
+     * has {@code eden_ld.admin.dungeons}, or they're already in one of its lobbies (a staff test lobby they were let
+     * into, a lobby made at the block). Only the hub's handlers ask: {@link ActivityGate} stays as it is, since it's
+     * also Arenas_LD's block gate, where hidden activities must keep working. Unknown ids pass (the source refuses them).
+     */
+    private static boolean reachable(ServerPlayer player, ResourceLocation id) {
+        MinecraftServer server = player.getServer();
+        if (server == null || Activities.visible(server, id) || Activities.get(server, id) == null
+                || LuckPermsCompat.hasPermission(player, EdenPermissions.DUNGEONS)) {
+            return true;
+        }
+        return Activities.ownLobby(player).map(lobby -> id.equals(lobby.activity())).orElse(false);
+    }
+
+    /** The answer to a hub request for an activity that isn't {@link #reachable}: the same as for an unknown one. */
+    private static void refuseHidden(ServerPlayer player) {
+        ServerPlayNetworking.send(player, new HubPayloads.HubNotice(
+                Component.translatable("message.eden_ld.activities.unknown")));
+    }
+
     private static void open(ServerPlayer player, ResourceLocation id) {
+        if (!reachable(player, id)) {
+            refuseHidden(player);
+            return;
+        }
         Component refused = ActivityGate.check(player, id, null);
         if (refused != null) {
             player.sendSystemMessage(refused.copy().withStyle(ChatFormatting.RED));
@@ -296,7 +332,8 @@ public final class ActivityServer {
      * own flow, which opens the lobby screen. Refused: the hub shows why (the source may tell the chat too).
      */
     private static void joinLobby(ServerPlayer player, ResourceLocation id, UUID lobby) {
-        Component refused = ActivityGate.check(player, id, null);
+        Component refused = reachable(player, id) ? ActivityGate.check(player, id, null)
+                : Component.translatable("message.eden_ld.activities.unknown");
         if (refused == null) {
             refused = Activities.joinLobby(player, id, lobby);
         }
@@ -312,7 +349,8 @@ public final class ActivityServer {
     private static void sendInfo(ServerPlayer player, HubPayloads.ActivityInfoRequest request) {
         MinecraftServer server = player.getServer();
         Activity activity = server == null ? null : Activities.get(server, request.activity());
-        if (activity == null || !ServerPlayNetworking.canSend(player, HubPayloads.ActivityInfoData.TYPE)) {
+        if (activity == null || !reachable(player, activity.id())
+                || !ServerPlayNetworking.canSend(player, HubPayloads.ActivityInfoData.TYPE)) {
             return;
         }
         ActivitySource source = Activities.sourceFor(server, activity.id());
@@ -364,8 +402,9 @@ public final class ActivityServer {
     private static void createLobby(ServerPlayer player, HubPayloads.LobbyCreate create) {
         MinecraftServer server = player.getServer();
         ActivitySource source = server == null ? null : Activities.sourceFor(server, create.activity());
-        Component refused = ActivityGate.check(player, create.activity(),
-                create.difficulty().isEmpty() ? null : create.difficulty());
+        Component refused = !reachable(player, create.activity())
+                ? Component.translatable("message.eden_ld.activities.unknown")
+                : ActivityGate.check(player, create.activity(), create.difficulty().isEmpty() ? null : create.difficulty());
         if (refused == null) {
             refused = source == null || !source.createsLobbies()
                     ? Component.translatable("message.eden_ld.activities.unknown")
@@ -385,6 +424,10 @@ public final class ActivityServer {
 
     /** The create panel's «Таблиця лідерів»: the same checks as opening the activity, then its leaderboard. */
     private static void openLeaderboard(ServerPlayer player, ResourceLocation id) {
+        if (!reachable(player, id)) {
+            refuseHidden(player);
+            return;
+        }
         Component refused = ActivityGate.check(player, id, null);
         if (refused != null) {
             ServerPlayNetworking.send(player, new HubPayloads.HubNotice(refused));

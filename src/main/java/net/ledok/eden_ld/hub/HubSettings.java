@@ -310,7 +310,17 @@ public final class HubSettings {
 
     public static InvitesFrom partyInvitesFrom(MinecraftServer server, UUID player) {
         CompoundTag settings = HubData.get(server).peek(player).getCompound(TAG);
-        return InvitesFrom.of(settings.getInt(PARTY_INVITES_FROM));
+        return withoutFriends(InvitesFrom.of(settings.getInt(PARTY_INVITES_FROM)));
+    }
+
+    /**
+     * Friends only means anyone while friends are unavailable (review finding 86: the settings showed "Anyone", since
+     * the client hides the Friends choice then, while the server blocked every invite and kept the profile private).
+     * The stored value stays, so it applies again once friends come back.
+     */
+    private static InvitesFrom withoutFriends(InvitesFrom value) {
+        return value == InvitesFrom.FRIENDS && !net.ledok.eden_ld.minestar.MinestarHook.social() ? InvitesFrom.ANYONE
+                : value;
     }
 
     /** Whether the player shows their guild tag in chat, the tab list, and above their head. */
@@ -350,7 +360,8 @@ public final class HubSettings {
 
     /** Who may open the player's profile (themselves always can). */
     public static InvitesFrom profileVisibleTo(MinecraftServer server, UUID player) {
-        return InvitesFrom.of(HubData.get(server).peek(player).getCompound(TAG).getInt(PROFILE_VISIBLE_TO));
+        return withoutFriends(
+                InvitesFrom.of(HubData.get(server).peek(player).getCompound(TAG).getInt(PROFILE_VISIBLE_TO)));
     }
 
     /**

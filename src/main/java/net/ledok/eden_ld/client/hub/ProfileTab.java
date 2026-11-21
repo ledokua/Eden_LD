@@ -99,7 +99,10 @@ final class ProfileTab {
         Flex body = Flex.column().gap(6);
         body.sizing(Sizing.fixed(inner), Sizing.content());
         body.item(statsRow(data));
-        body.item(rewardsCard(data));
+        // Platform rewards don't exist without the platform: no empty card in local mode (review of 1.3.133).
+        if (!data.local()) {
+            body.item(rewardsCard(data));
+        }
         if (data.self() && data.platform() && !data.perks().isEmpty()) {
             body.item(perksCard(data));
         }
@@ -259,14 +262,16 @@ final class ProfileTab {
         time.item(caption(tr("total_time")));
         Flex big = Flex.row().gap(4).alignItems(Align.END);
         long serverHours = data.serverPlaytimeTicks() < 0 ? -1 : data.serverPlaytimeTicks() / 72000L;
-        long hours = data.platform() ? data.playtimeSeconds() / 3600L : Math.max(0, serverHours);
+        // Local mode: the profile's playtime is this server's, shown once (review finding 87).
+        boolean allServers = data.platform() && !data.local();
+        long hours = allServers ? data.playtimeSeconds() / 3600L : Math.max(0, serverHours);
         big.item(TextNode.of(Component.literal(grouped(hours))).color(TEXT).shadow(SHADOW).scale(2f));
         big.item(TextNode.of(tr("hours_unit")).color(TEXT_DIM));
         time.item(big);
         // Own lines, wrapped: the Ukrainian wording is long for a half-width card.
         int wrap = (int) (inner / 2 - 3 - 16);
-        time.item(TextNode.of(data.platform() ? tr("hours_all") : tr("hours_here")).color(TEXT_DIM).maxWidth(wrap));
-        if (data.platform() && serverHours >= 0) {
+        time.item(TextNode.of(allServers ? tr("hours_all") : tr("hours_here")).color(TEXT_DIM).maxWidth(wrap));
+        if (allServers && serverHours >= 0) {
             time.item(TextNode.of(tr("this_server", grouped(serverHours))).color(TEXT_DIM).maxWidth(wrap));
         }
         row.item(time);
@@ -274,22 +279,31 @@ final class ProfileTab {
         Flex level = card();
         level.id(HubSpotlights.PROFILE_LEVEL);
         level.sizing(Sizing.expand(), Sizing.content());
-        level.item(caption(tr("activity")));
+        // Local mode: Eden's own activity level, which has no XP to show (review finding 87).
+        level.item(caption(tr(data.local() ? "activity_local" : "activity")));
         if (!data.platform()) {
-            level.item(TextNode.of(tr("no_platform")).color(TEXT_FAINT).maxWidth(170));
+            level.item(TextNode.of(noProfile(data)).color(TEXT_FAINT).maxWidth(170));
         } else {
             Flex line = Flex.row().gap(8).alignItems(Align.CENTER);
             float progress = data.levelXpNeeded() > 0 ? (float) data.levelXp() / data.levelXpNeeded() : 0f;
             line.item(new LevelRing(40, 4, data.level(), progress, TEXT, TRACK, true));
-            Flex numbers = Flex.column().gap(3);
-            numbers.item(TextNode.of(tr("xp", grouped(data.levelXp()), grouped(data.levelXpNeeded())))
-                    .color(TEXT).shadow(SHADOW));
-            numbers.item(TextNode.of(tr("to_next", data.level() + 1, grouped(data.xpToNextLevel()))).color(TEXT_DIM));
-            line.item(numbers);
+            if (!data.local()) {
+                Flex numbers = Flex.column().gap(3);
+                numbers.item(TextNode.of(tr("xp", grouped(data.levelXp()), grouped(data.levelXpNeeded())))
+                        .color(TEXT).shadow(SHADOW));
+                numbers.item(TextNode.of(tr("to_next", data.level() + 1, grouped(data.xpToNextLevel())))
+                        .color(TEXT_DIM));
+                line.item(numbers);
+            }
             level.item(line);
         }
         row.item(level);
         return row;
+    }
+
+    /** "Minestar data isn't available", or without the platform a wording that doesn't name it (review finding 87). */
+    private static Component noProfile(HubPayloads.ProfileData data) {
+        return tr(data.local() ? "no_profile_local" : "no_platform");
     }
 
     private static Flex rewardsCard(HubPayloads.ProfileData data) {
@@ -298,7 +312,7 @@ final class ProfileTab {
         card.sizing(Sizing.fill(), Sizing.content());
         card.item(caption(tr("rewards", data.rewards().size())));
         if (!data.platform()) {
-            card.item(TextNode.of(tr("no_platform")).color(TEXT_FAINT));
+            card.item(TextNode.of(noProfile(data)).color(TEXT_FAINT));
         } else if (data.rewards().isEmpty()) {
             card.item(TextNode.of(tr("no_rewards")).color(TEXT_FAINT));
         } else {

@@ -86,8 +86,12 @@ public final class RentalStash {
     /** Ticks to wait before {@link #HEAL}: past the equipment tick and Trinkets' own. */
     private static final int HEAL_DELAY_TICKS = 3;
 
-    private record Heal(float share, int dueTick) {
+    /** {@code value}: a share of max health, or with {@code absolute} the health itself (capped at max). */
+    private record Heal(float value, boolean absolute, int dueTick) {
     }
+
+    /** {@link #end(ServerPlayer, float)}'s default: the same share of max health as during the session. */
+    private static final float SAME_SHARE = -1.0f;
 
     private static int ticks;
     /** While a renter dies: anything dropped on the ground then (by any mod) is removed. */
@@ -261,11 +265,22 @@ public final class RentalStash {
      * finding 5).
      */
     public static boolean end(ServerPlayer player) {
+        return end(player, SAME_SHARE);
+    }
+
+    /**
+     * As {@link #end(ServerPlayer)}, but once their own gear's max health is in (a few ticks), their health is set to
+     * {@code health} (capped at that max) instead of the share they had of the loadout's; {@code NaN}: health isn't
+     * touched at all. Review finding 64: the default heal ran 3 ticks after Duels_LD restored its pre-duel vitals and
+     * overwrote them (a loser came back at full health); and a caller can't set it itself right after end, since the
+     * loadout's max health still caps it then.
+     */
+    public static boolean end(ServerPlayer player, float health) {
         if (!player.isAlive()) {
             // A stale entity of a player who has respawned since: the living one.
             ServerPlayer current = player.server.getPlayerList().getPlayer(player.getUUID());
             if (current != null && current != player && current.isAlive()) {
-                return end(current);
+                return end(current, health);
             }
         }
         CompoundTag record = player.getAttached(STASH);
@@ -281,6 +296,10 @@ public final class RentalStash {
             // after a logout, the next login) ends the session on the living player.
             if (live != null) {
                 record.putBoolean("owner_ended", true);
+                if (health != SAME_SHARE) {
+                    // The caller's health goes with the deferred end too (review finding 64).
+                    record.putFloat("end_health", health);
+                }
                 player.setAttached(STASH, record);
             }
             EdenLD.LOGGER.info("[Rental] {} ended rental session {} while dead: own items come back at the respawn.",
@@ -338,9 +357,18 @@ public final class RentalStash {
         if (deathXp > 0) {
             player.giveExperiencePoints(deathXp);
         }
+        float endHealth = health == SAME_SHARE && record.contains("end_health", Tag.TAG_FLOAT)
+                ? record.getFloat("end_health") : health;
         player.removeAttached(STASH);
-        // Their own gear's max health: the same share of it as they had of the loadout's.
-        healLater(player, player.getHealth() / Math.max(1.0f, player.getMaxHealth()));
+        if (Float.isNaN(endHealth)) {
+            // The caller restores health itself (review finding 64): no heal, and none still pending from the begin.
+            HEAL.remove(player.getUUID());
+        } else if (endHealth != SAME_SHARE) {
+            HEAL.put(player.getUUID(), new Heal(Math.max(0.0f, endHealth), true, ticks + HEAL_DELAY_TICKS));
+        } else {
+            // Their own gear's max health: the same share of it as they had of the loadout's.
+            healLater(player, player.getHealth() / Math.max(1.0f, player.getMaxHealth()));
+        }
         int dropped = 0;
         for (ItemStack stack : kept) {
             if (!inventory.add(stack) && !stack.isEmpty()) {
@@ -525,7 +553,7 @@ public final class RentalStash {
 
     /** Sets the player's health to {@code share} of their max health a few ticks from now (see {@link #HEAL}). */
     private static void healLater(ServerPlayer player, float share) {
-        HEAL.put(player.getUUID(), new Heal(Math.max(0.0f, Math.min(1.0f, share)), ticks + HEAL_DELAY_TICKS));
+        HEAL.put(player.getUUID(), new Heal(Math.max(0.0f, Math.min(1.0f, share)), false, ticks + HEAL_DELAY_TICKS));
     }
 
     private static void healDue(MinecraftServer server) {
@@ -536,7 +564,10 @@ public final class RentalStash {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
             if (player != null && player.isAlive()) {
                 // Never 0: a share of a sliver still leaves them alive.
-                player.setHealth(Math.max(1.0f, entry.getValue().share() * player.getMaxHealth()));
+                Heal heal = entry.getValue();
+                float health = heal.absolute() ? Math.min(heal.value(), player.getMaxHealth())
+                        : heal.value() * player.getMaxHealth();
+                player.setHealth(Math.max(1.0f, health));
             }
             return true;
         });
@@ -775,10 +806,18 @@ public final class RentalStash {
         return count[0];
     }
 
-    /** The stash's copy for staff, written now (small; a rename, so never half a file). */
+    /**
+     * The stash's copy for staff (a rename, so never half a file). Handed to the world-data writer thread (review
+     * finding 48): vanilla's writeCompressed gzips and writes with SYNC, a few ms per participant in a run's start tick,
+     * for a file only staff ever read. A copy of the record goes, since the record changes later (deaths, extras).
+     * Written here only when the writer can't take it now.
+     */
     private static void writeCopy(ServerPlayer player, CompoundTag record) {
         Path folder = player.server.getWorldPath(LevelResource.ROOT).resolve("eden_ld").resolve("rental");
         Path target = folder.resolve(player.getUUID() + ".dat");
+        if (net.ledok.eden_ld.world.AsyncSavedData.queueFile(target, record.copy())) {
+            return;
+        }
         try {
             Files.createDirectories(folder);
             Path temp = Files.createTempFile(folder, player.getUUID().toString(), ".tmp");

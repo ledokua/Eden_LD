@@ -4,6 +4,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.ledok.eden_ld.client.EdenParchment;
 import net.ledok.eden_ld.hub.HubPayloads;
 import net.ledok.eden_ld.hub.HubSettings;
+import net.minecraft.Util;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -29,16 +30,58 @@ public final class HubNotifications {
     /** Tabs opened this session before the server's echo of {@link HubSettings#SEEN_TABS} lands. */
     private static final Set<HubTab> SEEN_NOW = EnumSet.noneOf(HubTab.class);
 
+    /**
+     * The {@link HubSettings#NOTIFY_OFF} and {@link HubSettings#CHAT_NOTIFY} masks last sent and not
+     * echoed yet (-1 = none), and when. Review finding 84: each change used to start from the last
+     * echo, so a second change within one round trip undid the first; it now builds on the sent
+     * mask until the echo matches it, or {@link #PENDING_MS} passes (a refused or lost change).
+     */
+    private static int notifyOffSent = -1;
+    private static long notifyOffSentAt;
+    private static int chatNotifySent = -1;
+    private static long chatNotifySentAt;
+    private static final long PENDING_MS = 5_000;
+
     private HubNotifications() {
     }
 
     public static void reset() {
         SEEN_NOW.clear();
+        notifyOffSent = -1;
+        chatNotifySent = -1;
     }
 
     public static boolean enabled(Kind kind) {
+        return (notifyOff() & (1 << kind.ordinal())) == 0;
+    }
+
+    /** The kinds turned off: the mask just sent while its echo is pending, else the server's (review finding 84). */
+    public static int notifyOff() {
         HubPayloads.SettingsData settings = HubState.settingsData;
-        return settings == null || (settings.notifyOff() & (1 << kind.ordinal())) == 0;
+        int echoed = settings == null ? 0 : settings.notifyOff();
+        if (notifyOffSent >= 0 && (notifyOffSent == echoed || Util.getMillis() - notifyOffSentAt > PENDING_MS)) {
+            notifyOffSent = -1;
+        }
+        return notifyOffSent >= 0 ? notifyOffSent : echoed;
+    }
+
+    /** The packed per-channel notify levels: the mask just sent while pending, else the server's (review finding 84). */
+    public static int chatNotify() {
+        HubPayloads.SettingsData settings = HubState.settingsData;
+        int echoed = settings == null ? 0 : settings.chatNotify();
+        if (chatNotifySent >= 0 && (chatNotifySent == echoed || Util.getMillis() - chatNotifySentAt > PENDING_MS)) {
+            chatNotifySent = -1;
+        }
+        return chatNotifySent >= 0 ? chatNotifySent : echoed;
+    }
+
+    /** Sets one chat channel's notify level (Settings → Chat, the channel pip's menu), on top of any pending change. */
+    public static void setChatNotify(int channel, HubSettings.ChannelNotify level) {
+        int shift = channel * 2;
+        int packed = chatNotify() & ~(3 << shift) | level.ordinal() << shift;
+        chatNotifySent = packed;
+        chatNotifySentAt = Util.getMillis();
+        ClientPlayNetworking.send(new HubPayloads.SettingChange(HubSettings.CHAT_NOTIFY, packed));
     }
 
     public static HubSettings.NotifyStyle style() {
@@ -93,9 +136,10 @@ public final class HubNotifications {
 
     /** Turns a kind on or off (Settings → Notifications). */
     public static void setEnabled(Kind kind, boolean on) {
-        HubPayloads.SettingsData settings = HubState.settingsData;
-        int mask = settings == null ? 0 : settings.notifyOff();
+        int mask = notifyOff();
         mask = on ? mask & ~(1 << kind.ordinal()) : mask | (1 << kind.ordinal());
+        notifyOffSent = mask;
+        notifyOffSentAt = Util.getMillis();
         ClientPlayNetworking.send(new HubPayloads.SettingChange(HubSettings.NOTIFY_OFF, mask));
     }
 }

@@ -1,5 +1,7 @@
 package net.ledok.eden_ld.tutorial;
 
+import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -33,7 +35,8 @@ import java.util.List;
  * tutorial's room: their inventory and trinkets are put aside, they get ADVENTURE mode, their own phase (other
  * tutorial players are out of sight) and the busy reason {@link BusyLocks#TUTORIAL} (no teleports out, guilds, rewards
  * or spending). Dying there is cancelled. The NPCs_LD guide runs the stages and, last, {@code /eden tutorial finish}:
- * everything comes back and they go to the finish spot. The state lives in the player's hub data ({@code tutorial}).
+ * everything comes back and they go to the finish spot. While they're in it, the stash and the active state live with
+ * the player ({@link #STASH}); the done/skipped history lives in their hub data ({@code tutorial}).
  */
 public final class Tutorial {
 
@@ -41,6 +44,17 @@ public final class Tutorial {
 
     private static final String TAG = "tutorial";
     private static final boolean TRINKETS = FabricLoader.getInstance().isModLoaded("trinkets");
+
+    /**
+     * Review finding 17: the put-aside inventory and trinkets ({@code inventory}, {@code trinkets}, {@code skipping}),
+     * present exactly while the player is in the tutorial. It is saved in the player file with the cleared or restored
+     * inventory and the phase, so a hard stop rolls all of them back together (in hub.dat, written only at autosave,
+     * a stop between the two lost the first-join gifts or gave a stale stash back on top of the inventory).
+     */
+    private static final AttachmentType<CompoundTag> STASH = AttachmentRegistry.<CompoundTag>builder()
+            .persistent(CompoundTag.CODEC)
+            .copyOnDeath()
+            .buildAndRegister(ResourceLocation.fromNamespaceAndPath(EdenLD.MOD_ID, "tutorial_stash"));
 
     private Tutorial() {
     }
@@ -50,7 +64,8 @@ public final class Tutorial {
             ServerPlayer player = handler.getPlayer();
             // Decided now: a tick later the play-time stat has started counting.
             boolean firstTime = player.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME)) == 0;
-            server.execute(() -> onJoin(player, firstTime));
+            // Not execute (review finding 33): once the server has started stopping, that runs on the calling thread.
+            net.ledok.eden_ld.util.OnServerThread.run(server, () -> onJoin(player, firstTime));
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> net.ledok.eden_ld.util.OnServerThread.run(server, () -> {
             BusyState.clearBusy(handler.getPlayer().getUUID(), BusyLocks.TUTORIAL);
@@ -72,9 +87,11 @@ public final class Tutorial {
     // ---------------------------------------------------------------- state
 
     public static State state(ServerPlayer player) {
+        if (player.hasAttached(STASH)) {
+            return State.ACTIVE;
+        }
         CompoundTag tag = HubData.get(player.server).peek(player.getUUID()).getCompound(TAG);
         return switch (tag.getString("state")) {
-            case "active" -> State.ACTIVE;
             case "done" -> State.DONE;
             case "skipped" -> State.SKIPPED;
             default -> State.NONE;
@@ -82,9 +99,10 @@ public final class Tutorial {
     }
 
     public static boolean isActive(ServerPlayer player) {
-        return state(player) == State.ACTIVE;
+        return player.hasAttached(STASH);
     }
 
+    /** The player's tutorial history in hub data (done or skipped; "active" is {@link #STASH}). */
     private static CompoundTag data(ServerPlayer player) {
         CompoundTag hub = HubData.get(player.server).player(player.getUUID());
         if (!hub.contains(TAG, Tag.TAG_COMPOUND)) {
@@ -98,9 +116,24 @@ public final class Tutorial {
             return;
         }
         State state = state(player);
+        boolean phased = net.ledok.eden_ld.tutorial.phase.Phases.of(player) != null;
         if (state == State.ACTIVE) {
-            // Busy is kept in memory only; the phase is saved with the player.
+            // Busy is kept in memory only; the stash and the phase are saved with the player (review finding 17: both
+            // in the player file, so they agree; a stash without its phase gets it back).
             BusyState.setBusy(player, BusyLocks.TUTORIAL);
+            if (!phased) {
+                TutorialPhases.enter(player);
+            }
+        } else if (phased) {
+            // Review finding 17: a phase with no stash (no tutorial to finish): out of the phase and adventure mode, to
+            // the finish spot, keeping what they hold.
+            EdenLD.LOGGER.warn("[Tutorial] {} joined in a tutorial phase without being in the tutorial; letting them out.",
+                    player.getGameProfile().getName());
+            TutorialPhases.leave(player);
+            leaveAdventure(player);
+            // As finish() does, so the realms the tutorial unlocks get unlocked (review of 1.3.133).
+            run(player, EdenLD.CONFIG.tutorial.commands_on_finish);
+            toFinishSpot(player);
         } else if (state == State.NONE && firstTime && EdenLD.CONFIG.tutorial.enabled) {
             start(player);
         }
@@ -117,19 +150,20 @@ public final class Tutorial {
                     config.dimension, player.getGameProfile().getName());
             return false;
         }
-        CompoundTag data = data(player);
-        if (!"active".equals(data.getString("state"))) {
+        CompoundTag stash = player.getAttached(STASH);
+        if (stash == null) {
             // Put aside what they carry (not again when already in: that would overwrite it with tutorial items).
+            stash = new CompoundTag();
             ListTag inventory = new ListTag();
             player.getInventory().save(inventory);
-            data.put("inventory", inventory);
+            stash.put("inventory", inventory);
             player.getInventory().clearContent();
             if (TRINKETS) {
-                data.put("trinkets", TutorialTrinkets.takeAll(player));
+                stash.put("trinkets", TutorialTrinkets.takeAll(player));
             }
         }
-        data.putString("state", "active");
-        data.remove("skipping");
+        stash.remove("skipping");
+        player.setAttached(STASH, stash);
         BusyState.setBusy(player, BusyLocks.TUTORIAL);
         TutorialPhases.enter(player);
         player.setGameMode(GameType.ADVENTURE);
@@ -146,37 +180,64 @@ public final class Tutorial {
      * {@link #finish} then saves "skipped"; once they're out, "done" becomes "skipped". False when they never started.
      */
     public static boolean markSkipped(ServerPlayer player) {
-        CompoundTag data = data(player);
-        switch (data.getString("state")) {
-            case "active" -> data.putBoolean("skipping", true);
-            case "done", "skipped" -> data.putString("state", "skipped");
-            default -> {
-                return false;
+        CompoundTag stash = player.getAttached(STASH);
+        if (stash != null) {
+            stash.putBoolean("skipping", true);
+            player.setAttached(STASH, stash);
+        } else {
+            CompoundTag data = data(player);
+            switch (data.getString("state")) {
+                case "done", "skipped" -> data.putString("state", "skipped");
+                default -> {
+                    return false;
+                }
             }
         }
         EdenLD.LOGGER.info("[Tutorial] {} skipped the tutorial.", player.getGameProfile().getName());
         return true;
     }
 
-    /** Ends the tutorial (finished or skipped): everything back, the finish spot, never again on join. */
+    /**
+     * Ends the tutorial (finished or skipped): everything back, the finish spot, never again on join. Review finding
+     * 18: the stash is given back after the teleport, so anything that overflows lands at the player's feet at the
+     * finish spot (out of the phase, where they can see it) rather than in the tutorial room they just left.
+     * <p>
+     * The stash leaves the attachment first but is given back in a {@code finally} (review of 1.3.133): a step that
+     * throws (a phase, a command, the teleport) used to lose the player's whole inventory with the attachment gone.
+     * It is given back exactly once, even then; the error still surfaces after.
+     */
     public static void finish(ServerPlayer player) {
         EdenConfig.Tutorial config = EdenLD.CONFIG.tutorial;
+        CompoundTag stash = player.getAttached(STASH);
         CompoundTag data = data(player);
-        boolean wasActive = "active".equals(data.getString("state"));
-        boolean skipped = data.getBoolean("skipping") || "skipped".equals(data.getString("state"));
+        boolean skipped = stash != null && stash.getBoolean("skipping") || "skipped".equals(data.getString("state"));
         data.putString("state", skipped ? "skipped" : "done");
-        data.remove("skipping");
-        BusyState.clearBusy(player, BusyLocks.TUTORIAL);
-        TutorialPhases.leave(player);
-        if (wasActive) {
-            giveBack(player, data);
-            if (player.gameMode.getGameModeForPlayer() == GameType.ADVENTURE) {
-                player.setGameMode(player.server.getDefaultGameType());
+        player.removeAttached(STASH);
+        try {
+            BusyState.clearBusy(player, BusyLocks.TUTORIAL);
+            TutorialPhases.leave(player);
+            // Review finding 17: out of adventure mode even when there was no stash to give back.
+            leaveAdventure(player);
+            run(player, config.commands_on_finish);
+            toFinishSpot(player);
+        } finally {
+            if (stash != null) {
+                giveBack(player, stash);
             }
+            player.inventoryMenu.broadcastChanges();
         }
-        data.remove("inventory");
-        data.remove("trinkets");
-        run(player, config.commands_on_finish);
+        EdenLD.LOGGER.info("[Tutorial] {} {} the tutorial.", player.getGameProfile().getName(),
+                skipped ? "left (skipped)" : "finished");
+    }
+
+    private static void leaveAdventure(ServerPlayer player) {
+        if (player.gameMode.getGameModeForPlayer() == GameType.ADVENTURE) {
+            player.setGameMode(player.server.getDefaultGameType());
+        }
+    }
+
+    private static void toFinishSpot(ServerPlayer player) {
+        EdenConfig.Tutorial config = EdenLD.CONFIG.tutorial;
         ServerLevel level = level(player.server, config.finish_dimension);
         if (level != null) {
             teleport(player, level, config.finish_spot, true);
@@ -184,13 +245,14 @@ public final class Tutorial {
             EdenLD.LOGGER.error("[Tutorial] Finish dimension {} doesn't exist; {} stays where they are.",
                     config.finish_dimension, player.getGameProfile().getName());
         }
-        player.inventoryMenu.broadcastChanges();
-        EdenLD.LOGGER.info("[Tutorial] {} {} the tutorial.", player.getGameProfile().getName(),
-                skipped ? "left (skipped)" : "finished");
     }
 
-    /** The saved inventory back in its slots; whatever they hold now is kept too (added, or dropped at their feet). */
-    private static void giveBack(ServerPlayer player, CompoundTag data) {
+    /**
+     * The saved inventory back in its slots, then the saved trinkets, and last whatever they hold now (tutorial
+     * leftovers), so when something must overflow it is the leftovers rather than their own things (review finding
+     * 18). Overflow drops at their feet: called once they are out of the phase and at the finish spot.
+     */
+    private static void giveBack(ServerPlayer player, CompoundTag stash) {
         List<ItemStack> holding = new ArrayList<>();
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
             ItemStack stack = player.getInventory().getItem(slot);
@@ -198,14 +260,14 @@ public final class Tutorial {
                 holding.add(stack.copy());
             }
         }
-        player.getInventory().load(data.getList("inventory", Tag.TAG_COMPOUND));
+        player.getInventory().load(stash.getList("inventory", Tag.TAG_COMPOUND));
+        if (TRINKETS && stash.contains("trinkets", Tag.TAG_LIST)) {
+            TutorialTrinkets.giveBack(player, stash.getList("trinkets", Tag.TAG_COMPOUND));
+        }
         for (ItemStack stack : holding) {
-            if (!player.getInventory().add(stack)) {
+            if (!player.getInventory().add(stack) && !stack.isEmpty()) {
                 player.drop(stack, false);
             }
-        }
-        if (TRINKETS && data.contains("trinkets", Tag.TAG_LIST)) {
-            TutorialTrinkets.giveBack(player, data.getList("trinkets", Tag.TAG_COMPOUND));
         }
     }
 

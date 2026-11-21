@@ -221,7 +221,8 @@ public final class MailHub {
                             ? java.util.concurrent.CompletableFuture.completedFuture(List.<net.ledok.economy_ld.mail.Mail>of())
                             : net.ledok.economy_ld.mail.EconomyMail.list(player.getUUID()))
                     .whenComplete((mails, error) ->
-                    player.server.execute(() -> {
+                    // Not execute (review finding 33): once the server stops, that ran this on the database thread.
+                    net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                         if (error != null) {
                             EdenLD.LOGGER.warn("[Mail] Can't load the mail of {}", player.getGameProfile().getName(), error);
                             return;
@@ -284,7 +285,7 @@ public final class MailHub {
                     // 1.3.102: a hanging database gives a warning (below) instead of a hub without its Mail tab.
                     .orTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                     .whenComplete((both, error) ->
-                    player.server.execute(() -> {
+                    net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                         if (error != null) {
                             EdenLD.LOGGER.warn("[Mail] Can't load the mail of {}", player.getGameProfile().getName(), error);
                             return;
@@ -346,7 +347,7 @@ public final class MailHub {
             switch (action.action()) {
                 case OPEN -> net.ledok.economy_ld.mail.EconomyMail.markRead(uuid, action.mailId());
                 case DELETE -> net.ledok.economy_ld.mail.EconomyMail.delete(uuid, action.mailId())
-                        .thenAccept(deleted -> player.server.execute(() -> {
+                        .thenAccept(deleted -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> {
                             if (!deleted) {
                                 notice(player, Component.translatable("message.eden_ld.mail.claim_first"));
                             }
@@ -363,7 +364,7 @@ public final class MailHub {
                     var claim = action.action() == HubPayloads.MailAction.Action.CLAIM
                             ? net.ledok.economy_ld.mail.EconomyMail.claim(player, action.mailId())
                             : net.ledok.economy_ld.mail.EconomyMail.claimAll(player);
-                    claim.whenComplete((result, error) -> player.server.execute(() -> report(player, result, error)));
+                    claim.whenComplete((result, error) -> net.ledok.eden_ld.util.OnServerThread.run(player.server, () -> report(player, result, error)));
                 }
                 // The wallet bar: Economy_LD moves the coins and toasts the outcome; COINS_MOVED resends the balance.
                 case WITHDRAW -> net.ledok.economy_ld.network.CoinNetworking.withdraw(player, action.mailId());

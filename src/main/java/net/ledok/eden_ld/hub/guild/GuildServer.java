@@ -42,6 +42,11 @@ public final class GuildServer {
     private static final AtomicBoolean SYNC_PENDING = new AtomicBoolean();
     private static final AtomicBoolean MEMBERSHIP_PENDING = new AtomicBoolean();
     private static final Set<UUID> SELF_PENDING = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * Guilds whose open banks must be re-sent after this tick's sync (review finding 97): the bank shows the claim
+     * limit, which only the sync's OPAC reconcile updates, so a push before it showed the old limit.
+     */
+    private static final Set<UUID> BANK_PENDING = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private GuildServer() {
     }
@@ -62,13 +67,16 @@ public final class GuildServer {
             GuildManager.get(server).onJoin(handler.getPlayer());
             scheduleSync(false);
         }));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                server.execute(() -> scheduleSync(false)));
+        // Once the leaver is out of the player list, so the members' tabs show them offline (review finding 91).
+        net.ledok.eden_ld.hub.HubServer.onLeft((server, gone) -> scheduleSync(false));
         ServerTickEvents.END_SERVER_TICK.register(GuildServer::drain);
         ServerLifecycleEvents.SERVER_STOPPED.register(stopped -> {
             SYNC_PENDING.set(false);
             MEMBERSHIP_PENDING.set(false);
             SELF_PENDING.clear();
+            BANK_PENDING.clear();
+            // A creation fee's take answers no more once the server stops (review of 1.3.133).
+            CREATING.clear();
         });
     }
 
@@ -81,6 +89,16 @@ public final class GuildServer {
         if (membership) {
             MEMBERSHIP_PENDING.set(true);
         }
+        SYNC_PENDING.set(true);
+    }
+
+    /**
+     * Like {@link #scheduleSync scheduleSync(false)}, and this guild's open banks are re-sent right after the sync
+     * (review finding 97): for changes to the claim limit (a claim upgrade, a member's Prime), which the bank's
+     * "used / limit" line shows. Thread-safe.
+     */
+    public static void scheduleSyncAndBank(UUID guildId) {
+        BANK_PENDING.add(guildId);
         SYNC_PENDING.set(true);
     }
 
@@ -101,8 +119,18 @@ public final class GuildServer {
             }
         }
         if (membership) {
+            BANK_PENDING.clear();
             GuildBankServer.pushAll(server);
             net.ledok.eden_ld.hub.HubServer.refreshWaystones(server);
+        } else if (!BANK_PENDING.isEmpty()) {
+            GuildManager manager = GuildManager.get(server);
+            for (java.util.Iterator<UUID> it = BANK_PENDING.iterator(); it.hasNext(); ) {
+                Guild guild = manager.byId(it.next());
+                it.remove();
+                if (guild != null) {
+                    GuildBankServer.pushToViewers(server, guild);
+                }
+            }
         }
     }
 
@@ -233,8 +261,9 @@ public final class GuildServer {
         UUID me = player.getUUID();
         UUID target = action.target();
         switch (action.kind()) {
-            case CREATE, INVITE, ACCEPT_INVITE, APPLY, JOIN -> {
-                // No joining, founding or inviting mid-run or in the tutorial.
+            case CREATE, INVITE, ACCEPT_INVITE, APPLY, JOIN, ACCEPT_APPLICATION -> {
+                // No joining, founding, inviting or accepting mid-run or in the tutorial (accepting: review
+                // finding 68).
                 if (net.ledok.eden_ld.hub.BusyLocks.refuse(player)) {
                     return;
                 }
@@ -257,8 +286,11 @@ public final class GuildServer {
                 Guild applied = manager.byId(target);
                 yield applied != null && applied.applications.containsKey(me);
             }
-            // Accepting also drops an application whose applicant joined another guild meanwhile (an error result).
-            case DECLINE_APPLICATION, ACCEPT_APPLICATION -> officer && mine.applications.containsKey(target);
+            case DECLINE_APPLICATION -> officer && mine.applications.containsKey(target);
+            // Accepting also drops an application whose applicant joined another guild meanwhile (an error result);
+            // a busy applicant is refused and nothing changes (review finding 68).
+            case ACCEPT_APPLICATION -> officer && mine.applications.containsKey(target)
+                    && (manager.guildOf(target) != null || !net.ledok.busylib.BusyState.isBusy(target));
             default -> false;
         };
         Component result = switch (action.kind()) {

@@ -1,6 +1,7 @@
 package net.ledok.eden_ld.mixin;
 
 import net.ledok.eden_ld.compat.CombatTeamsCompat;
+import net.ledok.eden_ld.compat.SpellProjectiles;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.Projectile;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,6 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * alone isn't enough: an arrow whose hit deals no damage bounces back, and before the
  * damage call the arrow already records the victim as its owner's last hurt mob — which
  * sends the owner's pets after the partymate. Not colliding at all avoids both.
+ * <p>
+ * Spell Engine's projectiles are the exception for friends (review finding 98): their heals and buffs must reach
+ * them, and Spell Engine decides friend or foe itself on impact (see {@link SpellProjectiles}). Only ignored pairs
+ * stay apart for them. A non-piercing spell aimed at an enemy may then stop at a friend in its path, as Spell Engine
+ * means it to without Eden.
  */
 @Mixin(Projectile.class)
 public abstract class ProjectileMixin {
@@ -25,7 +31,8 @@ public abstract class ProjectileMixin {
             return;
         }
         CombatTeamsCompat.Relation relation = CombatTeamsCompat.resolve(owner, target);
-        if (relation != null && !relation.friendlyFire()) {
+        if (relation != null && !relation.friendlyFire()
+                && (relation.ignore() || !SpellProjectiles.is(this))) {
             cir.setReturnValue(false);
         }
     }
